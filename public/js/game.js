@@ -311,7 +311,9 @@ async function login(kind) {
 
 /* ---------- Événements ---------- */
 document.querySelectorAll("[data-provider]").forEach((b) => (b.onclick = () => login(b.dataset.provider)));
-$("btnUser").onclick = async () => { stopTimer(); try { localStorage.removeItem(SESS); } catch {} await logout(); S.uid = null; show("s-login"); };
+// « Sortir » : abandonne la partie en cours et revient au choix du nombre de joueurs
+$("btnUser").onclick = () => { stopTimer(); show("s-count"); };
+$("btnLogout").onclick = async () => { stopTimer(); try { localStorage.removeItem(SESS); } catch {} await logout(); S.uid = null; show("s-login"); };
 $("cMinus").onclick = () => setCount(-1);
 $("cPlus").onclick = () => setCount(1);
 $("btnCount").onclick = () => { renderSlots(); show("s-names"); };
