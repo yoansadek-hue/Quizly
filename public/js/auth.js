@@ -1,7 +1,7 @@
 import { firebaseConfig } from "./config.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
-  getAuth, GoogleAuthProvider, OAuthProvider,
+  getAuth, GoogleAuthProvider,
   signInWithPopup, onAuthStateChanged, signOut
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
@@ -17,19 +17,11 @@ export function watch(cb) {
   onAuthStateChanged(auth, cb);
 }
 
-export function signIn(kind) {
+export function signIn() {
   if (!configured) {
     return Promise.reject(new Error("Connexion indisponible : renseignez js/config.js (voir README)."));
   }
-  let provider;
-  if (kind === "apple") {
-    provider = new OAuthProvider("apple.com");
-    provider.addScope("name");
-    provider.addScope("email");
-  } else {
-    provider = new GoogleAuthProvider();
-  }
-  return signInWithPopup(auth, provider);
+  return signInWithPopup(auth, new GoogleAuthProvider());
 }
 
 export const logout = () => (configured ? signOut(auth) : Promise.resolve());
