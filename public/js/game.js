@@ -6,7 +6,7 @@ const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
 const TIME = 30;
 const S = {
   uid: null, count: 4, slots: [], players: [], themes: new Set(THEMES),
-  i: -1, diff: 1, q: null, buf: [], loading: null, joker: false, locked: false, tid: null, left: TIME
+  i: -1, diff: 1, q: null, buf: [], loading: null, joker: false, locked: false, tid: null, left: TIME, elim: 0
 };
 
 /* ---------- Écrans & effets ---------- */
@@ -51,37 +51,53 @@ function setCount(d) {
 }
 
 /* ---------- Noms + import de profil ---------- */
+const rosterKey = () => `quizly:${S.uid}:roster`;
+function loadRoster() {
+  try { S.slots = JSON.parse(localStorage.getItem(rosterKey()) || "[]").map((x) => ({ name: x.name || "", lives: x.lives || 0, imported: !!x.imported })); }
+  catch { S.slots = []; }
+  S.count = Math.min(12, Math.max(2, S.slots.length || 4));
+  $("cNum").textContent = S.count;
+}
+function saveRoster() { try { localStorage.setItem(rosterKey(), JSON.stringify(S.slots)); } catch {} }
+
+function refresh(slot, input, found) {
+  const p = slot.name && getDB()[slot.name.toLowerCase()];
+  found.className = "found"; found.replaceChildren();
+  if (!p) { found.hidden = true; return; }
+  found.hidden = false;
+  const t = document.createElement("span");
+  const plural = (n) => `${n} vie${n > 1 ? "s" : ""}`;
+  if (slot.imported) { found.className = "found done"; t.textContent = `Importé · ${plural(slot.lives)}`; found.append(t); return; }
+  t.textContent = `Profil trouvé · ${plural(p.lives)}`;
+  const b = document.createElement("button");
+  b.textContent = "Importer";
+  b.onclick = () => { slot.lives = p.lives; slot.imported = true; slot.name = p.name; input.value = p.name; refresh(slot, input, found); saveRoster(); };
+  found.append(t, b);
+}
+
 function renderSlots() {
   const box = $("slots");
   box.replaceChildren();
-  S.slots = Array.from({ length: S.count }, () => ({ name: "", lives: 0, imported: false }));
+  // garde les premiers joueurs, retire ceux du bas si le nombre baisse, ajoute des champs vides s'il monte
+  S.slots = Array.from({ length: S.count }, (_, i) => S.slots[i] || { name: "", lives: 0, imported: false });
   S.slots.forEach((slot, i) => {
     const wrap = document.createElement("div");
     wrap.className = "slot";
     const input = document.createElement("input");
     input.type = "text"; input.maxLength = 20; input.placeholder = `Joueur ${i + 1}`; input.autocomplete = "off";
+    input.value = slot.name;
     const found = document.createElement("div");
     found.className = "found"; found.hidden = true;
     input.addEventListener("input", () => {
       slot.name = input.value.trim(); slot.lives = 0; slot.imported = false;
-      const p = slot.name && getDB()[slot.name.toLowerCase()];
-      found.hidden = !p; found.className = "found";
-      if (!p) return;
-      found.replaceChildren();
-      const t = document.createElement("span");
-      t.textContent = `Profil trouvé · ${p.lives} vie${p.lives > 1 ? "s" : ""}`;
-      const b = document.createElement("button");
-      b.textContent = "Importer";
-      b.onclick = () => {
-        slot.lives = p.lives; slot.imported = true; slot.name = p.name; input.value = p.name;
-        found.className = "found done"; t.textContent = `Importé · ${p.lives} vie${p.lives > 1 ? "s" : ""}`; b.remove();
-      };
-      found.append(t, b);
+      refresh(slot, input, found); saveRoster();
     });
+    refresh(slot, input, found);
     wrap.append(input, found);
     wrap.style.animation = `in .4s ${i * 50}ms both`;
     box.append(wrap);
   });
+  saveRoster();
 }
 function validateNames() {
   const names = S.slots.map((s) => s.name.toLowerCase());
@@ -127,13 +143,14 @@ async function getQuestion() {
 
 /* ---------- Partie ---------- */
 const alive = () => S.players.filter((p) => !p.dead);
+const kill = (p) => { p.dead = true; p.outAt = ++S.elim; };
 
 function startGame() {
   if (!S.themes.size) { $("setupMsg").textContent = "Choisissez au moins un thème."; return; }
   $("setupMsg").textContent = "";
-  S.players = S.slots.map((s) => ({ name: s.name, lives: s.lives, joker: true, dead: false }));
-  saveDB();
-  S.i = -1; S.diff = 1; S.buf = []; S.loading = null;
+  S.players = S.slots.map((s) => ({ name: s.name, lives: s.lives, joker: true, dead: false, score: 0, outAt: 0 }));
+  saveDB(); saveRoster();
+  S.elim = 0; S.i = -1; S.diff = 1; S.buf = []; S.loading = null;
   nextTurn();
 }
 
@@ -231,6 +248,7 @@ function pickOption(o, btn) {
 function judge(ok) { if (S.locked) return; S.locked = true; finish(ok); }
 
 function finish(correct) {
+  if (correct) S.players[S.i].score++;
   flash(correct ? "ok" : "ko");
   setTimeout(() => resolve(correct), 500);
 }
@@ -242,12 +260,12 @@ function resolve(correct) {
     $("reviveName").textContent = p.name;
     $("lifeCount").textContent = p.lives;
     show("s-revive");
-  } else { p.dead = true; afterTurn(); }
+  } else { kill(p); afterTurn(); }
 }
 
 function revive(useLife) {
   const p = S.players[S.i];
-  if (useLife) p.lives--; else p.dead = true;
+  if (useLife) p.lives--; else kill(p);
   saveDB();
   afterTurn();
 }
@@ -262,9 +280,25 @@ function afterTurn() {
 function chooseLevel(up) { if (up) S.diff = Math.min(S.diff + 1, 5); nextTurn(); }
 
 function endGame(w) {
-  if (w) { w.lives++; saveDB(); }
+  if (w) w.lives++;
+  S.players.forEach((p, i) => { if (S.slots[i]) { S.slots[i].lives = p.lives; S.slots[i].imported = true; } });
+  saveDB(); saveRoster();
   $("winner").textContent = w ? w.name : "Égalité";
   $("endNote").textContent = w ? "+1 vie gagnée" : "Personne ne gagne de vie";
+  const order = [...S.players].sort((a, b) => (b === w) - (a === w) || b.outAt - a.outAt);
+  const ol = $("ranking");
+  ol.replaceChildren();
+  order.forEach((p, i) => {
+    const li = document.createElement("li");
+    li.className = "rk" + (i === 0 ? " first" : "");
+    li.style.animationDelay = `${0.35 + i * 0.12}s`;
+    const pos = document.createElement("span"); pos.className = "pos"; pos.textContent = i + 1;
+    const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = p.name;
+    const st = document.createElement("span"); st.className = "st";
+    st.textContent = `${p.score} bonne${p.score > 1 ? "s" : ""} · ❤ ${p.lives}`;
+    li.append(pos, nm, st);
+    ol.append(li);
+  });
   show("s-end");
   confetti();
 }
@@ -277,7 +311,7 @@ async function login(kind) {
 
 /* ---------- Événements ---------- */
 document.querySelectorAll("[data-provider]").forEach((b) => (b.onclick = () => login(b.dataset.provider)));
-$("btnUser").onclick = async () => { stopTimer(); await logout(); };
+$("btnUser").onclick = async () => { stopTimer(); try { localStorage.removeItem(SESS); } catch {} await logout(); S.uid = null; show("s-login"); };
 $("cMinus").onclick = () => setCount(-1);
 $("cPlus").onclick = () => setCount(1);
 $("btnCount").onclick = () => { renderSlots(); show("s-names"); };
@@ -301,10 +335,26 @@ $("btnUp").onclick = () => chooseLevel(true);
 $("btnStay").onclick = () => chooseLevel(false);
 $("btnAgain").onclick = () => show("s-count");
 
+const SESS = "quizly:session";
+const getSess = () => { try { return JSON.parse(localStorage.getItem(SESS) || "null"); } catch { return null; } };
+function enter(uid, name) {
+  S.uid = uid;
+  $("btnUser").textContent = (name || "Compte").split(" ")[0] + " · Sortir";
+  loadRoster();
+  show("s-count");
+}
+
+// Session mémorisée : on entre directement dans le menu, Firebase confirme ensuite en arrière-plan
+const saved = getSess();
+if (saved) enter(saved.uid, saved.name);
+
 watch((user) => {
   if (user) {
-    S.uid = user.uid;
-    $("btnUser").textContent = (user.displayName || user.email || "Compte").split(" ")[0] + " · Sortir";
-    show("s-count");
-  } else { S.uid = null; show("s-login"); }
+    const name = user.displayName || user.email || "Compte";
+    try { localStorage.setItem(SESS, JSON.stringify({ uid: user.uid, name })); } catch {}
+    if (S.uid !== user.uid) enter(user.uid, name);
+  } else {
+    try { localStorage.removeItem(SESS); } catch {}
+    S.uid = null; stopTimer(); show("s-login");
+  }
 });
