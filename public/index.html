@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1b2cc1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<title>Quizly</title>
+</head>
+<body>
+<header id="bar" hidden>
+  <span class="logo">Quizly</span>
+  <button id="btnUser" class="chip" aria-label="Compte"></button>
+</header>
+
+<div id="fx"></div>
+<main>
+  <!-- Connexion obligatoire -->
+  <section id="s-login" class="screen" hidden>
+    <h1 class="hero">Quizly</h1>
+    <p class="lead">Connectez-vous pour jouer. Vos vies gagnées vous suivent partout.</p>
+    <div class="stack">
+      <button class="btn white" data-provider="google">Continuer avec Google</button>
+      <button class="btn ink" data-provider="apple">Continuer avec Apple</button>
+      <p id="loginMsg" class="msg" role="alert"></p>
+    </div>
+  </section>
+
+  <!-- Nombre de joueurs -->
+  <section id="s-count" class="screen center" hidden>
+    <h2>Combien de joueurs ?</h2>
+    <div class="stepper">
+      <button class="btn white" id="cMinus" aria-label="Moins">−</button>
+      <span class="num" id="cNum">4</span>
+      <button class="btn white" id="cPlus" aria-label="Plus">+</button>
+    </div>
+    <div class="dock"><button class="btn sun" id="btnCount">Continuer</button></div>
+  </section>
+
+  <!-- Noms -->
+  <section id="s-names" class="screen" hidden>
+    <h2>Qui est là ?</h2>
+    <p class="lead small">Tapez un nom. S'il existe déjà, importez votre profil.</p>
+    <div id="slots" class="stack"></div>
+    <p id="namesMsg" class="msg" role="alert"></p>
+    <div class="dock"><button class="btn sun" id="btnNames">Choisir les thèmes</button></div>
+  </section>
+
+  <!-- Thèmes -->
+  <section id="s-themes" class="screen" hidden>
+    <div class="row between">
+      <h2>Thèmes</h2>
+      <span><button class="link" id="themesAll">Tous</button> <button class="link" id="themesNone">Aucun</button></span>
+    </div>
+    <div id="themes" class="chips"></div>
+    <p id="setupMsg" class="msg" role="alert"></p>
+    <div class="dock"><button class="btn sun" id="btnStart">Lancer la partie</button></div>
+  </section>
+
+  <!-- Chargement IA -->
+  <section id="s-load" class="screen center" hidden>
+    <div class="dots"><span></span><span></span><span></span></div>
+    <p class="lead" id="loadText">L'IA prépare vos questions…</p>
+    <div class="stack" id="loadErr" hidden>
+      <button class="btn sun" id="btnRetry">Réessayer</button>
+    </div>
+  </section>
+
+  <!-- Jeu -->
+  <section id="s-game" class="screen" hidden>
+    <p class="who"><span id="whoName"></span><span id="whoLives" class="chip small"></span></p>
+    <div class="clockrow"><div class="timer"><i id="bar30"></i></div><span id="clock" class="clock">30</span></div>
+    <div class="scene"><div class="card" id="card" role="button" tabindex="0" aria-label="Retourner la carte">
+      <div class="face front">
+        <span class="chip small" id="tag"></span>
+        <p class="q" id="qText"></p>
+        <span class="tap" id="tap">Touchez pour voir la réponse</span>
+      </div>
+      <div class="face back">
+        <span class="chip small" id="backTag">Réponse</span>
+        <p class="a" id="aText"></p>
+      </div>
+    </div></div>
+    <div id="mcq" class="grid" hidden></div>
+    <div class="dock" id="dockGame"><button class="btn white" id="btnJoker">Joker : 4 choix</button></div>
+    <div class="dock" id="dockJudge" hidden>
+      <p class="judge">Le groupe valide ?</p>
+      <div class="two">
+        <button class="btn mint" id="btnOk">Correct</button>
+        <button class="btn coral" id="btnKo">Faux</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Niveau -->
+  <section id="s-level" class="screen center" hidden>
+    <p class="lead">Niveau actuel</p>
+    <h2 class="big" id="lvName"></h2>
+    <div class="stack">
+      <button class="btn sun" id="btnUp">Monter d'un niveau</button>
+      <button class="btn ghost" id="btnStay">Garder ce niveau</button>
+    </div>
+  </section>
+
+  <!-- Élimination -->
+  <section id="s-revive" class="screen center" hidden>
+    <h2 class="big">Éliminé</h2>
+    <p class="lead"><span id="reviveName"></span>, il vous reste <strong id="lifeCount"></strong> vie(s).</p>
+    <div class="stack">
+      <button class="btn sun" id="btnUseLife">Utiliser une vie</button>
+      <button class="btn ghost" id="btnDie">Quitter la partie</button>
+    </div>
+  </section>
+
+  <!-- Fin -->
+  <section id="s-end" class="screen center" hidden>
+    <p class="lead">Vainqueur</p>
+    <h2 class="hero" id="winner"></h2>
+    <p class="lead" id="endNote">+1 vie gagnée</p>
+    <div class="stack"><button class="btn sun" id="btnAgain">Rejouer</button></div>
+  </section>
+</main>
+
+<script type="module" src="js/game.js"></script>
+</body>
+</html>

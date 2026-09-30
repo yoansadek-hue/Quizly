@@ -1,0 +1,10 @@
+{
+  "name": "Quizly",
+  "short_name": "Quizly",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1b2cc1",
+  "theme_color": "#1b2cc1",
+  "lang": "fr"
+}
