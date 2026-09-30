@@ -154,3 +154,12 @@ body.shake main{animation:shake .45s}
 /* boutons de bas d'écran des formulaires : dans le flux, jamais par-dessus le contenu */
 #s-names .dock{position:static;margin-top:22px;padding:0;background:none;max-width:none}
 #s-themes .dock{position:sticky;bottom:0;margin:16px -18px 0;max-width:none}
+
+/* classement */
+.rank{list-style:none;padding:0;margin:0 0 24px;display:flex;flex-direction:column;gap:10px;text-align:left}
+.rk{display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--white);color:var(--ink);border:3px solid var(--ink);border-radius:16px;box-shadow:3px 3px 0 var(--ink);animation:in .45s both}
+.rk.first{background:var(--sun);box-shadow:5px 5px 0 var(--ink)}
+.rk .pos{flex:none;width:36px;height:36px;display:grid;place-items:center;border-radius:50%;background:var(--ink);color:var(--white);font:800 18px var(--font)}
+.rk .nm{flex:1;font-weight:800;font-size:19px;overflow-wrap:anywhere}
+.rk .st{font-size:14px;font-weight:800;text-align:right;line-height:1.25}
+#winner{overflow-wrap:anywhere}
