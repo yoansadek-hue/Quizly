@@ -1,8 +1,6 @@
-// Console Firebase > Paramètres du projet > Vos applications > Configuration.
-// Ces valeurs sont publiques par conception : ce n'est PAS la clé Anthropic.
 export const firebaseConfig = {
-  apiKey: "",
-  authDomain: "",
-  projectId: "",
-  appId: ""
+  apiKey: "AIzaSyDJzyZdd-X9RG2DDnsLpZR8ifCf85N6lRE",
+  authDomain: "quizly-ca5c1.firebaseapp.com",
+  projectId: "quizly-ca5c1",
+  appId: "1:553958488595:web:438e99694e0af8c2525de6"
 };
