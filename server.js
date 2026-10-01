@@ -2,7 +2,7 @@ import "dotenv/config";
 import express from "express";
 
 const app = express();
-app.use(express.json({ limit: "10kb" }));
+app.use(express.json({ limit: "60kb" }));
 const ICONS = {
   180: "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",
   192: "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",
@@ -38,6 +38,10 @@ app.post("/api/questions", async (req, res) => {
   const themes = (Array.isArray(req.body.themes) ? req.body.themes : []).slice(0, 15).map((t) => String(t).slice(0, 30));
   const diff = Math.min(Math.max(+req.body.difficulty || 1, 1), 5);
   const count = Math.min(Math.max(+req.body.count || 10, 1), 15);
+  const avoid = (Array.isArray(req.body.avoid) ? req.body.avoid : []).slice(-60).map((x) => String(x).slice(0, 100));
+  const prompt = `Génère ${count} questions variées sur ces thèmes : ${themes.join(", ")}. Difficulté visée : ${diff}/5 (1 = très facile, 5 = expert).
+Varie fortement les sous-thèmes, les époques, les pays et les angles. Évite les questions les plus classiques et les plus connues. Aucune question ne doit se ressembler. Graine de variété : ${Math.random().toString(36).slice(2, 8)}.` +
+    (avoid.length ? `\nQuestions DÉJÀ POSÉES : ne les repose jamais, ne les reformule pas et n'utilise pas la même réponse :\n- ${avoid.join("\n- ")}` : "");
   if (!themes.length) return res.status(400).json({ error: "Aucun thème" });
 
   try {
@@ -46,9 +50,10 @@ app.post("/api/questions", async (req, res) => {
       headers: { "content-type": "application/json", authorization: `Bearer ${KEY}` },
       body: JSON.stringify({
         model: MODEL,
+        temperature: 1,
         messages: [
           { role: "system", content: SYSTEM },
-          { role: "user", content: `Génère ${count} questions variées sur ces thèmes : ${themes.join(", ")}. Difficulté visée : ${diff}/5 (1 = très facile, 5 = expert).` }
+          { role: "user", content: prompt }
         ]
       })
     });
