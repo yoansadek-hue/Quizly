@@ -3,10 +3,16 @@ import { watch, signIn, logout } from "./auth.js";
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
-const TIME = 30;
+const MODES = {
+  classic: { name: "Classique", desc: "Réponse à l'oral, le groupe valide. Carte retournable à volonté, joker 4 choix.", qcm: false, time: 30, joker: true, lives: true },
+  qcm: { name: "QCM", desc: "Toutes les questions en 4 choix, correction automatique.", qcm: true, time: 30, joker: false, lives: true },
+  sudden: { name: "Mort subite", desc: "Une erreur et vous sortez : ni vie, ni joker. 20 secondes.", qcm: false, time: 20, joker: false, lives: false },
+  flash: { name: "Éclair", desc: "QCM chronométré : 10 secondes par question.", qcm: true, time: 10, joker: false, lives: true }
+};
+const M = () => MODES[S.mode];
 const S = {
   uid: null, count: 4, slots: [], players: [], themes: new Set(THEMES),
-  i: -1, diff: 1, q: null, buf: [], loading: null, joker: false, locked: false, tid: null, left: TIME, elim: 0
+  i: -1, diff: 1, q: null, buf: [], loading: null, joker: false, locked: false, tid: null, left: 30, elim: 0, mode: "classic", played: new Set()
 };
 
 /* ---------- Écrans & effets ---------- */
@@ -150,7 +156,7 @@ function startGame() {
   $("setupMsg").textContent = "";
   S.players = S.slots.map((s) => ({ name: s.name, lives: s.lives, joker: true, dead: false, score: 0, outAt: 0 }));
   saveDB(); saveRoster();
-  S.elim = 0; S.i = -1; S.diff = 1; S.buf = []; S.loading = null;
+  S.elim = 0; S.played = new Set(); S.i = -1; S.diff = 1; S.buf = []; S.loading = null;
   nextTurn();
 }
 
@@ -171,33 +177,41 @@ async function loadAndPlay() {
 }
 
 function prepareCard() {
-  const p = S.players[S.i];
+  const p = S.players[S.i], m = M();
   S.joker = false; S.locked = false;
   $("card").classList.remove("flipped");
+  delete $("card").dataset.seen;
+  $("scene").classList.toggle("compact", m.qcm);
   $("whoName").textContent = p.name;
   $("whoLives").textContent = `❤ ${p.lives}`;
+  $("whoLives").hidden = !m.lives;
   $("tag").textContent = `${S.q.t} · ${LEVELS[S.diff]}`;
   $("backTag").textContent = "Réponse";
   $("qText").textContent = S.q.q;
   $("aText").textContent = S.q.a;
   $("tap").textContent = "Touchez pour voir la réponse";
-  $("mcq").hidden = true; $("dockJudge").hidden = true; $("dockGame").hidden = false;
-  $("btnJoker").hidden = !p.joker;
+  $("tap").hidden = m.qcm;
+  $("mcq").hidden = true; $("dockJudge").hidden = true;
+  $("btnJoker").hidden = !(m.joker && p.joker);
+  $("dockGame").hidden = $("btnJoker").hidden;
   show("s-game");
   startTimer();
+  if (m.qcm) { S.joker = true; renderChoices(); }
 }
 
 /* ---------- Minuteur 30 s ---------- */
 function startTimer() {
   stopTimer();
-  S.left = TIME;
+  const time = M().time, warn = time >= 20 ? 10 : 3;
+  S.left = time;
   const bar = $("bar30"), clock = $("clock");
-  bar.style.animation = "none"; void bar.offsetWidth; bar.style.animation = "";
+  bar.style.setProperty("--dur", time + "s");
+  bar.style.animation = "none"; void bar.offsetWidth; bar.style.animation = ""; bar.style.animationPlayState = "";
   clock.textContent = S.left; clock.classList.remove("urgent");
   S.tid = setInterval(() => {
     S.left--;
     clock.textContent = Math.max(S.left, 0);
-    if (S.left <= 10) clock.classList.add("urgent");
+    if (S.left <= warn) clock.classList.add("urgent");
     if (S.left <= 0) timeUp();
   }, 1000);
 }
@@ -206,7 +220,13 @@ function stopTimer() { clearInterval(S.tid); S.tid = null; $("bar30").style.anim
 function timeUp() {
   if (S.locked) return;
   S.locked = true; stopTimer();
-  $("mcq").hidden = true; $("dockGame").hidden = true;
+  $("dockGame").hidden = true;
+  if (M().qcm) {
+    document.querySelectorAll("#mcq .btn").forEach((b) => { b.disabled = true; if (b.textContent === S.q.a) b.classList.add("right"); });
+    setTimeout(() => { $("mcq").hidden = true; finish(false); }, 1800);
+    return;
+  }
+  $("mcq").hidden = true;
   $("backTag").textContent = "Temps écoulé";
   $("card").classList.add("flipped");
   setTimeout(() => finish(false), 2200);
@@ -214,16 +234,18 @@ function timeUp() {
 
 /* ---------- Actions ---------- */
 function flip() {
-  if (S.joker || S.locked || $("card").classList.contains("flipped")) return;
-  stopTimer();
-  $("card").classList.add("flipped");
-  $("dockGame").hidden = true;
-  setTimeout(() => ($("dockJudge").hidden = false), 350);
+  if (S.joker || S.locked || M().qcm) return;
+  const c = $("card"), first = !c.dataset.seen;
+  c.classList.toggle("flipped");           // la carte se retourne autant de fois qu'on veut
+  if (first) {
+    c.dataset.seen = "1";
+    stopTimer();
+    $("dockGame").hidden = true;
+    setTimeout(() => ($("dockJudge").hidden = false), 350);
+  }
 }
 
-function useJoker() {
-  S.joker = true;
-  S.players[S.i].joker = false;
+function renderChoices() {
   $("dockGame").hidden = true;
   const box = $("mcq");
   box.replaceChildren();
@@ -234,6 +256,12 @@ function useJoker() {
     box.append(b);
   });
   box.hidden = false;
+}
+
+function useJoker() {
+  S.joker = true;
+  S.players[S.i].joker = false;
+  renderChoices();
 }
 
 function pickOption(o, btn) {
@@ -256,7 +284,7 @@ function finish(correct) {
 function resolve(correct) {
   if (correct) return afterTurn();
   const p = S.players[S.i];
-  if (p.lives > 0) {
+  if (M().lives && p.lives > 0) {
     $("reviveName").textContent = p.name;
     $("lifeCount").textContent = p.lives;
     show("s-revive");
@@ -270,9 +298,12 @@ function revive(useLife) {
   afterTurn();
 }
 
-/* Après chaque question : le groupe décide du niveau */
+/* Le niveau est demandé quand tous les joueurs encore en jeu ont joué */
 function afterTurn() {
   if (alive().length <= 1) return endGame(alive()[0]);
+  S.played.add(S.i);
+  if (!alive().every((p) => S.played.has(S.players.indexOf(p)))) return nextTurn();
+  S.played.clear();
   $("lvName").textContent = `${S.diff} · ${LEVELS[S.diff]}`;
   $("btnUp").hidden = S.diff >= 5;
   show("s-level");
@@ -311,8 +342,8 @@ async function login(kind) {
 
 /* ---------- Événements ---------- */
 document.querySelectorAll("[data-provider]").forEach((b) => (b.onclick = () => login(b.dataset.provider)));
-// « Sortir » : abandonne la partie en cours et revient au choix du nombre de joueurs
-$("btnUser").onclick = () => { stopTimer(); show("s-count"); };
+// « Sortir » : abandonne la partie en cours et revient au choix du mode de jeu
+$("btnUser").onclick = () => { stopTimer(); show("s-mode"); };
 $("btnLogout").onclick = async () => { stopTimer(); try { localStorage.removeItem(SESS); } catch {} await logout(); S.uid = null; show("s-login"); };
 $("cMinus").onclick = () => setCount(-1);
 $("cPlus").onclick = () => setCount(1);
@@ -335,15 +366,30 @@ $("btnUseLife").onclick = () => revive(true);
 $("btnDie").onclick = () => revive(false);
 $("btnUp").onclick = () => chooseLevel(true);
 $("btnStay").onclick = () => chooseLevel(false);
-$("btnAgain").onclick = () => show("s-count");
+$("btnAgain").onclick = () => show("s-mode");
 
 const SESS = "quizly:session";
 const getSess = () => { try { return JSON.parse(localStorage.getItem(SESS) || "null"); } catch { return null; } };
+function renderModes() {
+  const box = $("modes");
+  box.replaceChildren();
+  Object.entries(MODES).forEach(([id, m], i) => {
+    const b = document.createElement("button");
+    b.className = "mode"; b.dataset.m = id; b.style.animationDelay = `${i * 70}ms`;
+    const t = document.createElement("strong"); t.textContent = m.name;
+    const d = document.createElement("span"); d.textContent = m.desc;
+    b.append(t, d);
+    b.onclick = () => { S.mode = id; $("modeLabel").textContent = `Mode : ${m.name}`; show("s-count"); };
+    box.append(b);
+  });
+}
+
 function enter(uid, name) {
   S.uid = uid;
-  $("btnUser").textContent = (name || "Compte").split(" ")[0] + " · Sortir";
+  $("userName").textContent = (name || "Compte").split(" ")[0] + " · Sortir";
   loadRoster();
-  show("s-count");
+  renderModes();
+  show("s-mode");
 }
 
 // Session mémorisée : on entre directement dans le menu, Firebase confirme ensuite en arrière-plan
