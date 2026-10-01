@@ -12,7 +12,7 @@ const MODES = {
 const TIMES = [10, 15, 20, 30, 45, 60, 0];
 const JOKERS = [0, 1, 2, 3, 5];
 const S = {
-  uid: null, firstName: "", count: 4, slots: [], players: [], themes: new Set(THEMES),
+  uid: null, firstName: "", count: 4, slots: [], players: [], themes: new Set(),
   i: -1, diff: 1, q: null, buf: [], loading: null, joker: false, locked: false, tid: null, left: 30,
   elim: 0, mode: "classic", played: new Set(), asked: [], inGame: false, pending: false, resume: false,
   cfg: { time: 30, jokers: 1 }
@@ -26,7 +26,7 @@ const M = () => MODES[S.mode];
 function show(id) {
   document.querySelectorAll(".screen").forEach((s) => (s.hidden = s.id !== id));
   $("bar").hidden = id === "s-login";
-  window.scrollTo(0, 0);
+  const el = $(id); if (el) el.scrollTop = 0;
 }
 function flash(kind) {
   const fx = $("fx");
@@ -130,7 +130,6 @@ function renderThemes() {
     box.append(b);
   });
 }
-const setAllThemes = (on) => { S.themes = new Set(on ? THEMES : []); renderThemes(); };
 
 function opts(box, values, current, label, onPick) {
   box.replaceChildren();
@@ -142,11 +141,8 @@ function opts(box, values, current, label, onPick) {
     box.append(b);
   });
 }
-function renderSettings() {
-  opts($("optTime"), TIMES, S.cfg.time, (v) => (v ? `${v} s` : "Sans limite"), (v) => (S.cfg.time = v));
-  $("jokerBox").hidden = !M().joker;
-  opts($("optJokers"), JOKERS, S.cfg.jokers, String, (v) => (S.cfg.jokers = v));
-}
+const renderTime = () => opts($("optTime"), TIMES, S.cfg.time, (v) => (v ? `${v} s` : "Sans limite"), (v) => (S.cfg.time = v));
+const renderJokers = () => opts($("optJokers"), JOKERS, S.cfg.jokers, String, (v) => (S.cfg.jokers = v));
 
 /* ---------- Questions : 100 % IA, sans répétition ---------- */
 const norm = (s) => String(s).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
@@ -166,12 +162,12 @@ function remember(q) {
 }
 const seen = (q) => S.asked.some((x) => similar(x, q)) || getHist().some((x) => similar(x, q));
 const usable = (d) => S.buf.filter((q) => !q.u && q.d === d && !seen(q.q));
-const getAvoid = () => [...new Set([...getHist().slice(-30), ...S.asked])].slice(-45).map((q) => q.slice(0, 100));
+const getAvoid = () => [...new Set([...getHist().slice(-15), ...S.asked])].slice(-25).map((q) => q.slice(0, 80));
 
 function fill() {
   const d = S.diff;
   if (S.loading && S.loading.d === d) return S.loading.p;
-  const p = fetchAI([...S.themes], d, 10, getAvoid())
+  const p = fetchAI([...S.themes].sort(() => Math.random() - 0.5).slice(0, 5), d, 6, getAvoid())
     .then((qs) => {
       qs.forEach((q) => { if (!seen(q.q) && !S.buf.some((b) => similar(b.q, q.q))) S.buf.push({ ...q, d }); });
     })
@@ -185,7 +181,7 @@ async function getQuestion() {
     if (pool.length) {
       const q = pool[Math.floor(Math.random() * pool.length)];
       q.u = true; remember(q.q);
-      if (usable(S.diff).length < 4) fill().catch(() => {});
+      if (usable(S.diff).length < 3) fill().catch(() => {});
       return q;
     }
     await fill();
@@ -199,8 +195,7 @@ const over = () => (M().solo ? alive().length === 0 : alive().length <= 1);
 const kill = (p) => { p.dead = true; p.outAt = ++S.elim; };
 
 function startGame() {
-  if (!S.themes.size) { $("setupMsg").textContent = "Choisissez au moins un thème."; return; }
-  $("setupMsg").textContent = "";
+  if (!S.themes.size) return;
   const m = M();
   S.players = S.slots.map((s) => ({ name: s.name, lives: m.solo ? 3 : s.lives, jokers: m.joker ? S.cfg.jokers : 0, dead: false, score: 0, outAt: 0 }));
   if (!m.solo) saveDB();
@@ -522,10 +517,14 @@ $("btnCount").onclick = () => { renderSlots(); show("s-names"); };
 $("btnNames").onclick = () => {
   const err = validateNames();
   $("namesMsg").textContent = err;
-  if (!err) { renderThemes(); renderSettings(); show("s-themes"); }
+  if (!err) { renderThemes(); show("s-themes"); }
 };
-$("themesAll").onclick = () => setAllThemes(true);
-$("themesNone").onclick = () => setAllThemes(false);
+$("btnThemes").onclick = () => {
+  if (!S.themes.size) { $("setupMsg").textContent = "Choisissez au moins un thème."; return; }
+  $("setupMsg").textContent = "";
+  renderTime(); show("s-time");
+};
+$("btnTime").onclick = () => { if (M().joker) { renderJokers(); show("s-jokers"); } else startGame(); };
 $("btnStart").onclick = startGame;
 $("btnRetry").onclick = loadAndPlay;
 $("btnSwap").onclick = () => { if (S.locked || !S.inGame) return; stopTimer(); loadAndPlay(); };
