@@ -125,7 +125,7 @@ input[type=text]{
 /* minuteur */
 .clockrow{display:flex;align-items:center;gap:12px;margin-top:12px}
 .timer{flex:1;height:16px;background:var(--ink);border:3px solid var(--ink);border-radius:99px;overflow:hidden}
-.timer i{display:block;height:100%;transform-origin:left;animation:drain 30s linear forwards,tint 30s linear forwards}
+.timer i{display:block;height:100%;transform-origin:left;animation:drain var(--dur,30s) linear forwards,tint var(--dur,30s) linear forwards}
 .clock{font:800 28px var(--font);min-width:2ch;text-align:right}
 .clock.urgent{color:var(--coral);animation:beat .5s infinite alternate}
 /* retours */
@@ -163,3 +163,19 @@ body.shake main{animation:shake .45s}
 .rk .nm{flex:1;font-weight:800;font-size:19px;overflow-wrap:anywhere}
 .rk .st{font-size:14px;font-weight:800;text-align:right;line-height:1.25}
 #winner{overflow-wrap:anywhere}
+
+/* logo Google */
+.g{width:20px;height:20px;flex:none}
+.btn .g{display:inline-block;vertical-align:-4px;margin-right:10px;width:22px;height:22px}
+/* modes de jeu */
+.modes{display:flex;flex-direction:column;gap:14px}
+.mode{display:block;width:100%;text-align:left;padding:16px 18px;font:inherit;color:var(--ink);background:var(--white);border:3px solid var(--ink);border-radius:18px;box-shadow:var(--shadow);cursor:pointer;animation:pop .4s both;transition:transform .08s,box-shadow .08s}
+.mode strong{display:block;font:800 24px var(--font);margin-bottom:2px}
+.mode span{display:block;font-size:16px;line-height:1.35;color:#2c2f5c}
+.mode[data-m=qcm]{background:var(--lilac)} .mode[data-m=sudden]{background:var(--coral)} .mode[data-m=flash]{background:var(--sun)}
+.mode:active{transform:translate(3px,3px);box-shadow:1px 1px 0 var(--ink)}
+@media (hover:hover){.mode:hover{transform:translate(-2px,-2px);box-shadow:6px 6px 0 var(--ink)}}
+.mode:focus-visible{outline:3px solid var(--sun);outline-offset:3px}
+.center-link{text-align:center;margin:18px 0 0}
+/* mode QCM : carte compacte */
+.scene.compact .card{height:230px;min-height:0}
