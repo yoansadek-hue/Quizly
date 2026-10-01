@@ -26,7 +26,7 @@ const M = () => MODES[S.mode];
 function show(id) {
   document.querySelectorAll(".screen").forEach((s) => (s.hidden = s.id !== id));
   $("bar").hidden = id === "s-login";
-  const el = $(id); if (el) el.scrollTop = 0;
+  window.scrollTo(0, 0);
 }
 function flash(kind) {
   const fx = $("fx");
