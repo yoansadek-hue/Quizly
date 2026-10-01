@@ -24,7 +24,8 @@ const hits = new Map(); // limite : 10 requêtes / minute / IP
 const SYSTEM = `Tu génères des questions de quiz en français.
 Réponds UNIQUEMENT par un tableau JSON, sans texte autour ni balises Markdown.
 Chaque élément : {"t": thème, "d": difficulté 1-5, "q": question, "a": bonne réponse courte, "o": 4 propositions dont "a"}.
-Les questions doivent être exactes, sans ambiguïté, avec une seule bonne réponse et des mauvaises réponses plausibles.`;
+Les questions doivent être exactes, sans ambiguïté, avec une seule bonne réponse et des mauvaises réponses plausibles.
+Pour tout thème contenant « Musique » : uniquement de la musique moderne (années 2000 à aujourd'hui) : rap US et FR, R&B, pop actuelle, afrobeats ; artistes, albums, titres, collaborations. Jamais de musique classique ni de variété ancienne.`;
 
 app.post("/api/questions", async (req, res) => {
   if (!KEY) return res.status(500).json({ error: "AI_API_KEY manquante côté serveur" });
