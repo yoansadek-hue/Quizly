@@ -51,12 +51,14 @@ Varie fortement les sous-thèmes, les époques, les pays et les angles. Évite l
       body: JSON.stringify({
         model: MODEL,
         temperature: 1,
+        ...(MODEL.includes("gpt-oss") ? { reasoning_effort: "low" } : {}),
         messages: [
           { role: "system", content: SYSTEM },
           { role: "user", content: prompt }
         ]
       })
     });
+    if (r.status === 429) return res.status(429).json({ error: "L'IA est saturée, réessayez dans une minute." });
     if (!r.ok) throw new Error(`API ${r.status} ${(await r.text()).slice(0, 200)}`);
     const data = await r.json();
     const text = data.choices?.[0]?.message?.content || "";
@@ -72,7 +74,7 @@ Varie fortement les sous-thèmes, les époques, les pays et les angles. Évite l
     res.json({ questions });
   } catch (e) {
     console.error(e.message);
-    res.status(502).json({ error: "Génération impossible, questions locales utilisées." });
+    res.status(502).json({ error: "Génération impossible, réessayez." });
   }
 });
 
