@@ -9,11 +9,11 @@ export const THEMES = [
 const MUSIC = "Musique rap US-FR, R&B, hits";
 
 // Demande 10 questions au serveur (qui détient la clé API)
-export async function fetchAI(themes, difficulty, count = 10) {
+export async function fetchAI(themes, difficulty, count = 10, avoid = []) {
   const res = await fetch("/api/questions", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ themes: themes.map((t) => (t === "Musique" ? MUSIC : t)), difficulty, count })
+    body: JSON.stringify({ themes: themes.map((t) => (t === "Musique" ? MUSIC : t)), difficulty, count, avoid })
   });
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Erreur serveur");
   const { questions } = await res.json();
