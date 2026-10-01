@@ -38,6 +38,16 @@ addEventListener("error", function (e) {
       <button class="btn white" data-provider="google"><svg class="g"><use href="#glogo"/></svg>Continuer avec Google</button>
       <p id="loginMsg" class="msg" role="alert"></p>
     </div>
+    <div class="rules">
+      <h3>Les règles</h3>
+      <ol>
+        <li>Chacun son tour, l'IA pose une question sur vos thèmes, avec un minuteur.</li>
+        <li>Bonne réponse : vous restez en jeu. Mauvaise réponse ou temps écoulé : vous perdez une vie, ou vous êtes éliminé si vous n'en avez plus.</li>
+        <li>Après chaque tour complet, le groupe peut monter d'un niveau.</li>
+        <li>Le dernier joueur en jeu gagne une vie, gardée pour les prochaines parties.</li>
+        <li>Quatre modes : Classique, QCM, Mort subite et Solo.</li>
+      </ol>
+    </div>
   </section>
 
   <!-- Choix du mode -->
@@ -70,15 +80,26 @@ addEventListener("error", function (e) {
 
   <!-- Thèmes -->
   <section id="s-themes" class="screen" hidden>
-    <div class="row between">
-      <h2>Thèmes</h2>
-      <span><button class="link" id="themesAll">Tous</button> <button class="link" id="themesNone">Aucun</button></span>
-    </div>
+    <h2>Thèmes</h2>
+    <p class="lead small">Touchez les thèmes que vous voulez jouer.</p>
     <div id="themes" class="chips"></div>
-    <h2>Minuteur</h2>
-    <div id="optTime" class="chips opts"></div>
-    <div id="jokerBox"><h2>Jokers par joueur</h2><div id="optJokers" class="chips opts"></div></div>
     <p id="setupMsg" class="msg" role="alert"></p>
+    <div class="dock"><button class="btn sun" id="btnThemes">Continuer</button></div>
+  </section>
+
+  <!-- Minuteur -->
+  <section id="s-time" class="screen" hidden>
+    <h2>Temps par question</h2>
+    <p class="lead small">Choisissez la durée dont chaque joueur dispose.</p>
+    <div id="optTime" class="chips opts bigopts"></div>
+    <div class="dock"><button class="btn sun" id="btnTime">Valider</button></div>
+  </section>
+
+  <!-- Jokers -->
+  <section id="s-jokers" class="screen" hidden>
+    <h2>Jokers par joueur</h2>
+    <p class="lead small">Un joker propose 4 choix de réponse.</p>
+    <div id="optJokers" class="chips opts bigopts"></div>
     <div class="dock"><button class="btn sun" id="btnStart">Lancer la partie</button></div>
   </section>
 
