@@ -206,18 +206,11 @@ input{touch-action:manipulation}
 .modal h3{margin:0 0 6px;font:800 26px var(--font)}
 .modal p{margin:0 0 18px}
 
-/* ===== affichage verrouillé : la page ne bouge pas, seul le contenu long défile dans son écran ===== */
-:root{--bar:56px}
-html,body{overflow:hidden;height:100%;touch-action:pan-y;overscroll-behavior:none}
-body{position:fixed;inset:0;width:100%;padding:0}
-#bar{position:fixed;top:0;left:0;right:0;z-index:5;height:calc(var(--bar) + env(safe-area-inset-top,0px));padding:env(safe-area-inset-top,0px) 18px 0;margin:0 auto}
-main{position:fixed;top:calc(var(--bar) + env(safe-area-inset-top,0px));bottom:0;left:0;right:0;max-width:480px;margin:0 auto;min-height:0;padding:0 18px}
-.screen{height:100%;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:8px 0 calc(120px + env(safe-area-inset-bottom,0px))}
-.screen.center{display:flex;min-height:0;justify-content:flex-start}
-.screen.center>:first-child{margin-top:auto}
-.screen.center>:last-child{margin-bottom:auto}
+/* ===== défilement normal de la page, sans mouvement latéral ni zoom ===== */
+html,body{touch-action:pan-y;overflow-x:hidden}
 .dock{z-index:4}
-.card{height:min(44dvh,400px);min-height:240px}
+/* écrans centrés : vraiment au milieu de la zone visible (entre l'en-tête et le bas) */
+.screen.center{min-height:calc(100dvh - 190px);justify-content:center}
 /* logo du menu immobile + règles */
 #s-login .hero{animation:none}
 .rules{margin-top:26px;padding:16px 18px;background:var(--ink);border-radius:18px;text-align:left}
