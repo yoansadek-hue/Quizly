@@ -61,8 +61,8 @@ input[type=text]{
   border:3px solid var(--ink);border-radius:999px;cursor:pointer
 }
 .chip.small{min-height:0;padding:3px 12px;font-size:14px;cursor:default}
-#themes .chip{background:transparent;color:var(--white);border-color:var(--lilac)}
-#themes .chip[aria-pressed=true]{background:var(--sun);color:var(--ink);border-color:var(--ink);box-shadow:3px 3px 0 var(--ink)}
+#themes .chip,.opts .chip{background:transparent;color:var(--white);border-color:var(--lilac)}
+#themes .chip[aria-pressed=true],.opts .chip[aria-pressed=true]{background:var(--sun);color:var(--ink);border-color:var(--ink);box-shadow:3px 3px 0 var(--ink)}
 #playerList .chip{background:var(--white);cursor:default}
 #playerList button{background:none;border:0;font:800 22px var(--font);color:var(--coral);cursor:pointer;padding:0 0 0 4px;min-width:32px;min-height:32px}
 
@@ -172,10 +172,37 @@ body.shake main{animation:shake .45s}
 .mode{display:block;width:100%;text-align:left;padding:16px 18px;font:inherit;color:var(--ink);background:var(--white);border:3px solid var(--ink);border-radius:18px;box-shadow:var(--shadow);cursor:pointer;animation:pop .4s both;transition:transform .08s,box-shadow .08s}
 .mode strong{display:block;font:800 24px var(--font);margin-bottom:2px}
 .mode span{display:block;font-size:16px;line-height:1.35;color:#2c2f5c}
-.mode[data-m=qcm]{background:var(--lilac)} .mode[data-m=sudden]{background:var(--coral)} .mode[data-m=flash]{background:var(--sun)}
+.mode[data-m=qcm]{background:var(--lilac)} .mode[data-m=sudden]{background:var(--coral)}
 .mode:active{transform:translate(3px,3px);box-shadow:1px 1px 0 var(--ink)}
 @media (hover:hover){.mode:hover{transform:translate(-2px,-2px);box-shadow:6px 6px 0 var(--ink)}}
 .mode:focus-visible{outline:3px solid var(--sun);outline-offset:3px}
 .center-link{text-align:center;margin:18px 0 0}
-/* mode QCM : carte compacte */
-.scene.compact .card{height:230px;min-height:0}
+/* pas de zoom */
+html,body{touch-action:pan-x pan-y}
+input{touch-action:manipulation}
+/* avatar */
+.avatar{width:28px;height:28px;border-radius:50%;object-fit:cover;border:2px solid var(--ink);background:var(--sun);display:grid;place-items:center;font:800 14px var(--font);flex:none}
+.avatar[hidden]{display:none}
+/* minuteur : bouton arrêter */
+.stop{cursor:pointer;background:var(--sun);white-space:nowrap}
+.stop[hidden]{display:none}
+.swap{text-align:center;margin:-6px 0 8px}
+/* QCM : carte qui s'adapte au texte, sans retournement */
+.scene.compact{perspective:none}
+.scene.compact .card{height:auto;min-height:0;transform:none!important}
+.scene.compact .face.front{position:relative;inset:auto;min-height:150px}
+.scene.compact .face.back{display:none}
+.scene.compact .q{margin:14px 0}
+.grid>*{min-width:0}
+.grid.long{grid-template-columns:1fr}
+.grid .btn{height:auto;line-height:1.2;white-space:normal;overflow-wrap:anywhere;hyphens:auto}
+/* réponses déjà données : plus de reflet noir (l'opacité laissait transparaître l'ombre) */
+.grid .btn:disabled{opacity:1;transform:none;pointer-events:none}
+.grid .btn:disabled:not(.right):not(.wrong){background:#e4e6f7;color:#8a8db3;border-color:#b9bce0;box-shadow:none}
+/* fenêtre de confirmation */
+@keyframes fade{from{opacity:0}}
+.modal{position:fixed;inset:0;z-index:30;display:grid;place-items:center;padding:24px;background:rgba(18,19,43,.75);animation:fade .2s}
+.modal[hidden]{display:none}
+.modal .box{width:100%;max-width:380px;padding:22px;background:var(--sun);color:var(--ink);border:3px solid var(--ink);border-radius:24px;box-shadow:6px 6px 0 var(--ink);animation:pop .3s both}
+.modal h3{margin:0 0 6px;font:800 26px var(--font)}
+.modal p{margin:0 0 18px}
