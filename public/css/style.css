@@ -153,7 +153,6 @@ body.shake main{animation:shake .45s}
 
 /* boutons de bas d'écran des formulaires : dans le flux, jamais par-dessus le contenu */
 #s-names .dock{position:static;margin-top:22px;padding:0;background:none;max-width:none}
-#s-themes .dock{position:sticky;bottom:0;margin:16px -18px 0;max-width:none}
 
 /* classement */
 .rank{list-style:none;padding:0;margin:0 0 24px;display:flex;flex-direction:column;gap:10px;text-align:left}
@@ -206,3 +205,31 @@ input{touch-action:manipulation}
 .modal .box{width:100%;max-width:380px;padding:22px;background:var(--sun);color:var(--ink);border:3px solid var(--ink);border-radius:24px;box-shadow:6px 6px 0 var(--ink);animation:pop .3s both}
 .modal h3{margin:0 0 6px;font:800 26px var(--font)}
 .modal p{margin:0 0 18px}
+
+/* ===== affichage verrouillé : la page ne bouge pas, seul le contenu long défile dans son écran ===== */
+:root{--bar:56px}
+html,body{overflow:hidden;height:100%;touch-action:pan-y;overscroll-behavior:none}
+body{position:fixed;inset:0;width:100%;padding:0}
+#bar{position:fixed;top:0;left:0;right:0;z-index:5;height:calc(var(--bar) + env(safe-area-inset-top,0px));padding:env(safe-area-inset-top,0px) 18px 0;margin:0 auto}
+main{position:fixed;top:calc(var(--bar) + env(safe-area-inset-top,0px));bottom:0;left:0;right:0;max-width:480px;margin:0 auto;min-height:0;padding:0 18px}
+.screen{height:100%;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:8px 0 calc(120px + env(safe-area-inset-bottom,0px))}
+.screen.center{display:flex;min-height:0;justify-content:flex-start}
+.screen.center>:first-child{margin-top:auto}
+.screen.center>:last-child{margin-bottom:auto}
+.dock{z-index:4}
+.card{height:min(44dvh,400px);min-height:240px}
+/* logo du menu immobile + règles */
+#s-login .hero{animation:none}
+.rules{margin-top:26px;padding:16px 18px;background:var(--ink);border-radius:18px;text-align:left}
+.rules h3{margin:0 0 8px;font:800 20px var(--font);color:var(--sun)}
+.rules ol{margin:0;padding-left:20px;font-size:16px;line-height:1.45;color:var(--lilac)}
+.rules li{margin-bottom:6px}
+/* choix du minuteur / des jokers */
+.bigopts{gap:12px}
+.bigopts .chip{min-height:60px;min-width:84px;justify-content:center;padding:10px 22px;font-size:21px}
+/* fond animé, même bleu */
+@keyframes drift{0%{transform:translate3d(-4%,-3%,0) scale(1)}50%{transform:translate3d(5%,4%,0) scale(1.12)}100%{transform:translate3d(-2%,6%,0) scale(1.05)}}
+@keyframes drift2{0%{transform:translate3d(5%,4%,0) rotate(0) scale(1.1)}100%{transform:translate3d(-6%,-5%,0) rotate(8deg) scale(1)}}
+body::before,body::after{content:"";position:fixed;inset:-25%;z-index:-1;pointer-events:none;will-change:transform}
+body::before{background:radial-gradient(38% 38% at 22% 28%,rgba(70,92,255,.55),transparent 70%),radial-gradient(34% 34% at 78% 72%,rgba(10,18,120,.55),transparent 70%);animation:drift 24s ease-in-out infinite alternate}
+body::after{background:radial-gradient(30% 30% at 75% 22%,rgba(90,110,255,.4),transparent 70%),radial-gradient(40% 40% at 25% 80%,rgba(14,24,140,.5),transparent 70%);animation:drift2 32s ease-in-out infinite alternate}
