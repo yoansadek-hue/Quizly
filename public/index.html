@@ -7,6 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" type="image/png" href="icons/icon-32.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&display=swap" rel="stylesheet">
@@ -37,7 +38,7 @@ addEventListener("error", function (e) {
     <p class="lead">Connectez-vous pour jouer. Vos vies gagnées vous suivent partout.</p>
     <div class="stack">
       <button class="btn white" data-provider="google"><svg class="g"><use href="#glogo"/></svg>Continuer avec Google</button>
-      <button class="btn ghost" id="btnLocalOpen">Compte local (sur cet appareil)</button>
+      <button class="btn ghost" id="btnLocalOpen">Compte local</button>
       <p id="loginMsg" class="msg" role="alert"></p>
     </div>
     <div class="rules">
@@ -47,7 +48,7 @@ addEventListener("error", function (e) {
         <li>Bonne réponse : vous restez en jeu. Mauvaise réponse ou temps écoulé : vous perdez une vie, ou vous êtes éliminé si vous n'en avez plus.</li>
         <li>Après chaque tour complet, le groupe peut monter d'un niveau.</li>
         <li>Le dernier joueur en jeu gagne une vie, gardée pour les prochaines parties.</li>
-        <li>Trois modes : Classique, QCM et Solo.</li>
+        <li>Quatre modes : Classique, QCM, Solo et En ligne.</li>
       </ol>
     </div>
   </section>
@@ -63,6 +64,35 @@ addEventListener("error", function (e) {
       <button class="btn sun sm" id="btnLocal">Entrer</button>
     </div>
     <p id="localMsg" class="msg" role="alert"></p>
+  </section>
+
+  <!-- Jeu en ligne -->
+  <section id="s-online" class="screen" hidden>
+    <button class="goback" data-back="s-mode">← Retour</button>
+    <h2>Jouer en ligne</h2>
+    <p class="lead small">Une salle, un code : chacun joue sur son téléphone, au QCM. Le dernier en vie gagne.</p>
+    <div class="stack">
+      <button class="btn sun" id="btnRoomCreate">Créer une salle</button>
+      <div class="row">
+        <input id="roomCode" type="text" placeholder="Code" maxlength="4" autocomplete="off" autocapitalize="characters" enterkeyhint="go">
+        <button class="btn white sm" id="btnRoomJoin">Rejoindre</button>
+      </div>
+      <p id="onMsg" class="msg" role="alert"></p>
+    </div>
+  </section>
+
+  <!-- Salle d'attente -->
+  <section id="s-lobby" class="screen" hidden>
+    <button class="goback" id="btnLeave">← Quitter la salle</button>
+    <h2>Salle d'attente</h2>
+    <p class="lead small">Donnez ce code à vos amis (touchez-le pour le copier).</p>
+    <button class="code" id="lobbyCode" aria-label="Copier le code"></button>
+    <p class="lead small meta" id="lobbyInfo"></p>
+    <p class="lead small meta" id="lobbyCount"></p>
+    <ul id="lobbyList" class="chips"></ul>
+    <p id="lobbyWait" class="lead small meta" hidden>En attente de l'hôte…</p>
+    <p id="lobbyMsg" class="msg" role="alert"></p>
+    <div class="dock"><button class="btn sun" id="btnLobbyStart">Lancer la partie</button></div>
   </section>
 
   <!-- Choix du mode -->
@@ -116,8 +146,8 @@ addEventListener("error", function (e) {
   <!-- Jokers -->
   <section id="s-jokers" class="screen" hidden>
     <button class="goback" data-back="s-time">← Retour</button>
-    <h2>Jokers par joueur</h2>
-    <p class="lead small">Un joker propose 4 choix de réponse.</p>
+    <h2 id="jkTitle">Jokers par joueur</h2>
+    <p class="lead small" id="jkText">Un joker propose 4 choix de réponse.</p>
     <div id="optJokers" class="chips opts bigopts"></div>
     <div class="dock"><button class="btn sun" id="btnStart">Lancer la partie</button></div>
   </section>
@@ -164,6 +194,7 @@ addEventListener("error", function (e) {
   <section id="s-level" class="screen center" hidden>
     <p class="lead">Tour terminé · niveau actuel</p>
     <h2 class="big" id="lvName"></h2>
+    <p class="lead small" id="lvWait" hidden>L'hôte choisit le niveau…</p>
     <div class="stack">
       <button class="btn sun" id="btnUp">Monter d'un niveau</button>
       <button class="btn ghost" id="btnStay">Garder ce niveau</button>
