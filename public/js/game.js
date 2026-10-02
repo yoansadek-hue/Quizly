@@ -222,7 +222,7 @@ function startGame() {
   S.players = S.slots.map((s) => ({ name: s.name, lives: m.solo ? 3 : s.lives, jokers: m.joker ? S.cfg.jokers : 0, dead: false, score: 0, outAt: 0 }));
   if (!m.solo) saveDB();
   saveRoster();
-  S.elim = 0; S.played = new Set(); S.asked = []; S.inGame = true;
+  S.retry = false; S.elim = 0; S.played = new Set(); S.asked = []; S.inGame = true;
   S.i = -1; S.diff = 1; S.loading = null;
   const bank = loadBank();
   S.buf = bank.filter((q) => S.themes.has(q.t) && !seen(q.q));
@@ -232,6 +232,7 @@ function startGame() {
 
 function nextTurn() {
   if (!S.inGame) return;
+  S.retry = false;
   if (over()) return endGame(alive()[0]);
   do { S.i = (S.i + 1) % S.players.length; } while (S.players[S.i].dead);
   loadAndPlay();
@@ -263,6 +264,7 @@ function prepareCard() {
   $("alive").textContent = `${n} joueur${n > 1 ? "s" : ""} en vie sur ${S.players.length}`;
   $("scene").classList.toggle("compact", m.qcm);
   $("whoName").textContent = p.name;
+  $("whoName").classList.toggle("retry", !!S.retry); // nom en rouge quand la question est reposée après une vie utilisée
   $("whoLives").textContent = `❤ ${p.lives}`;
   $("whoLives").hidden = !m.lives;
   $("tag").textContent = `${S.q.t} · ${LEVELS[S.diff]}`;
@@ -406,9 +408,9 @@ function resolve(correct) {
 
 function revive(useLife) {
   const p = S.players[S.i];
-  if (useLife) { p.lives--; saveDB(); return loadAndPlay(); } // même joueur, nouvelle question
+  // les vies ne sont enregistrées qu'en fin de partie : quitter en cours de route ne les consomme pas
+  if (useLife) { p.lives--; S.retry = true; return loadAndPlay(); } // même joueur, nouvelle question
   kill(p);
-  if (!M().solo) saveDB();
   afterTurn();
 }
 
