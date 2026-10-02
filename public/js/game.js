@@ -1,22 +1,25 @@
 import { THEMES, fetchAI } from "./questions.js";
 import { watch, signIn, logout } from "./auth.js";
+import { initOnline } from "./online.js";
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
 const MODES = {
   classic: { name: "Classique", desc: "Réponse à l'oral, le groupe valide. Carte retournable à volonté, jokers 4 choix.", qcm: false, time: 30, joker: true, lives: true },
   qcm: { name: "QCM", desc: "Toutes les questions en 4 choix, correction automatique.", qcm: true, time: 30, joker: false, lives: true },
-  solo: { name: "Solo", desc: "Seul face aux questions : QCM, 3 vies, battez votre record.", qcm: true, time: 30, joker: false, lives: true, solo: true }
+  solo: { name: "Solo", desc: "Seul face aux questions : QCM, 3 vies, battez votre record.", qcm: true, time: 30, joker: false, lives: true, solo: true },
+  online: { name: "En ligne", desc: "Une salle et un code : chacun joue sur son téléphone, au QCM. Le dernier en vie gagne.", qcm: true, time: 30, joker: false, lives: true, online: true }
 };
 const TIMES = [10, 15, 20, 30, 45, 60, 0];
 const JOKERS = [0, 1, 2, 3, 5];
 const S = {
-  uid: null, firstName: "", count: 4, slots: [], players: [], themes: new Set(),
+  uid: null, firstName: "", count: 4, slots: [], players: [], themes: new Set(), active: new Set(), rand: false, photo: "",
   i: -1, diff: 1, q: null, buf: [], loading: null, joker: false, locked: false, tid: null, left: 30,
   rest: [], elim: 0, mode: "classic", played: new Set(), asked: [], inGame: false, pending: false, resume: false,
-  cfg: { time: 30, jokers: 1 }
+  cfg: { time: 30, jokers: 1, lives: 2 }
 };
 const M = () => MODES[S.mode];
+const online = initOnline({ $, show, flash, confetti, me: () => ({ name: S.firstName || "Joueur", photo: S.photo || "" }) });
 
 // pas de zoom (pincement iOS)
 ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault()));
@@ -124,9 +127,15 @@ function validateNames() {
 function renderThemes() {
   const box = $("themes");
   box.replaceChildren();
+  box.classList.toggle("dim", S.rand);
+  const r = document.createElement("button");
+  r.className = "chip rand"; r.textContent = "Aléatoire (tous les thèmes)";
+  r.setAttribute("aria-pressed", S.rand);
+  r.onclick = () => { S.rand = !S.rand; r.setAttribute("aria-pressed", S.rand); box.classList.toggle("dim", S.rand); };
+  box.append(r);
   THEMES.forEach((t, i) => {
     const b = document.createElement("button");
-    b.className = "chip"; b.style.setProperty("--i", i); b.textContent = t;
+    b.className = "chip"; b.style.setProperty("--i", i + 1); b.textContent = t;
     b.setAttribute("aria-pressed", S.themes.has(t));
     b.onclick = () => { S.themes.has(t) ? S.themes.delete(t) : S.themes.add(t); b.setAttribute("aria-pressed", S.themes.has(t)); };
     box.append(b);
@@ -144,7 +153,16 @@ function opts(box, values, current, label, onPick) {
   });
 }
 const renderTime = () => opts($("optTime"), TIMES, S.cfg.time, (v) => (v ? `${v} s` : "Sans limite"), (v) => (S.cfg.time = v));
-const renderJokers = () => opts($("optJokers"), JOKERS, S.cfg.jokers, String, (v) => (S.cfg.jokers = v));
+function renderJokers() {
+  $("jkTitle").textContent = "Jokers par joueur"; $("jkText").textContent = "Un joker propose 4 choix de réponse.";
+  $("btnStart").textContent = "Lancer la partie";
+  opts($("optJokers"), JOKERS, S.cfg.jokers, String, (v) => (S.cfg.jokers = v));
+}
+function renderLivesOpt() {
+  $("jkTitle").textContent = "Vies par joueur"; $("jkText").textContent = "Nombre d'erreurs avant l'élimination.";
+  $("btnStart").textContent = "Créer la salle";
+  opts($("optJokers"), [1, 2, 3, 5], S.cfg.lives, String, (v) => (S.cfg.lives = v));
+}
 
 /* ---------- Questions : 100 % IA, sans répétition ---------- */
 const norm = (s) => String(s).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
@@ -188,7 +206,7 @@ const getAvoid = () => [...new Set([...getHist().slice(-8), ...S.asked])].slice(
 function fill() {
   const d = S.diff;
   if (S.loading && S.loading.d === d) return S.loading.p;
-  const p = fetchAI([...S.themes].sort(() => Math.random() - 0.5).slice(0, 5), d, 6, getAvoid())
+  const p = fetchAI([...S.active].sort(() => Math.random() - 0.5).slice(0, 5), d, 6, getAvoid())
     .then((qs) => {
       qs.forEach((q) => { if (!seen(q.q) && !S.buf.some((b) => similar(b.q, q.q))) S.buf.push({ ...q, d }); });
       saveBank();
@@ -217,7 +235,7 @@ const over = () => (M().solo ? alive().length === 0 : alive().length <= 1);
 const kill = (p) => { p.dead = true; p.outAt = ++S.elim; };
 
 function startGame() {
-  if (!S.themes.size) return;
+  if (!S.active.size) return;
   const m = M();
   S.players = S.slots.map((s) => ({ name: s.name, lives: m.solo ? 3 : s.lives, jokers: m.joker ? S.cfg.jokers : 0, dead: false, score: 0, points: 0, outAt: 0 }));
   if (!m.solo) saveDB();
@@ -225,8 +243,8 @@ function startGame() {
   S.retry = false; S.elim = 0; S.played = new Set(); S.asked = []; S.inGame = true;
   S.i = -1; S.diff = 1; S.loading = null;
   const bank = loadBank();
-  S.buf = bank.filter((q) => S.themes.has(q.t) && !seen(q.q));
-  S.rest = bank.filter((q) => !S.themes.has(q.t));
+  S.buf = bank.filter((q) => S.active.has(q.t) && !seen(q.q));
+  S.rest = bank.filter((q) => !S.active.has(q.t));
   nextTurn();
 }
 
@@ -265,7 +283,7 @@ function prepareCard() {
   $("scene").classList.toggle("compact", m.qcm);
   $("whoName").textContent = p.name;
   $("whoName").classList.toggle("retry", !!S.retry); // nom en rouge quand la question est reposée après une vie utilisée
-  $("whoLives").textContent = `❤ ${p.lives}`;
+  $("whoLives").textContent = `♥︎ ${p.lives}`;
   $("whoLives").hidden = !m.lives;
   $("tag").textContent = `${S.q.t} · ${LEVELS[S.diff]}`;
   $("backTag").textContent = "Réponse";
@@ -278,7 +296,7 @@ function prepareCard() {
   // remet à zéro tout état « rouge » de la question précédente
   $("fx").className = ""; $("clock").classList.remove("urgent");
   $("mcq").hidden = true; $("dockJudge").hidden = true; $("dockNext").hidden = true;
-  $("btnSwap").hidden = false;
+  $("btnSwap").hidden = !!m.solo; // en solo : pas de changement de question
   $("btnJoker").textContent = `Joker : 4 choix (${p.jokers})`;
   $("btnJoker").hidden = !(m.joker && p.jokers > 0);
   $("dockGame").hidden = $("btnJoker").hidden;
@@ -308,7 +326,7 @@ function startTimer() {
   bar.style.setProperty("--dur", time + "s");
   bar.style.animation = "none"; void bar.offsetWidth; bar.style.animation = ""; bar.style.animationPlayState = "";
   clock.textContent = time; clock.classList.remove("urgent");
-  $("btnStopTimer").hidden = false;
+  $("btnStopTimer").hidden = !!M().solo; // en solo : on ne peut pas arrêter le temps
   runTimer();
 }
 function stopTimer() {
@@ -320,7 +338,7 @@ function stopTimer() {
 function resumeTimer() {
   if (S.left <= 0) return;
   $("bar30").style.animationPlayState = "running";
-  $("btnStopTimer").hidden = false;
+  $("btnStopTimer").hidden = !!M().solo; // en solo : on ne peut pas arrêter le temps
   runTimer();
 }
 
@@ -423,6 +441,7 @@ function afterTurn() {
   S.played.clear();
   $("lvName").textContent = `${S.diff} · ${LEVELS[S.diff]}`;
   $("btnUp").hidden = S.diff >= 5;
+  $("btnStay").hidden = false; $("lvWait").hidden = true;
   $("btnUp").textContent = M().solo ? `Monter d'un niveau (${10 * (S.diff + 1)} pts)` : "Monter d'un niveau";
   $("btnStay").textContent = M().solo ? `Garder ce niveau (${10 * S.diff} pts)` : "Garder ce niveau";
   show("s-level");
@@ -459,7 +478,7 @@ function endGame(w) {
     const pos = document.createElement("span"); pos.className = "pos"; pos.textContent = i + 1;
     const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = p.name;
     const st = document.createElement("span"); st.className = "st";
-    st.textContent = `${p.score} bonne${p.score > 1 ? "s" : ""} · ❤ ${p.lives}`;
+    st.textContent = `${p.score} bonne${p.score > 1 ? "s" : ""} · ♥︎ ${p.lives}`;
     li.append(pos, nm, st);
     ol.append(li);
   });
@@ -479,6 +498,7 @@ const getSess = () => { try { return JSON.parse(localStorage.getItem(SESS) || "n
 function setUser(name, photo) {
   const first = (name || "Compte").split(" ")[0];
   S.firstName = first;
+  S.photo = photo || "";
   $("userName").textContent = `${first} · Menu`;
   const img = $("userPhoto"), ini = $("userInit");
   ini.textContent = first.charAt(0).toUpperCase();
@@ -503,6 +523,7 @@ function renderModes() {
 function chooseMode(id) {
   S.mode = id;
   S.cfg.time = M().time;
+  if (M().online) { $("onMsg").textContent = ""; show("s-online"); return; }
   $("modeLabel").textContent = `Mode : ${M().name}`;
   loadRoster();
   if (M().solo) {
@@ -568,6 +589,10 @@ $("userPhoto").onerror = () => { $("userPhoto").hidden = true; $("userInit").hid
 
 // « Sortir » : retour au choix du mode (confirmation si une partie est en cours)
 $("btnUser").onclick = () => {
+  if (online.active()) {
+    ask("Quitter la salle ?", "Vous quitterez la partie en cours.", "Quitter", () => { online.leave(); show("s-mode"); });
+    return;
+  }
   if (!S.inGame) { stopTimer(); return show("s-mode"); }
   S.resume = !!S.tid; stopTimer();
   ask("Quitter la partie ?", "Êtes-vous sûr ? La partie en cours sera perdue.", "Quitter",
@@ -579,10 +604,10 @@ $("cfYes").onclick = () => { $("confirm").hidden = true; const f = S.onYes; S.on
 $("btnResetLives").onclick = () => ask("Réinitialiser les vies ?", "Toutes les vies de tous les joueurs reviendront à 0.", "Réinitialiser", resetLives);
 document.querySelectorAll("[data-back]").forEach((b) => (b.onclick = () => {
   let t = b.dataset.back;
-  if (t === "auto") t = M().solo ? "s-mode" : "s-names";
+  if (t === "auto") t = M().online ? "s-online" : M().solo ? "s-mode" : "s-names";
   show(t);
 }));
-$("btnLogout").onclick = async () => { try { localStorage.removeItem(SESS); } catch {} await logout(); S.uid = null; show("s-login"); };
+$("btnLogout").onclick = async () => { try { localStorage.removeItem(SESS); } catch {} online.leave(); await logout(); S.uid = null; show("s-login"); };
 
 $("btnLocalOpen").onclick = () => { renderLocals(); show("s-local"); };
 $("btnLocal").onclick = () => enterLocal($("localName").value);
@@ -596,15 +621,19 @@ $("btnNames").onclick = () => {
   if (!err) { renderThemes(); show("s-themes"); }
 };
 $("btnThemes").onclick = () => {
-  if (!S.themes.size) { $("setupMsg").textContent = "Choisissez au moins un thème."; return; }
+  if (!S.rand && !S.themes.size) { $("setupMsg").textContent = "Choisissez au moins un thème, ou « Aléatoire »."; return; }
   $("setupMsg").textContent = "";
-  if (M().fixed) return startGame(); // mort subite : durée imposée
-  $("btnTime").textContent = M().joker ? "Valider" : "Lancer la partie";
+  S.active = S.rand ? new Set(THEMES) : new Set(S.themes);
+  $("btnTime").textContent = M().joker || M().online ? "Valider" : "Lancer la partie";
   renderTime(); show("s-time");
 };
-$("btnTime").onclick = () => { if (M().joker) { renderJokers(); show("s-jokers"); } else startGame(); };
-$("btnStart").onclick = startGame;
-$("btnRetry").onclick = loadAndPlay;
+$("btnTime").onclick = () => {
+  if (M().online) { renderLivesOpt(); show("s-jokers"); }
+  else if (M().joker) { renderJokers(); show("s-jokers"); }
+  else startGame();
+};
+$("btnStart").onclick = () => (M().online ? online.create({ themes: [...S.active], time: S.cfg.time, lives: S.cfg.lives }) : startGame());
+$("btnRetry").onclick = () => (M().online ? online.retry() : loadAndPlay());
 $("btnSwap").onclick = () => { if (S.locked || !S.inGame) return; stopTimer(); loadAndPlay(); };
 $("btnStopTimer").onclick = stopTimer;
 $("card").onclick = flip;
@@ -615,12 +644,19 @@ $("btnOk").onclick = () => judge(true);
 $("btnKo").onclick = () => judge(false);
 $("btnUseLife").onclick = () => revive(true);
 $("btnDie").onclick = () => revive(false);
-$("btnUp").onclick = () => chooseLevel(true);
-$("btnStay").onclick = () => chooseLevel(false);
+$("btnUp").onclick = () => (M().online ? online.level(true) : chooseLevel(true));
+$("btnStay").onclick = () => (M().online ? online.level(false) : chooseLevel(false));
 $("btnAgain").onclick = () => {
+  if (M().online) return online.again();
   if (M().solo) { renderThemes(); show("s-themes"); } else show("s-count"); // même mode, sans lancer la partie
 };
 
 // pendant la saisie d'un nom, les boutons fixes du bas sont masqués
 document.addEventListener("focusin", (e) => { if (e.target.matches && e.target.matches("input[type=text]")) document.body.classList.add("typing"); });
 document.addEventListener("focusout", () => document.body.classList.remove("typing"));
+
+// jeu en ligne : créer / rejoindre une salle
+$("btnRoomCreate").onclick = () => { renderThemes(); show("s-themes"); };
+$("btnRoomJoin").onclick = () => online.join($("roomCode").value);
+$("roomCode").addEventListener("input", (e) => (e.target.value = e.target.value.toUpperCase()));
+$("roomCode").addEventListener("keydown", (e) => e.key === "Enter" && online.join($("roomCode").value));
