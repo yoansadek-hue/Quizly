@@ -302,3 +302,16 @@ body.typing .dock{display:none}
   #slots{grid-template-columns:repeat(3,1fr)}
   .card{height:min(54dvh,540px)}
 }
+
+/* thèmes aléatoires */
+#themes .chip.rand{border-style:dashed}
+#themes.dim .chip:not(.rand){opacity:.35}
+/* mode en ligne */
+.mode[data-m=online]{background:var(--mint)}
+#roomCode{text-align:center;text-transform:uppercase;letter-spacing:.25em}
+.code{display:block;width:100%;margin:6px 0 0;padding:8px 0 8px .25em;font:800 64px/1.1 var(--font);letter-spacing:.25em;text-align:center;color:var(--ink);background:var(--white);border:3px solid var(--ink);border-radius:18px;box-shadow:var(--shadow);cursor:pointer}
+.code:active{transform:translate(3px,3px);box-shadow:1px 1px 0 var(--ink)}
+.meta{text-align:center;margin:10px 0 0}
+#lobbyList .chip{background:var(--white);cursor:default}
+#lobbyList .chip.host{background:var(--sun)}
+.grid .btn:disabled.picked:not(.right):not(.wrong){background:var(--sun);color:var(--ink);border-color:var(--ink);box-shadow:var(--shadow)}
