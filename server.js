@@ -21,11 +21,10 @@ const BASE = process.env.AI_BASE_URL || "https://api.groq.com/openai/v1";
 const MODEL = process.env.MODEL || "openai/gpt-oss-120b";
 const hits = new Map(); // limite : 10 requêtes / minute / IP
 
-const SYSTEM = `Tu génères des questions de quiz en français.
-Réponds UNIQUEMENT par un tableau JSON, sans texte autour ni balises Markdown.
-Chaque élément : {"t": thème, "d": difficulté 1-5, "q": question, "a": bonne réponse courte, "o": 4 propositions dont "a"}.
-Les questions doivent être exactes, sans ambiguïté, avec une seule bonne réponse et des mauvaises réponses plausibles.
-Pour tout thème contenant « Musique » : uniquement de la musique moderne (années 2000 à aujourd'hui) : rap US et FR, R&B, pop actuelle, afrobeats ; artistes, albums, titres, collaborations. Jamais de musique classique ni de variété ancienne.`;
+const SYSTEM = `Quiz en français. Réponds uniquement par un tableau JSON compact, sans texte ni Markdown :
+[{"t":thème,"q":question,"a":bonne réponse courte,"w":[3 mauvaises réponses plausibles]}]
+Faits exacts, une seule bonne réponse.
+Thème « Musique » : musique moderne uniquement (2000 à aujourd'hui) : rap US et FR, R&B, pop actuelle, afrobeats. Jamais de classique ni de variété ancienne.`;
 
 app.post("/api/questions", async (req, res) => {
   if (!KEY) return res.status(500).json({ error: "AI_API_KEY manquante côté serveur" });
@@ -38,10 +37,9 @@ app.post("/api/questions", async (req, res) => {
   const themes = (Array.isArray(req.body.themes) ? req.body.themes : []).slice(0, 15).map((t) => String(t).slice(0, 30));
   const diff = Math.min(Math.max(+req.body.difficulty || 1, 1), 5);
   const count = Math.min(Math.max(+req.body.count || 10, 1), 15);
-  const avoid = (Array.isArray(req.body.avoid) ? req.body.avoid : []).slice(-60).map((x) => String(x).slice(0, 100));
-  const prompt = `Génère ${count} questions variées sur ces thèmes : ${themes.join(", ")}. Difficulté visée : ${diff}/5 (1 = très facile, 5 = expert).
-Varie fortement les sous-thèmes, les époques, les pays et les angles. Évite les questions les plus classiques et les plus connues. Aucune question ne doit se ressembler. Graine de variété : ${Math.random().toString(36).slice(2, 8)}.` +
-    (avoid.length ? `\nQuestions DÉJÀ POSÉES : ne les repose jamais, ne les reformule pas et n'utilise pas la même réponse :\n- ${avoid.join("\n- ")}` : "");
+  const avoid = (Array.isArray(req.body.avoid) ? req.body.avoid : []).slice(-20).map((x) => String(x).slice(0, 70));
+  const prompt = `${count} questions, thèmes : ${themes.join(", ")}. Difficulté ${diff}/5. Varie sous-thèmes, époques, pays ; évite les classiques. Graine ${Math.random().toString(36).slice(2, 7)}.` +
+    (avoid.length ? `\nDéjà posées (ne pas reposer ni reformuler) :\n- ${avoid.join("\n- ")}` : "");
   if (!themes.length) return res.status(400).json({ error: "Aucun thème" });
 
   try {
@@ -65,11 +63,12 @@ Varie fortement les sous-thèmes, les époques, les pays et les angles. Évite l
     const raw = JSON.parse(text.replace(/```json|```/g, "").trim());
     const list = Array.isArray(raw) ? raw : (Object.values(raw || {}).find(Array.isArray) || []);
     const questions = list
-      .filter((x) => x && x.q && x.a && Array.isArray(x.o) && x.o.includes(x.a))
       .map((x) => ({
-        t: String(x.t || themes[0]), d: Math.min(Math.max(+x.d || diff, 1), 5),
-        q: String(x.q), a: String(x.a), o: x.o.slice(0, 4).map(String)
-      }));
+        t: String(x?.t || themes[0]), d: diff, q: String(x?.q || ""), a: String(x?.a || ""),
+        w: (Array.isArray(x?.w) ? x.w : Array.isArray(x?.o) ? x.o : []).map(String).filter((o) => o !== String(x?.a)).slice(0, 3)
+      }))
+      .filter((x) => x.q && x.a && x.w.length === 3)
+      .map(({ w, ...x }) => ({ ...x, o: [x.a, ...w] }));
     if (!questions.length) throw new Error("Réponse vide");
     res.json({ questions });
   } catch (e) {
