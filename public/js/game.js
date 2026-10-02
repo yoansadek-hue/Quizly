@@ -6,7 +6,7 @@ const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
 const MODES = {
   classic: { name: "Classique", desc: "Réponse à l'oral, le groupe valide. Carte retournable à volonté, jokers 4 choix.", qcm: false, time: 30, joker: true, lives: true },
   qcm: { name: "QCM", desc: "Toutes les questions en 4 choix, correction automatique.", qcm: true, time: 30, joker: false, lives: true },
-  sudden: { name: "Mort subite", desc: "Une erreur et vous sortez : ni vie, ni joker. 20 secondes.", qcm: false, time: 20, joker: false, lives: false },
+  sudden: { name: "Mort subite", desc: "Une erreur et vous sortez : ni vie, ni joker. 20 secondes.", qcm: false, time: 20, joker: false, lives: false, fixed: true },
   solo: { name: "Solo", desc: "Seul face aux questions : QCM, 3 vies, battez votre record.", qcm: true, time: 30, joker: false, lives: true, solo: true }
 };
 const TIMES = [10, 15, 20, 30, 45, 60, 0];
@@ -14,7 +14,7 @@ const JOKERS = [0, 1, 2, 3, 5];
 const S = {
   uid: null, firstName: "", count: 4, slots: [], players: [], themes: new Set(),
   i: -1, diff: 1, q: null, buf: [], loading: null, joker: false, locked: false, tid: null, left: 30,
-  elim: 0, mode: "classic", played: new Set(), asked: [], inGame: false, pending: false, resume: false,
+  rest: [], elim: 0, mode: "classic", played: new Set(), asked: [], inGame: false, pending: false, resume: false,
   cfg: { time: 30, jokers: 1 }
 };
 const M = () => MODES[S.mode];
@@ -106,7 +106,7 @@ function renderSlots() {
     });
     refresh(slot, input, found);
     wrap.append(input, found);
-    wrap.style.animation = `in .4s ${i * 50}ms both`;
+    wrap.style.animation = `in .4s ${i * 50}ms backwards`;
     box.append(wrap);
   });
   saveRoster();
@@ -162,7 +162,14 @@ function remember(q) {
 }
 const seen = (q) => S.asked.some((x) => similar(x, q)) || getHist().some((x) => similar(x, q));
 const usable = (d) => S.buf.filter((q) => !q.u && q.d === d && !seen(q.q));
-const getAvoid = () => [...new Set([...getHist().slice(-15), ...S.asked])].slice(-25).map((q) => q.slice(0, 80));
+const bankKey = () => `quizly:${S.uid}:bank`;
+function loadBank() { try { return JSON.parse(localStorage.getItem(bankKey()) || "[]"); } catch { return []; } }
+// les questions générées mais pas encore posées sont gardées pour les prochaines parties (moins d'appels à l'IA)
+function saveBank() {
+  try { localStorage.setItem(bankKey(), JSON.stringify([...S.rest, ...S.buf.filter((q) => !q.u)].slice(-120).map(({ u, ...q }) => q))); } catch {}
+}
+function replay(el) { el.style.animation = "none"; void el.offsetWidth; el.style.animation = ""; }
+const getAvoid = () => [...new Set([...getHist().slice(-8), ...S.asked])].slice(-15).map((q) => q.slice(0, 70));
 
 function fill() {
   const d = S.diff;
@@ -170,6 +177,7 @@ function fill() {
   const p = fetchAI([...S.themes].sort(() => Math.random() - 0.5).slice(0, 5), d, 6, getAvoid())
     .then((qs) => {
       qs.forEach((q) => { if (!seen(q.q) && !S.buf.some((b) => similar(b.q, q.q))) S.buf.push({ ...q, d }); });
+      saveBank();
     })
     .finally(() => { if (S.loading && S.loading.p === p) S.loading = null; });
   S.loading = { d, p };
@@ -180,7 +188,7 @@ async function getQuestion() {
     const pool = usable(S.diff);
     if (pool.length) {
       const q = pool[Math.floor(Math.random() * pool.length)];
-      q.u = true; remember(q.q);
+      q.u = true; remember(q.q); saveBank();
       if (usable(S.diff).length < 3) fill().catch(() => {});
       return q;
     }
@@ -201,7 +209,10 @@ function startGame() {
   if (!m.solo) saveDB();
   saveRoster();
   S.elim = 0; S.played = new Set(); S.asked = []; S.inGame = true;
-  S.i = -1; S.diff = 1; S.buf = []; S.loading = null;
+  S.i = -1; S.diff = 1; S.loading = null;
+  const bank = loadBank();
+  S.buf = bank.filter((q) => S.themes.has(q.t) && !seen(q.q));
+  S.rest = bank.filter((q) => !S.themes.has(q.t));
   nextTurn();
 }
 
@@ -213,7 +224,7 @@ function nextTurn() {
 }
 
 async function loadAndPlay() {
-  show("s-load");
+  if (!usable(S.diff).length) show("s-load"); // le chargement ne s'affiche que s'il faut vraiment attendre l'IA
   $("loadText").textContent = "L'IA prépare vos questions…";
   $("loadErr").hidden = true;
   try {
@@ -230,8 +241,12 @@ async function loadAndPlay() {
 function prepareCard() {
   const p = S.players[S.i], m = M();
   S.joker = false; S.locked = false;
-  $("card").classList.remove("flipped");
-  delete $("card").dataset.seen;
+  const card = $("card");
+  card.style.transition = "none"; card.classList.remove("flipped"); delete card.dataset.seen;
+  replay(card); void card.offsetWidth; card.style.transition = "";
+  const n = alive().length;
+  $("alive").hidden = !!m.solo;
+  $("alive").textContent = `${n} joueur${n > 1 ? "s" : ""} en vie sur ${S.players.length}`;
   $("scene").classList.toggle("compact", m.qcm);
   $("whoName").textContent = p.name;
   $("whoLives").textContent = `❤ ${p.lives}`;
@@ -324,7 +339,7 @@ function renderChoices() {
   box.classList.toggle("long", list.some((o) => o.length > 24));
   list.forEach((o, i) => {
     const b = document.createElement("button");
-    b.className = "btn white"; b.textContent = o; b.style.animation = `pop .35s ${i * 70}ms both`;
+    b.className = "btn white"; b.textContent = o; b.style.animation = `pop .35s ${i * 70}ms backwards`;
     b.onclick = () => pickOption(o, b);
     box.append(b);
   });
@@ -467,11 +482,9 @@ function chooseMode(id) {
   $("modeLabel").textContent = `Mode : ${M().name}`;
   loadRoster();
   if (M().solo) {
-    const me = S.slots[0] || { name: "", lives: 0, imported: false };
-    if (!me.name) me.name = S.firstName;
-    S.slots = [me]; S.count = 1;
-    renderSlots();
-    show("s-names");
+    S.slots = [{ name: S.firstName || "Moi", lives: 0, imported: false }]; S.count = 1; // pas de nom ni d'import en solo
+    renderThemes();
+    show("s-themes");
   } else show("s-count");
 }
 
@@ -522,6 +535,7 @@ $("btnNames").onclick = () => {
 $("btnThemes").onclick = () => {
   if (!S.themes.size) { $("setupMsg").textContent = "Choisissez au moins un thème."; return; }
   $("setupMsg").textContent = "";
+  if (M().fixed) return startGame(); // mort subite : durée imposée
   renderTime(); show("s-time");
 };
 $("btnTime").onclick = () => { if (M().joker) { renderJokers(); show("s-jokers"); } else startGame(); };
@@ -540,5 +554,5 @@ $("btnDie").onclick = () => revive(false);
 $("btnUp").onclick = () => chooseLevel(true);
 $("btnStay").onclick = () => chooseLevel(false);
 $("btnAgain").onclick = () => {
-  if (M().solo) { renderSlots(); show("s-names"); } else show("s-count"); // même mode, sans lancer la partie
+  if (M().solo) { renderThemes(); show("s-themes"); } else show("s-count"); // même mode, sans lancer la partie
 };
