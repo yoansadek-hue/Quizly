@@ -23,7 +23,7 @@ addEventListener("error", function (e) {
 </head>
 <body>
 <header id="bar" hidden>
-  <span class="logo">Quizly</span>
+  <span class="logo">Quizly<small>par YoskanGame</small></span>
   <button id="btnUser" class="chip" aria-label="Retour au choix du mode"><img id="userPhoto" class="avatar" alt="" referrerpolicy="no-referrer" hidden><span id="userInit" class="avatar"></span><span id="userName"></span></button>
 </header>
 
@@ -33,6 +33,7 @@ addEventListener("error", function (e) {
   <!-- Connexion obligatoire -->
   <section id="s-login" class="screen" hidden>
     <h1 class="hero">Quizly</h1>
+    <p class="credit">par YoskanGame</p>
     <p class="lead">Connectez-vous pour jouer. Vos vies gagnées vous suivent partout.</p>
     <div class="stack">
       <button class="btn white" data-provider="google"><svg class="g"><use href="#glogo"/></svg>Continuer avec Google</button>
@@ -48,7 +49,6 @@ addEventListener("error", function (e) {
         <li>Trois modes : Classique, QCM et Solo.</li>
       </ol>
     </div>
-    <p class="credit">Jeu créé par YoskanGame</p>
   </section>
 
   <!-- Choix du mode -->
@@ -56,7 +56,6 @@ addEventListener("error", function (e) {
     <h2>Choisissez un mode</h2>
     <div id="modes" class="modes"></div>
     <p class="center-link"><button class="link" id="btnLogout">Changer de compte</button></p>
-    <p class="credit">Jeu créé par YoskanGame</p>
   </section>
 
   <!-- Nombre de joueurs -->
@@ -68,12 +67,12 @@ addEventListener("error", function (e) {
       <span class="num" id="cNum">4</span>
       <button class="btn white" id="cPlus" aria-label="Plus">+</button>
     </div>
-    <div class="dock"><button class="btn sun" id="btnCount">Continuer</button><button class="link back" data-back="s-mode">Retour</button></div>
+    <div class="dock"><button class="btn sun" id="btnCount">Continuer</button><button class="link goback" data-back="s-mode">Retour</button></div>
   </section>
 
   <!-- Noms -->
   <section id="s-names" class="screen" hidden>
-    <button class="back" data-back="s-count">← Retour</button>
+    <button class="goback" data-back="s-count">← Retour</button>
     <div class="row between"><h2>Qui est là ?</h2><button class="link" id="btnResetLives">Réinitialiser les vies</button></div>
     <p class="lead small">Tapez un nom. S'il existe déjà, importez votre profil.</p>
     <div id="slots" class="stack"></div>
@@ -83,7 +82,7 @@ addEventListener("error", function (e) {
 
   <!-- Thèmes -->
   <section id="s-themes" class="screen" hidden>
-    <button class="back" data-back="auto">← Retour</button>
+    <button class="goback" data-back="auto">← Retour</button>
     <h2>Thèmes</h2>
     <p class="lead small">Touchez les thèmes que vous voulez jouer.</p>
     <div id="themes" class="chips"></div>
@@ -93,7 +92,7 @@ addEventListener("error", function (e) {
 
   <!-- Minuteur -->
   <section id="s-time" class="screen" hidden>
-    <button class="back" data-back="s-themes">← Retour</button>
+    <button class="goback" data-back="s-themes">← Retour</button>
     <h2>Temps par question</h2>
     <p class="lead small">Choisissez la durée dont chaque joueur dispose.</p>
     <div id="optTime" class="chips opts bigopts"></div>
@@ -102,7 +101,7 @@ addEventListener("error", function (e) {
 
   <!-- Jokers -->
   <section id="s-jokers" class="screen" hidden>
-    <button class="back" data-back="s-time">← Retour</button>
+    <button class="goback" data-back="s-time">← Retour</button>
     <h2>Jokers par joueur</h2>
     <p class="lead small">Un joker propose 4 choix de réponse.</p>
     <div id="optJokers" class="chips opts bigopts"></div>
