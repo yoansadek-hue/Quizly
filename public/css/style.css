@@ -252,3 +252,53 @@ body.typing .dock{display:none}
 .face .q,.face .a{min-height:0;max-width:100%}
 .card{height:min(50dvh,430px);min-height:290px}
 #whoName.retry{color:var(--coral)}
+
+/* tailles du texte de la carte (réglées ici pour pouvoir varier selon l'écran) */
+.q[data-len=m]{font-size:26px}.q[data-len=l]{font-size:22px}.q[data-len=xl]{font-size:19px}
+.a[data-len=m]{font-size:30px}.a[data-len=l]{font-size:24px}
+
+/* ================= iPad / tablettes (portrait) ================= */
+@media (min-width:700px){
+  body{font-size:20px}
+  main,#bar,.dock{max-width:760px}
+  h2{font-size:32px}
+  .lead{font-size:22px}
+  .lead.small{font-size:19px}
+  .hero{font-size:92px}
+  .btn{min-height:64px;font-size:21px}
+  .btn.sm{min-height:60px}
+  .chip{font-size:18px;min-height:50px}
+  .chip.small{min-height:0;font-size:16px;padding:4px 14px}
+  input[type=text]{min-height:60px;font-size:22px}
+  .modes{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+  .mode{padding:22px}
+  .mode strong{font-size:28px}
+  .mode span{font-size:18px}
+  #slots{display:grid;grid-template-columns:1fr 1fr;gap:16px 18px}
+  .num{font-size:140px}
+  .stepper{gap:34px}
+  .stepper .btn{width:92px;height:92px;font-size:44px}
+  .who{font-size:36px}
+  .alive{font-size:18px}
+  .clock{font-size:34px}
+  .timer{height:20px}
+  .card{height:min(52dvh,520px);min-height:340px}
+  .face{padding:30px}
+  .q{font-size:40px}.q[data-len=m]{font-size:34px}.q[data-len=l]{font-size:29px}.q[data-len=xl]{font-size:25px}
+  .a{font-size:56px}.a[data-len=m]{font-size:40px}.a[data-len=l]{font-size:30px}
+  .scene.compact .face.front{min-height:200px}
+  .grid{gap:16px}
+  .grid .btn{min-height:96px;font-size:21px}
+  .bigopts .chip{min-height:70px;min-width:100px;font-size:24px}
+  .rk{padding:16px 18px}
+  .rk .nm{font-size:22px}
+  .rules ol{font-size:18px}
+  .modal .box{max-width:460px}
+}
+
+/* ================= iPad en paysage / grands écrans ================= */
+@media (min-width:1000px){
+  main,#bar,.dock{max-width:920px}
+  #slots{grid-template-columns:repeat(3,1fr)}
+  .card{height:min(54dvh,540px)}
+}
