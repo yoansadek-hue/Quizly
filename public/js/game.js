@@ -24,7 +24,7 @@ const M = () => MODES[S.mode];
 /* ---------- Écrans & effets ---------- */
 function show(id) {
   document.querySelectorAll(".screen").forEach((s) => (s.hidden = s.id !== id));
-  $("bar").hidden = id === "s-login";
+  $("bar").hidden = id === "s-login" || id === "s-local";
   window.scrollTo(0, 0);
 }
 function flash(kind) {
@@ -57,7 +57,7 @@ function saveDB() {
 
 /* ---------- Nombre de joueurs ---------- */
 function setCount(d) {
-  const n = Math.min(12, Math.max(2, S.count + d));
+  const n = Math.min(20, Math.max(2, S.count + d));
   if (n === S.count) return; // aux bornes : aucune animation
   S.count = n;
   const el = $("cNum");
@@ -70,7 +70,7 @@ const rosterKey = () => `quizly:${S.uid}:roster`;
 function loadRoster() {
   try { S.slots = JSON.parse(localStorage.getItem(rosterKey()) || "[]").map((x) => ({ name: x.name || "", lives: x.lives || 0, imported: !!x.imported })); }
   catch { S.slots = []; }
-  S.count = Math.min(12, Math.max(2, S.slots.length || 4));
+  S.count = Math.min(20, Math.max(2, S.slots.length || 4));
   $("cNum").textContent = S.count;
 }
 function saveRoster() { if (M().solo) return; try { localStorage.setItem(rosterKey(), JSON.stringify(S.slots)); } catch {} }
@@ -219,7 +219,7 @@ const kill = (p) => { p.dead = true; p.outAt = ++S.elim; };
 function startGame() {
   if (!S.themes.size) return;
   const m = M();
-  S.players = S.slots.map((s) => ({ name: s.name, lives: m.solo ? 3 : s.lives, jokers: m.joker ? S.cfg.jokers : 0, dead: false, score: 0, outAt: 0 }));
+  S.players = S.slots.map((s) => ({ name: s.name, lives: m.solo ? 3 : s.lives, jokers: m.joker ? S.cfg.jokers : 0, dead: false, score: 0, points: 0, outAt: 0 }));
   if (!m.solo) saveDB();
   saveRoster();
   S.retry = false; S.elim = 0; S.played = new Set(); S.asked = []; S.inGame = true;
@@ -260,8 +260,8 @@ function prepareCard() {
   card.style.transition = "none"; card.classList.remove("flipped"); delete card.dataset.seen;
   replay(card); void card.offsetWidth; card.style.transition = "";
   const n = alive().length;
-  $("alive").hidden = !!m.solo;
-  $("alive").textContent = `${n} joueur${n > 1 ? "s" : ""} en vie sur ${S.players.length}`;
+  $("alive").hidden = false;
+  $("alive").textContent = m.solo ? `Points : ${p.points} · ${10 * S.diff} pts par bonne réponse` : `${n} joueur${n > 1 ? "s" : ""} en vie sur ${S.players.length}`;
   $("scene").classList.toggle("compact", m.qcm);
   $("whoName").textContent = p.name;
   $("whoName").classList.toggle("retry", !!S.retry); // nom en rouge quand la question est reposée après une vie utilisée
@@ -389,7 +389,7 @@ function judge(ok) { if (S.locked) return; S.locked = true; stopTimer(); finish(
 function finish(correct, quiet) {
   if (!S.inGame) return;
   $("btnSwap").hidden = true;
-  if (correct) S.players[S.i].score++;
+  if (correct) { const pl = S.players[S.i]; pl.score++; pl.points += 10 * S.diff; } // 10 points × niveau
   if (!quiet) flash(correct ? "ok" : "ko");
   setTimeout(() => resolve(correct), quiet ? 0 : 500);
 }
@@ -423,6 +423,8 @@ function afterTurn() {
   S.played.clear();
   $("lvName").textContent = `${S.diff} · ${LEVELS[S.diff]}`;
   $("btnUp").hidden = S.diff >= 5;
+  $("btnUp").textContent = M().solo ? `Monter d'un niveau (${10 * (S.diff + 1)} pts)` : "Monter d'un niveau";
+  $("btnStay").textContent = M().solo ? `Garder ce niveau (${10 * S.diff} pts)` : "Garder ce niveau";
   show("s-level");
 }
 function chooseLevel(up) { if (up) S.diff = Math.min(S.diff + 1, 5); nextTurn(); }
@@ -432,13 +434,13 @@ function endGame(w) {
   const ol = $("ranking");
   ol.replaceChildren();
   if (M().solo) {
-    const p = S.players[0], key = `quizly:${S.uid}:best`;
+    const p = S.players[0], key = `quizly:${S.uid}:best2`;
     let best = 0; try { best = +localStorage.getItem(key) || 0; } catch {}
-    const rec = p.score > best;
-    if (rec) try { localStorage.setItem(key, p.score); } catch {}
+    const rec = p.points > best;
+    if (rec) try { localStorage.setItem(key, p.points); } catch {}
     $("endLead").textContent = "Score final";
-    $("winner").textContent = `${p.score}`;
-    $("endNote").textContent = rec ? "Nouveau record !" : `Record : ${best}`;
+    $("winner").textContent = `${p.points} pts`;
+    $("endNote").textContent = `${rec ? "Nouveau record ! " : ""}Record : ${Math.max(best, p.points)} pts · ${p.score} bonne${p.score > 1 ? "s" : ""} réponse${p.score > 1 ? "s" : ""}`;
     show("s-end");
     if (rec) confetti();
     return;
@@ -510,6 +512,32 @@ function chooseMode(id) {
   } else show("s-count");
 }
 
+const localsKey = "quizly:locals";
+const getLocals = () => { try { return JSON.parse(localStorage.getItem(localsKey) || "[]"); } catch { return []; } };
+function renderLocals() {
+  const box = $("localList");
+  box.replaceChildren();
+  getLocals().forEach((n, i) => {
+    const b = document.createElement("button");
+    b.className = "chip"; b.style.setProperty("--i", i); b.textContent = n;
+    b.onclick = () => enterLocal(n);
+    box.append(b);
+  });
+}
+async function enterLocal(raw) {
+  let name = String(raw || "").trim();
+  if (!name) { $("localMsg").textContent = "Entrez un pseudo."; return; }
+  $("localMsg").textContent = "";
+  const list = getLocals();
+  const known = list.find((n) => n.toLowerCase() === name.toLowerCase());
+  if (known) name = known; else try { localStorage.setItem(localsKey, JSON.stringify([...list, name].slice(-20))); } catch {}
+  const uid = `local:${name.toLowerCase()}`;
+  try { localStorage.setItem(SESS, JSON.stringify({ uid, name, photo: "", local: true })); } catch {}
+  try { await logout(); } catch {} // coupe une éventuelle session Google
+  $("localName").value = "";
+  enter(uid, name, "");
+}
+
 function enter(uid, name, photo) {
   S.uid = uid;
   setUser(name, photo);
@@ -527,6 +555,8 @@ watch((user) => {
     try { localStorage.setItem(SESS, JSON.stringify({ uid: user.uid, name, photo: user.photoURL || "" })); } catch {}
     if (S.uid !== user.uid) enter(user.uid, name, user.photoURL); else setUser(name, user.photoURL);
   } else {
+    const cur = getSess();
+    if (cur && cur.local) return; // un compte local reste connecté
     try { localStorage.removeItem(SESS); } catch {}
     S.uid = null; S.inGame = false; stopTimer(); $("confirm").hidden = true; show("s-login");
   }
@@ -554,6 +584,9 @@ document.querySelectorAll("[data-back]").forEach((b) => (b.onclick = () => {
 }));
 $("btnLogout").onclick = async () => { try { localStorage.removeItem(SESS); } catch {} await logout(); S.uid = null; show("s-login"); };
 
+$("btnLocalOpen").onclick = () => { renderLocals(); show("s-local"); };
+$("btnLocal").onclick = () => enterLocal($("localName").value);
+$("localName").addEventListener("keydown", (e) => e.key === "Enter" && enterLocal($("localName").value));
 $("cMinus").onclick = () => setCount(-1);
 $("cPlus").onclick = () => setCount(1);
 $("btnCount").onclick = () => { renderSlots(); show("s-names"); };
