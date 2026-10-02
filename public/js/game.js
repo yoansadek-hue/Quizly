@@ -6,7 +6,6 @@ const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
 const MODES = {
   classic: { name: "Classique", desc: "Réponse à l'oral, le groupe valide. Carte retournable à volonté, jokers 4 choix.", qcm: false, time: 30, joker: true, lives: true },
   qcm: { name: "QCM", desc: "Toutes les questions en 4 choix, correction automatique.", qcm: true, time: 30, joker: false, lives: true },
-  sudden: { name: "Mort subite", desc: "Une erreur et vous sortez : ni vie, ni joker. 20 secondes.", qcm: false, time: 20, joker: false, lives: false, fixed: true },
   solo: { name: "Solo", desc: "Seul face aux questions : QCM, 3 vies, battez votre record.", qcm: true, time: 30, joker: false, lives: true, solo: true }
 };
 const TIMES = [10, 15, 20, 30, 45, 60, 0];
@@ -31,7 +30,10 @@ function show(id) {
 function flash(kind) {
   const fx = $("fx");
   fx.className = ""; void fx.offsetWidth; fx.className = kind;
-  if (kind === "ko") { document.body.classList.remove("shake"); void document.body.offsetWidth; document.body.classList.add("shake"); }
+  if (kind === "ko") { // secousse sans toucher aux ancêtres des boutons fixes
+    const keys = [0, -10, 10, -8, 8, 0].map((x) => ({ transform: `translateX(${x}px)` }));
+    ["scene", "mcq"].forEach((id) => { const el = $(id); if (el && el.offsetParent) el.animate(keys, { duration: 450 }); });
+  }
 }
 function confetti() {
   const cols = ["#ffd84d", "#29d9a1", "#ff5c5c", "#ffffff", "#c9ceff"];
@@ -167,6 +169,18 @@ function loadBank() { try { return JSON.parse(localStorage.getItem(bankKey()) ||
 // les questions générées mais pas encore posées sont gardées pour les prochaines parties (moins d'appels à l'IA)
 function saveBank() {
   try { localStorage.setItem(bankKey(), JSON.stringify([...S.rest, ...S.buf.filter((q) => !q.u)].slice(-120).map(({ u, ...q }) => q))); } catch {}
+}
+function ask(title, text, yes, onYes, onNo) {
+  $("cfTitle").textContent = title; $("cfText").textContent = text; $("cfYes").textContent = yes;
+  S.onYes = onYes; S.onNo = onNo || null;
+  $("confirm").hidden = false;
+}
+function resetLives() {
+  const db = getDB();
+  Object.values(db).forEach((p) => (p.lives = 0));
+  try { localStorage.setItem(dbKey(), JSON.stringify(db)); } catch {}
+  S.slots.forEach((s) => (s.lives = 0));
+  saveRoster(); renderSlots();
 }
 function replay(el) { el.style.animation = "none"; void el.offsetWidth; el.style.animation = ""; }
 const getAvoid = () => [...new Set([...getHist().slice(-8), ...S.asked])].slice(-15).map((q) => q.slice(0, 70));
@@ -378,6 +392,7 @@ function resolve(correct) {
   if (!S.inGame) return;
   if (correct) return afterTurn();
   const p = S.players[S.i];
+  if (M().solo) { p.lives--; if (p.lives <= 0) kill(p); return afterTurn(); } // solo : pas de question, la vie part toute seule
   if (M().lives && p.lives > 0) {
     $("reviveName").textContent = p.name;
     $("lifeCount").textContent = p.lives;
@@ -518,10 +533,18 @@ $("userPhoto").onerror = () => { $("userPhoto").hidden = true; $("userInit").hid
 $("btnUser").onclick = () => {
   if (!S.inGame) { stopTimer(); return show("s-mode"); }
   S.resume = !!S.tid; stopTimer();
-  $("confirm").hidden = false;
+  ask("Quitter la partie ?", "Êtes-vous sûr ? La partie en cours sera perdue.", "Quitter",
+    () => { S.inGame = false; S.resume = false; stopTimer(); show("s-mode"); },
+    () => { if (S.resume) resumeTimer(); S.resume = false; });
 };
-$("cfNo").onclick = () => { $("confirm").hidden = true; if (S.resume) resumeTimer(); S.resume = false; };
-$("cfYes").onclick = () => { $("confirm").hidden = true; S.inGame = false; S.resume = false; stopTimer(); show("s-mode"); };
+$("cfNo").onclick = () => { $("confirm").hidden = true; const f = S.onNo; S.onYes = S.onNo = null; if (f) f(); };
+$("cfYes").onclick = () => { $("confirm").hidden = true; const f = S.onYes; S.onYes = S.onNo = null; if (f) f(); };
+$("btnResetLives").onclick = () => ask("Réinitialiser les vies ?", "Toutes les vies de tous les joueurs reviendront à 0.", "Réinitialiser", resetLives);
+document.querySelectorAll("[data-back]").forEach((b) => (b.onclick = () => {
+  let t = b.dataset.back;
+  if (t === "auto") t = M().solo ? "s-mode" : "s-names";
+  show(t);
+}));
 $("btnLogout").onclick = async () => { try { localStorage.removeItem(SESS); } catch {} await logout(); S.uid = null; show("s-login"); };
 
 $("cMinus").onclick = () => setCount(-1);
@@ -536,6 +559,7 @@ $("btnThemes").onclick = () => {
   if (!S.themes.size) { $("setupMsg").textContent = "Choisissez au moins un thème."; return; }
   $("setupMsg").textContent = "";
   if (M().fixed) return startGame(); // mort subite : durée imposée
+  $("btnTime").textContent = M().joker ? "Valider" : "Lancer la partie";
   renderTime(); show("s-time");
 };
 $("btnTime").onclick = () => { if (M().joker) { renderJokers(); show("s-jokers"); } else startGame(); };
