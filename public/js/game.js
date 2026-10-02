@@ -340,7 +340,7 @@ function flip() {
   c.classList.toggle("flipped"); // retournable autant de fois que l'on veut ; le minuteur continue
   if (first) {
     c.dataset.seen = "1";
-    $("dockGame").hidden = true; $("btnSwap").hidden = true;
+    $("dockGame").hidden = true; // « Changer de question » reste disponible même carte retournée
     setTimeout(() => { if (!S.locked) $("dockJudge").hidden = false; }, 350);
   }
 }
@@ -402,7 +402,8 @@ function resolve(correct) {
 
 function revive(useLife) {
   const p = S.players[S.i];
-  if (useLife) p.lives--; else kill(p);
+  if (useLife) { p.lives--; saveDB(); return loadAndPlay(); } // même joueur, nouvelle question
+  kill(p);
   if (!M().solo) saveDB();
   afterTurn();
 }
