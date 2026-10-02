@@ -37,6 +37,7 @@ addEventListener("error", function (e) {
     <p class="lead">Connectez-vous pour jouer. Vos vies gagnées vous suivent partout.</p>
     <div class="stack">
       <button class="btn white" data-provider="google"><svg class="g"><use href="#glogo"/></svg>Continuer avec Google</button>
+      <button class="btn ghost" id="btnLocalOpen">Compte local (sur cet appareil)</button>
       <p id="loginMsg" class="msg" role="alert"></p>
     </div>
     <div class="rules">
@@ -49,6 +50,19 @@ addEventListener("error", function (e) {
         <li>Trois modes : Classique, QCM et Solo.</li>
       </ol>
     </div>
+  </section>
+
+  <!-- Compte local -->
+  <section id="s-local" class="screen" hidden>
+    <button class="goback" data-back="s-login">← Retour</button>
+    <h2>Compte local</h2>
+    <p class="lead small">Jouez sans Google : vos joueurs et vos vies restent sur cet appareil.</p>
+    <div id="localList" class="chips"></div>
+    <div class="row" style="margin-top:18px">
+      <input id="localName" type="text" placeholder="Votre pseudo" maxlength="20" autocomplete="off" enterkeyhint="go">
+      <button class="btn sun sm" id="btnLocal">Entrer</button>
+    </div>
+    <p id="localMsg" class="msg" role="alert"></p>
   </section>
 
   <!-- Choix du mode -->
