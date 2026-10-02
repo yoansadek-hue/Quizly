@@ -151,7 +151,6 @@ input[type=text]{
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 
 /* boutons de bas d'écran des formulaires : dans le flux, jamais par-dessus le contenu */
-#s-names .dock{position:static;margin-top:22px;padding:0;background:none;max-width:none}
 
 /* classement */
 .rank{list-style:none;padding:0;margin:0 0 24px;display:flex;flex-direction:column;gap:10px;text-align:left}
@@ -233,6 +232,14 @@ body::after{background:radial-gradient(30% 30% at 75% 22%,rgba(90,110,255,.4),tr
    L'entrée en glissade est donc appliquée aux enfants, jamais à .screen ni aux .dock. */
 @keyframes fadein{from{opacity:0}}
 .screen>*:not(.dock){animation:in .4s cubic-bezier(.2,.8,.2,1) backwards}
-.back{display:block;background:none;border:0;padding:6px 0;min-height:44px;color:var(--lilac);font:800 16px var(--font);cursor:pointer;text-align:left}
-.dock .back{margin:6px auto 0;text-align:center}
+.goback{display:block;background:none;border:0;padding:6px 0;min-height:44px;color:var(--lilac);font:800 16px var(--font);cursor:pointer;text-align:left}
+.dock .goback{margin:6px auto 0;text-align:center}
 .mode[data-m=solo]{background:var(--sun)}
+
+/* en-tête : signature sous le logo */
+.logo{display:flex;flex-direction:column;align-items:flex-start}
+.logo small{margin-top:3px;font:500 12px var(--font);color:var(--lilac);letter-spacing:.02em}
+.hero + .credit{margin:6px 0 0;text-align:left;font-size:15px}
+/* clavier ouvert : on masque les boutons du bas pour qu'ils ne recouvrent pas les champs */
+body.typing .dock{display:none}
+.card{height:min(46dvh,400px);min-height:250px}
