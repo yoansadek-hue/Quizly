@@ -114,7 +114,7 @@ input[type=text]{
 @keyframes shake{20%,60%{transform:translateX(-10px)}40%,80%{transform:translateX(10px)}}
 @keyframes bounce{50%{transform:translateY(-22px)}}
 @keyframes fall{to{transform:translateY(110vh) rotate(720deg)}}
-.screen{animation:in .4s cubic-bezier(.2,.8,.2,1) backwards}
+.screen{animation:fadein .3s backwards}
 .hero{animation:float 3.5s ease-in-out infinite}
 .chips>*{animation:pop .4s backwards;animation-delay:calc(var(--i,0)*22ms)}
 .card{animation:drop .65s cubic-bezier(.2,1.2,.3,1) backwards}
@@ -132,7 +132,6 @@ input[type=text]{
 #fx{position:fixed;inset:0;pointer-events:none;opacity:0;z-index:9}
 #fx.ok{background:radial-gradient(circle,var(--mint),transparent 70%);animation:flash .55s}
 #fx.ko{background:radial-gradient(circle,var(--coral),transparent 70%);animation:flash .55s}
-body.shake main{animation:shake .45s}
 .conf{position:fixed;top:-24px;width:10px;height:16px;z-index:9;pointer-events:none;animation:fall var(--t) linear forwards}
 /* compteur */
 .stepper{display:flex;align-items:center;justify-content:center;gap:22px;margin:20px 0}
@@ -229,3 +228,11 @@ body::after{background:radial-gradient(30% 30% at 75% 22%,rgba(90,110,255,.4),tr
 
 .credit{text-align:center;margin:22px 0 0;font-size:14px;color:var(--lilac);opacity:.85}
 .alive{margin:2px 0 0;font-size:15px;font-weight:800;color:var(--lilac)}
+
+/* Le fond d'écran ne doit jamais avoir de transform : sinon les boutons fixes sautent pendant l'animation.
+   L'entrée en glissade est donc appliquée aux enfants, jamais à .screen ni aux .dock. */
+@keyframes fadein{from{opacity:0}}
+.screen>*:not(.dock){animation:in .4s cubic-bezier(.2,.8,.2,1) backwards}
+.back{display:block;background:none;border:0;padding:6px 0;min-height:44px;color:var(--lilac);font:800 16px var(--font);cursor:pointer;text-align:left}
+.dock .back{margin:6px auto 0;text-align:center}
+.mode[data-m=solo]{background:var(--sun)}
