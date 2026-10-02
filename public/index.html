@@ -48,6 +48,7 @@ addEventListener("error", function (e) {
         <li>Quatre modes : Classique, QCM, Mort subite et Solo.</li>
       </ol>
     </div>
+    <p class="credit">Jeu créé par YoskanGame</p>
   </section>
 
   <!-- Choix du mode -->
@@ -55,6 +56,7 @@ addEventListener("error", function (e) {
     <h2>Choisissez un mode</h2>
     <div id="modes" class="modes"></div>
     <p class="center-link"><button class="link" id="btnLogout">Changer de compte</button></p>
+    <p class="credit">Jeu créé par YoskanGame</p>
   </section>
 
   <!-- Nombre de joueurs -->
@@ -115,6 +117,7 @@ addEventListener("error", function (e) {
   <!-- Jeu -->
   <section id="s-game" class="screen" hidden>
     <p class="who"><span id="whoName"></span><span id="whoLives" class="chip small"></span></p>
+    <p class="alive" id="alive"></p>
     <div class="clockrow" id="clockrow"><div class="timer"><i id="bar30"></i></div><span id="clock" class="clock">30</span><button class="chip small stop" id="btnStopTimer" aria-label="Arrêter le timer">Arrêter le timer</button></div>
     <div class="scene" id="scene"><div class="card" id="card" role="button" tabindex="0" aria-label="Retourner la carte">
       <div class="face front">
