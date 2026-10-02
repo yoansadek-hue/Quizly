@@ -470,7 +470,7 @@ const getSess = () => { try { return JSON.parse(localStorage.getItem(SESS) || "n
 function setUser(name, photo) {
   const first = (name || "Compte").split(" ")[0];
   S.firstName = first;
-  $("userName").textContent = `${first} · Sortir`;
+  $("userName").textContent = `${first} · Menu`;
   const img = $("userPhoto"), ini = $("userInit");
   ini.textContent = first.charAt(0).toUpperCase();
   img.hidden = !photo; ini.hidden = !!photo;
@@ -580,3 +580,7 @@ $("btnStay").onclick = () => chooseLevel(false);
 $("btnAgain").onclick = () => {
   if (M().solo) { renderThemes(); show("s-themes"); } else show("s-count"); // même mode, sans lancer la partie
 };
+
+// pendant la saisie d'un nom, les boutons fixes du bas sont masqués
+document.addEventListener("focusin", (e) => { if (e.target.matches && e.target.matches("input[type=text]")) document.body.classList.add("typing"); });
+document.addEventListener("focusout", () => document.body.classList.remove("typing"));
