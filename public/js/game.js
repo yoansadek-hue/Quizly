@@ -273,8 +273,8 @@ function prepareCard() {
   $("aText").textContent = S.q.a;
   // police adaptée à la longueur pour que le texte reste dans la carte
   const ql = S.q.q.length, al = S.q.a.length;
-  $("qText").style.fontSize = ql > 170 ? "19px" : ql > 120 ? "22px" : ql > 80 ? "26px" : "";
-  $("aText").style.fontSize = al > 60 ? "24px" : al > 35 ? "30px" : "";
+  $("qText").dataset.len = ql > 170 ? "xl" : ql > 120 ? "l" : ql > 80 ? "m" : "s"; // la taille se règle en CSS (téléphone / tablette)
+  $("aText").dataset.len = al > 60 ? "l" : al > 35 ? "m" : "s";
   // remet à zéro tout état « rouge » de la question précédente
   $("fx").className = ""; $("clock").classList.remove("urgent");
   $("mcq").hidden = true; $("dockJudge").hidden = true; $("dockNext").hidden = true;
