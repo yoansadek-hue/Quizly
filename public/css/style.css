@@ -243,3 +243,5 @@ body::after{background:radial-gradient(30% 30% at 75% 22%,rgba(90,110,255,.4),tr
 /* clavier ouvert : on masque les boutons du bas pour qu'ils ne recouvrent pas les champs */
 body.typing .dock{display:none}
 .card{height:min(46dvh,400px);min-height:250px}
+
+.logo small,.hero + .credit{color:var(--sun)}
