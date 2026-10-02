@@ -251,4 +251,4 @@ body.typing .dock{display:none}
 .face>.chip{flex:none;align-self:flex-start}
 .face .q,.face .a{min-height:0;max-width:100%}
 .card{height:min(50dvh,430px);min-height:290px}
-#whoName{color:var(--white)}
+#whoName.retry{color:var(--coral)}
