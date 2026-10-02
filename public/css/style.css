@@ -245,3 +245,10 @@ body.typing .dock{display:none}
 .card{height:min(46dvh,400px);min-height:250px}
 
 .logo small,.hero + .credit{color:var(--sun)}
+
+/* carte : rien ne s'écrase, le texte reste dans le cadre */
+.face{overflow:hidden}
+.face>.chip{flex:none;align-self:flex-start}
+.face .q,.face .a{min-height:0;max-width:100%}
+.card{height:min(50dvh,430px);min-height:290px}
+#whoName{color:var(--white)}
