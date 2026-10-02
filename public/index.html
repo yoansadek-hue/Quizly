@@ -45,7 +45,7 @@ addEventListener("error", function (e) {
         <li>Bonne réponse : vous restez en jeu. Mauvaise réponse ou temps écoulé : vous perdez une vie, ou vous êtes éliminé si vous n'en avez plus.</li>
         <li>Après chaque tour complet, le groupe peut monter d'un niveau.</li>
         <li>Le dernier joueur en jeu gagne une vie, gardée pour les prochaines parties.</li>
-        <li>Quatre modes : Classique, QCM, Mort subite et Solo.</li>
+        <li>Trois modes : Classique, QCM et Solo.</li>
       </ol>
     </div>
     <p class="credit">Jeu créé par YoskanGame</p>
@@ -68,12 +68,13 @@ addEventListener("error", function (e) {
       <span class="num" id="cNum">4</span>
       <button class="btn white" id="cPlus" aria-label="Plus">+</button>
     </div>
-    <div class="dock"><button class="btn sun" id="btnCount">Continuer</button></div>
+    <div class="dock"><button class="btn sun" id="btnCount">Continuer</button><button class="link back" data-back="s-mode">Retour</button></div>
   </section>
 
   <!-- Noms -->
   <section id="s-names" class="screen" hidden>
-    <h2>Qui est là ?</h2>
+    <button class="back" data-back="s-count">← Retour</button>
+    <div class="row between"><h2>Qui est là ?</h2><button class="link" id="btnResetLives">Réinitialiser les vies</button></div>
     <p class="lead small">Tapez un nom. S'il existe déjà, importez votre profil.</p>
     <div id="slots" class="stack"></div>
     <p id="namesMsg" class="msg" role="alert"></p>
@@ -82,6 +83,7 @@ addEventListener("error", function (e) {
 
   <!-- Thèmes -->
   <section id="s-themes" class="screen" hidden>
+    <button class="back" data-back="auto">← Retour</button>
     <h2>Thèmes</h2>
     <p class="lead small">Touchez les thèmes que vous voulez jouer.</p>
     <div id="themes" class="chips"></div>
@@ -91,6 +93,7 @@ addEventListener("error", function (e) {
 
   <!-- Minuteur -->
   <section id="s-time" class="screen" hidden>
+    <button class="back" data-back="s-themes">← Retour</button>
     <h2>Temps par question</h2>
     <p class="lead small">Choisissez la durée dont chaque joueur dispose.</p>
     <div id="optTime" class="chips opts bigopts"></div>
@@ -99,6 +102,7 @@ addEventListener("error", function (e) {
 
   <!-- Jokers -->
   <section id="s-jokers" class="screen" hidden>
+    <button class="back" data-back="s-time">← Retour</button>
     <h2>Jokers par joueur</h2>
     <p class="lead small">Un joker propose 4 choix de réponse.</p>
     <div id="optJokers" class="chips opts bigopts"></div>
@@ -177,7 +181,7 @@ addEventListener("error", function (e) {
 <div id="confirm" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="cfTitle">
   <div class="box">
     <h3 id="cfTitle">Quitter la partie ?</h3>
-    <p>Êtes-vous sûr ? La partie en cours sera perdue.</p>
+    <p id="cfText">Êtes-vous sûr ? La partie en cours sera perdue.</p>
     <div class="two"><button class="btn white" id="cfNo">Rester</button><button class="btn coral" id="cfYes">Quitter</button></div>
   </div>
 </div>
