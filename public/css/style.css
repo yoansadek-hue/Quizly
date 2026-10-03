@@ -336,3 +336,13 @@ body.typing .dock{display:none}
 #splash .hero{animation:none}
 #splash small{margin-top:6px;color:var(--sun);font:500 16px var(--font)}
 #splash .dots{margin:30px 0 0}
+
+/* image de question (drapeaux) */
+.qimg{align-self:center;max-width:100%;max-height:150px;margin:6px 0;object-fit:contain;background:#fff;border:3px solid var(--ink);border-radius:10px}
+.qimg[hidden]{display:none}
+/* compte local : photo + e-mail */
+input[type=email]{flex:1;min-width:0;min-height:52px;padding:10px 16px;font:800 20px var(--font);color:var(--ink);background:var(--white);border:3px solid var(--ink);border-radius:16px;box-shadow:var(--shadow)}
+.pick{display:flex;flex-direction:column;align-items:center;gap:8px;margin:18px auto 14px;cursor:pointer;font-weight:800;color:var(--lilac)}
+.avatar.big{width:96px;height:96px;font-size:44px;border-width:3px}
+.version{text-align:center;margin:18px 0 0;font-size:13px;color:var(--lilac);opacity:.75}
+@media (min-width:700px){ input[type=email]{min-height:60px;font-size:22px} .qimg{max-height:220px} }
