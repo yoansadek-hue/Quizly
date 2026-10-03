@@ -230,8 +230,7 @@ function afterTurn(room) {
 function askLevel(room) {
   room.phase = "level";
   cast(room, { t: "level", diff: room.diff, host: room.hostId });
-  clearTimeout(room.timer);
-  room.timer = setTimeout(() => room.phase === "level" && chooseLevel(room, false), 25000);
+  clearTimeout(room.timer); // pas de minuteur : le choix reste affiché tant que l'hôte n'a pas appuyé sur un bouton
 }
 function chooseLevel(room, up) {
   clearTimeout(room.timer);
