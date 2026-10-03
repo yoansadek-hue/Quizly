@@ -3,7 +3,7 @@ import { watch, signIn, logout } from "./auth.js";
 import { initOnline } from "./online.js";
 import { makeLocal, LOCAL_THEMES } from "./local.js";
 
-const VERSION = "2.4.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.4.1"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
