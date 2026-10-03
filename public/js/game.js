@@ -1,6 +1,9 @@
 import { THEMES, fetchAI } from "./questions.js";
 import { watch, signIn, logout } from "./auth.js";
 import { initOnline } from "./online.js";
+import { makeLocal, LOCAL_THEMES } from "./local.js";
+
+const VERSION = "2.4.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -19,6 +22,7 @@ const S = {
   cfg: { time: 30, jokers: 1, lives: 2 }
 };
 const M = () => MODES[S.mode];
+document.querySelectorAll(".ver").forEach((e) => (e.textContent = `Quizly v${VERSION} · par YoskanGame`));
 const online = initOnline({ $, show, flash, confetti, me: () => ({ name: S.firstName || "Joueur", photo: S.photo || "" }) });
 
 // pas de zoom (pincement iOS)
@@ -216,12 +220,13 @@ function resetLives() {
   saveRoster(); renderSlots();
 }
 function replay(el) { el.style.animation = "none"; void el.offsetWidth; el.style.animation = ""; }
-const getAvoid = () => [...new Set([...getHist().slice(-8), ...S.asked])].slice(-15).map((q) => q.slice(0, 70));
+const getAvoid = () => [...new Set([...getHist().slice(-8), ...S.asked])].filter((q) => !q.startsWith("~")).slice(-15).map((q) => q.slice(0, 70));
 
 function fill() {
   const d = S.diff;
   if (S.loading && S.loading.d === d) return S.loading.p;
-  const p = fetchAI([...S.active].sort(() => Math.random() - 0.5).slice(0, 5), d, 6, getAvoid())
+  const aiThemes = [...S.active].filter((t) => !LOCAL_THEMES.includes(t));
+  const p = fetchAI(aiThemes.sort(() => Math.random() - 0.5).slice(0, 5), d, 6, getAvoid())
     .then((qs) => {
       qs.forEach((q) => { if (!seen(q.q) && !S.buf.some((b) => similar(b.q, q.q))) S.buf.push({ ...q, d }); });
       saveBank();
@@ -231,6 +236,15 @@ function fill() {
   return p;
 }
 async function getQuestion() {
+  // thèmes « sans IA » (drapeaux, capitales, calcul…) : question fabriquée sur place, toujours juste
+  const locals = [...S.active].filter((t) => LOCAL_THEMES.includes(t));
+  const withAI = S.active.size > locals.length;
+  if (locals.length && (!withAI || Math.random() < locals.length / S.active.size)) {
+    for (let i = 0; i < 8; i++) {
+      const lq = makeLocal(locals[Math.floor(Math.random() * locals.length)], S.diff);
+      if (!S.asked.includes(lq.key) || i === 7) { S.asked.push(lq.key); return lq; }
+    }
+  }
   for (let t = 0; t < 3; t++) {
     const pool = usable(S.diff);
     if (pool.length) {
@@ -252,7 +266,7 @@ const kill = (p) => { p.dead = true; p.outAt = ++S.elim; };
 function startGame() {
   if (!S.active.size) return;
   const m = M();
-  S.players = S.slots.map((s) => ({ name: s.name, lives: m.solo ? 3 : s.lives, jokers: m.joker ? S.cfg.jokers : 0, dead: false, score: 0, points: 0, outAt: 0 }));
+  S.players = S.slots.map((s) => ({ name: s.name, lives: m.solo ? 3 : s.lives, jokers: m.joker ? S.cfg.jokers : 0, dead: false, score: 0, points: 0, streak: 0, outAt: 0 }));
   if (!m.solo) saveDB();
   saveRoster();
   S.retry = false; S.qn = 0; S.elim = 0; S.played = new Set(); S.asked = []; S.inGame = true;
@@ -272,15 +286,18 @@ function nextTurn() {
 }
 
 async function loadAndPlay() {
-  if (!usable(S.diff).length) show("s-load"); // le chargement ne s'affiche que s'il faut vraiment attendre l'IA
+  const slow = setTimeout(() => S.inGame && show("s-load"), 250); // le chargement ne s'affiche que si l'attente se prolonge
   $("loadText").textContent = "L'IA prépare vos questions…";
   $("loadErr").hidden = true;
   try {
     const q = await getQuestion();
+    clearTimeout(slow);
     if (!S.inGame) return;
     S.q = q;
   } catch (e) {
+    clearTimeout(slow);
     if (!S.inGame) return;
+    show("s-load");
     $("loadText").textContent = `Génération impossible : ${e.message}`; $("loadErr").hidden = false; return;
   }
   prepareCard();
@@ -294,7 +311,7 @@ function prepareCard() {
   replay(card); void card.offsetWidth; card.style.transition = "";
   const n = alive().length;
   $("alive").hidden = false;
-  $("alive").textContent = m.solo ? `Points : ${p.points} · ${10 * S.diff} pts par bonne réponse` : `${n} joueur${n > 1 ? "s" : ""} en vie sur ${S.players.length}`;
+  $("alive").textContent = m.solo ? `Points : ${p.points} · Série : ${p.streak || 0}` : `${n} joueur${n > 1 ? "s" : ""} en vie sur ${S.players.length}`;
   $("scene").classList.toggle("compact", m.qcm);
   $("whoName").textContent = p.name;
   $("whoName").classList.toggle("retry", !!S.retry); // nom en rouge quand la question est reposée après une vie utilisée
@@ -303,6 +320,8 @@ function prepareCard() {
   $("tag").textContent = `${S.q.t} · ${LEVELS[S.diff]}`;
   $("backTag").textContent = "Réponse";
   $("qText").textContent = S.q.q;
+  const qi = $("qImg"); // image de la question (drapeaux)
+  if (S.q.img) { qi.hidden = false; qi.onerror = () => { qi.hidden = true; }; qi.src = S.q.img; } else { qi.hidden = true; qi.removeAttribute("src"); }
   $("aText").textContent = S.q.a;
   // police adaptée à la longueur pour que le texte reste dans la carte
   const ql = S.q.q.length, al = S.q.a.length;
@@ -422,7 +441,9 @@ function judge(ok) { if (S.locked) return; S.locked = true; stopTimer(); finish(
 function finish(correct, quiet) {
   if (!S.inGame) return;
   $("btnSwap").hidden = true;
-  if (correct) { const pl = S.players[S.i]; pl.score++; pl.points += 10 * S.diff; } // 10 points × niveau
+  const pl = S.players[S.i];
+  if (correct) { pl.score++; pl.streak = (pl.streak || 0) + 1; pl.points += 10 * S.diff + (M().solo ? Math.min(pl.streak - 1, 5) * 5 : 0); } // 10 pts × niveau, + bonus de série en solo
+  else pl.streak = 0;
   if (!quiet) flash(correct ? "ok" : "ko");
   setTimeout(() => resolve(correct), quiet ? 0 : 500);
 }
@@ -549,30 +570,75 @@ function chooseMode(id) {
   } else show("s-count");
 }
 
-const localsKey = "quizly:locals";
-const getLocals = () => { try { return JSON.parse(localStorage.getItem(localsKey) || "[]"); } catch { return []; } };
+const profKey = "quizly:profiles";
+const getProfiles = () => { try { return JSON.parse(localStorage.getItem(profKey) || "{}"); } catch { return {}; } };
+const saveProfiles = (p) => { try { localStorage.setItem(profKey, JSON.stringify(p)); } catch {} };
+const oldLocals = () => { try { return JSON.parse(localStorage.getItem("quizly:locals") || "[]"); } catch { return []; } };
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+let localPhoto = "";
+
+function setPreview(photo) {
+  localPhoto = photo || "";
+  $("localPreview").hidden = !localPhoto;
+  $("localPlus").hidden = !!localPhoto;
+  if (localPhoto) $("localPreview").src = localPhoto;
+  $("localPickText").textContent = localPhoto ? "Changer la photo" : "Choisir une photo dans la galerie";
+}
+function fillForm(p) { $("localName").value = p.name || ""; $("localEmail").value = p.email || ""; setPreview(p.photo); }
+
+// réduit la photo choisie en carré 96 × 96 (assez léger pour être stocké et envoyé en ligne)
+function shrink(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      const c = document.createElement("canvas"); c.width = c.height = 96;
+      const m = Math.min(img.width, img.height);
+      c.getContext("2d").drawImage(img, (img.width - m) / 2, (img.height - m) / 2, m, m, 0, 0, 96, 96);
+      URL.revokeObjectURL(url);
+      let q = 0.7, d = c.toDataURL("image/jpeg", q);
+      while (d.length > 8500 && q > 0.3) { q -= 0.1; d = c.toDataURL("image/jpeg", q); }
+      resolve(d);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Image illisible.")); };
+    img.src = url;
+  });
+}
+
 function renderLocals() {
   const box = $("localList");
   box.replaceChildren();
-  getLocals().forEach((n, i) => {
+  const names = [...new Set([...Object.values(getProfiles()).map((p) => p.name), ...oldLocals()])];
+  names.forEach((n, i) => {
     const b = document.createElement("button");
     b.className = "chip"; b.style.setProperty("--i", i); b.textContent = n;
-    b.onclick = () => enterLocal(n);
+    b.onclick = () => {
+      const p = getProfiles()[n.toLowerCase()];
+      if (p && p.email && p.photo) return enterLocal(p);
+      fillForm({ name: n, email: p ? p.email : "", photo: p ? p.photo : "" });
+      $("localMsg").textContent = "Complétez votre profil : photo et e-mail.";
+    };
     box.append(b);
   });
 }
-async function enterLocal(raw) {
-  let name = String(raw || "").trim();
-  if (!name) { $("localMsg").textContent = "Entrez un pseudo."; return; }
-  $("localMsg").textContent = "";
-  const list = getLocals();
-  const known = list.find((n) => n.toLowerCase() === name.toLowerCase());
-  if (known) name = known; else try { localStorage.setItem(localsKey, JSON.stringify([...list, name].slice(-20))); } catch {}
-  const uid = `local:${name.toLowerCase()}`;
-  try { localStorage.setItem(SESS, JSON.stringify({ uid, name, photo: "", local: true })); } catch {}
+
+function submitLocal() {
+  const name = $("localName").value.trim(), email = $("localEmail").value.trim();
+  const say = (t) => ($("localMsg").textContent = t);
+  if (!name) return say("Entrez un pseudo.");
+  if (!EMAIL.test(email)) return say("Entrez une adresse e-mail valide.");
+  if (!localPhoto) return say("Choisissez une photo de profil dans votre galerie.");
+  const known = getProfiles()[name.toLowerCase()];
+  enterLocal({ name: known ? known.name : name, email, photo: localPhoto });
+}
+async function enterLocal(p) {
+  const profiles = getProfiles();
+  profiles[p.name.toLowerCase()] = { name: p.name, email: p.email, photo: p.photo };
+  saveProfiles(profiles);
+  const uid = `local:${p.name.toLowerCase()}`;
+  try { localStorage.setItem(SESS, JSON.stringify({ uid, name: p.name, photo: p.photo, local: true })); } catch {}
   try { await logout(); } catch {} // coupe une éventuelle session Google
-  $("localName").value = "";
-  enter(uid, name, "");
+  $("localMsg").textContent = "";
+  enter(uid, p.name, p.photo);
 }
 
 function enter(uid, name, photo) {
@@ -626,9 +692,16 @@ document.querySelectorAll("[data-back]").forEach((b) => (b.onclick = () => {
 }));
 $("btnLogout").onclick = async () => { try { localStorage.removeItem(SESS); } catch {} online.leave(); await logout(); S.uid = null; show("s-login"); };
 
-$("btnLocalOpen").onclick = () => { renderLocals(); show("s-local"); };
-$("btnLocal").onclick = () => enterLocal($("localName").value);
-$("localName").addEventListener("keydown", (e) => e.key === "Enter" && enterLocal($("localName").value));
+$("btnLocalOpen").onclick = () => { renderLocals(); fillForm({}); $("localMsg").textContent = ""; show("s-local"); };
+$("btnLocal").onclick = submitLocal;
+$("localName").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("localEmail").focus(); } });
+$("localEmail").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); submitLocal(); } });
+$("localPhoto").addEventListener("change", async (e) => {
+  const f = e.target.files && e.target.files[0];
+  if (!f) return;
+  try { setPreview(await shrink(f)); $("localMsg").textContent = ""; } catch (err) { $("localMsg").textContent = err.message; }
+  e.target.value = "";
+});
 $("cMinus").onclick = () => setCount(-1);
 $("cPlus").onclick = () => setCount(1);
 $("btnCount").onclick = () => { renderSlots(); show("s-names"); };
