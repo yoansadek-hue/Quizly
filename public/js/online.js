@@ -1,9 +1,10 @@
 // Jeu en ligne : le serveur mène la partie, ce fichier affiche ce qu'il envoie.
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
+const PALETTE = ["#ffd84d", "#29d9a1", "#ff9a9a", "#c9ceff", "#ffb86b", "#7fe7ff", "#d7a8ff", "#b7f171", "#ff9ed8", "#ffffff", "#9ad0ff", "#ffe98a"];
 const HEART = "\u2665\uFE0E"; // cœur « texte » (jamais l'emoji rouge)
 
 export function initOnline({ $, show, flash, confetti, me }) {
-  const O = { ws: null, you: null, host: null, active: false, inRoom: false, tid: null, cur: null, answered: false };
+  const O = { cfg: null, editing: false, ws: null, you: null, host: null, active: false, inRoom: false, tid: null, cur: null, answered: false };
   const plural = (n, w) => `${n} ${w}${n > 1 ? "s" : ""}`;
   const msg = (t) => { $("onMsg").textContent = t; $("lobbyMsg").textContent = t; };
 
@@ -39,12 +40,16 @@ export function initOnline({ $, show, flash, confetti, me }) {
     },
     level: (up) => send({ t: "level", up }),
     retry: () => send({ t: "retry" }),
-    again: () => send({ t: "again" })
+    again: () => send({ t: "again" }),
+    next: () => send({ t: "next" }),
+    config: (cfg) => send({ t: "config", ...cfg }),
+    cfg: () => O.cfg,
+    setEditing: (v) => { O.editing = !!v; }
   };
 
   function onMsg(m) {
     switch (m.t) {
-      case "lobby": O.inRoom = true; O.you = m.you; O.host = m.host; renderLobby(m); show("s-lobby"); break;
+      case "lobby": O.inRoom = true; O.you = m.you; O.host = m.host; O.cfg = m.cfg; renderLobby(m); if (!O.editing) show("s-lobby"); break;
       case "error": msg(m.msg); if (!O.inRoom) { api.leave(); show("s-online"); } break;
       case "load": stopClock(); $("loadText").textContent = "L'IA prépare la question…"; $("loadErr").hidden = true; show("s-load"); break;
       case "fail": $("loadText").textContent = m.msg; $("loadErr").hidden = O.you !== O.host; show("s-load"); break;
@@ -63,11 +68,12 @@ export function initOnline({ $, show, flash, confetti, me }) {
     ul.replaceChildren();
     m.players.forEach((p, i) => {
       const li = document.createElement("li");
-      li.className = "chip" + (p.id === m.host ? " host" : "");
+      li.className = "chip";
+      li.style.background = PALETTE[(p.ci || 0) % PALETTE.length];
       li.style.setProperty("--i", i);
       if (p.photo) { const im = document.createElement("img"); im.className = "avatar"; im.alt = ""; im.referrerPolicy = "no-referrer"; im.src = p.photo; li.append(im); }
       const s = document.createElement("span");
-      s.textContent = p.name + (p.id === m.you ? " (vous)" : "") + (p.id === m.host ? " · hôte" : "");
+      s.textContent = p.name + (p.id === m.host ? " · hôte" : "");
       li.append(s);
       ul.append(li);
     });
@@ -76,7 +82,10 @@ export function initOnline({ $, show, flash, confetti, me }) {
     $("lobbyInfo").textContent = `${plural(m.cfg.themes.length, "thème")} · ${m.cfg.time ? m.cfg.time + " s" : "sans limite"} · ${plural(m.cfg.lives, "vie")}`;
     $("btnLobbyStart").hidden = !host;
     $("btnLobbyStart").disabled = m.players.length < 2;
-    $("lobbyWait").hidden = host;
+    $("btnLobbyStart").textContent = m.players.length < 2 ? "Il faut au moins 2 joueurs" : "Lancer la partie";
+    $("btnLobbyEdit").hidden = !host;
+    $("lobbyWait").hidden = host && m.players.length >= 2;
+    $("lobbyWait").textContent = host ? "Il faut au moins 2 joueurs pour lancer." : "En attente de l'hôte…";
     msg("");
   }
 
@@ -151,6 +160,7 @@ export function initOnline({ $, show, flash, confetti, me }) {
     $("whoLives").textContent = `${HEART} ${Math.max(m.lives, 0)}`;
     $("alive").textContent = m.correct ? "Bonne réponse" : m.dead ? `${m.name} est éliminé` : m.picked < 0 ? "Temps écoulé" : "Mauvaise réponse";
     flash(m.correct ? "ok" : "ko");
+    $("dockNext").hidden = !(m.who === O.you || O.host === O.you); // le joueur (ou l'hôte) appuie sur Continuer
   }
 
   function renderLevel(m) {
@@ -160,7 +170,7 @@ export function initOnline({ $, show, flash, confetti, me }) {
     $("lvName").textContent = `${m.diff} · ${LEVELS[m.diff]}`;
     $("btnUp").hidden = !host || m.diff >= 5;
     $("btnStay").hidden = !host;
-    $("btnUp").textContent = "Monter d'un niveau"; $("btnStay").textContent = "Garder ce niveau";
+    $("btnUp").textContent = "Augmenter la difficulté"; $("btnStay").textContent = "Garder ce niveau";
     $("lvWait").hidden = host;
     show("s-level");
   }
