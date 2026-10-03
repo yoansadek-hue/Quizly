@@ -315,3 +315,17 @@ body.typing .dock{display:none}
 #lobbyList .chip{background:var(--white);cursor:default}
 #lobbyList .chip.host{background:var(--sun)}
 .grid .btn:disabled.picked:not(.right):not(.wrong){background:var(--sun);color:var(--ink);border-color:var(--ink);box-shadow:var(--shadow)}
+
+/* salle d'attente : textes sous le code bien espacés */
+.lead.small.meta{margin:14px 0 0;text-align:center}
+.lead.small.meta + .meta{margin-top:4px}
+/* boutons du bas : plus de rectangle clair derrière */
+.dock{background:none}
+/* iPad : « En ligne » occupe toute la ligne, jusqu'au bout de la colonne Solo */
+@media (min-width:700px){.mode[data-m=online]{grid-column:1 / -1}}
+
+/* salle d'attente : plus de chevauchement */
+.lead.small.meta{margin:12px 0 0;text-align:center}
+.code{margin:10px 0 0}
+#lobbyList .chip{color:var(--ink)}
+@media (min-width:700px){ .mode[data-m=online]{grid-column:1 / -1} }
