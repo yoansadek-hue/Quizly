@@ -15,7 +15,7 @@ const JOKERS = [0, 1, 2, 3, 5];
 const S = {
   uid: null, firstName: "", count: 4, slots: [], players: [], themes: new Set(), active: new Set(), rand: false, photo: "",
   i: -1, diff: 1, q: null, buf: [], loading: null, joker: false, locked: false, tid: null, left: 30,
-  rest: [], elim: 0, mode: "classic", played: new Set(), asked: [], inGame: false, pending: false, resume: false,
+  rest: [], qn: 0, editRoom: false, elim: 0, mode: "classic", played: new Set(), asked: [], inGame: false, pending: false, resume: false,
   cfg: { time: 30, jokers: 1, lives: 2 }
 };
 const M = () => MODES[S.mode];
@@ -114,6 +114,19 @@ function renderSlots() {
     wrap.style.animation = `in .4s ${i * 50}ms backwards`;
     box.append(wrap);
   });
+  // clavier : « Suivant » passe au joueur suivant, « Entrée » sur le dernier ouvre la page suivante
+  const inputs = [...box.querySelectorAll("input")];
+  inputs.forEach((inp, i) => {
+    const last = i === inputs.length - 1;
+    inp.setAttribute("enterkeyhint", last ? "go" : "next");
+    inp.setAttribute("autocapitalize", "words");
+    inp.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      if (!last) inputs[i + 1].focus();
+      else { inp.blur(); $("btnNames").click(); }
+    });
+  });
   saveRoster();
 }
 function validateNames() {
@@ -129,7 +142,7 @@ function renderThemes() {
   box.replaceChildren();
   box.classList.toggle("dim", S.rand);
   const r = document.createElement("button");
-  r.className = "chip rand"; r.textContent = "Aléatoire (tous les thèmes)";
+  r.className = "chip rand"; r.textContent = "Aléatoire";
   r.setAttribute("aria-pressed", S.rand);
   r.onclick = () => { S.rand = !S.rand; r.setAttribute("aria-pressed", S.rand); box.classList.toggle("dim", S.rand); };
   box.append(r);
@@ -160,7 +173,7 @@ function renderJokers() {
 }
 function renderLivesOpt() {
   $("jkTitle").textContent = "Vies par joueur"; $("jkText").textContent = "Nombre d'erreurs avant l'élimination.";
-  $("btnStart").textContent = "Créer la salle";
+  $("btnStart").textContent = S.editRoom ? "Enregistrer" : "Créer la salle";
   opts($("optJokers"), [1, 2, 3, 5], S.cfg.lives, String, (v) => (S.cfg.lives = v));
 }
 
@@ -240,7 +253,7 @@ function startGame() {
   S.players = S.slots.map((s) => ({ name: s.name, lives: m.solo ? 3 : s.lives, jokers: m.joker ? S.cfg.jokers : 0, dead: false, score: 0, points: 0, outAt: 0 }));
   if (!m.solo) saveDB();
   saveRoster();
-  S.retry = false; S.elim = 0; S.played = new Set(); S.asked = []; S.inGame = true;
+  S.retry = false; S.qn = 0; S.elim = 0; S.played = new Set(); S.asked = []; S.inGame = true;
   S.i = -1; S.diff = 1; S.loading = null;
   const bank = loadBank();
   S.buf = bank.filter((q) => S.active.has(q.t) && !seen(q.q));
@@ -436,13 +449,14 @@ function revive(useLife) {
 function afterTurn() {
   if (!S.inGame) return;
   if (over()) return endGame(alive()[0]);
+  if (M().solo) { S.qn++; if (S.qn % 3) return nextTurn(); } // solo : difficulté proposée toutes les 3 questions
   S.played.add(S.i);
   if (!alive().every((p) => S.played.has(S.players.indexOf(p)))) return nextTurn();
   S.played.clear();
   $("lvName").textContent = `${S.diff} · ${LEVELS[S.diff]}`;
   $("btnUp").hidden = S.diff >= 5;
   $("btnStay").hidden = false; $("lvWait").hidden = true;
-  $("btnUp").textContent = M().solo ? `Monter d'un niveau (${10 * (S.diff + 1)} pts)` : "Monter d'un niveau";
+  $("btnUp").textContent = M().solo ? `Augmenter la difficulté (${10 * (S.diff + 1)} pts)` : "Augmenter la difficulté";
   $("btnStay").textContent = M().solo ? `Garder ce niveau (${10 * S.diff} pts)` : "Garder ce niveau";
   show("s-level");
 }
@@ -590,7 +604,7 @@ $("userPhoto").onerror = () => { $("userPhoto").hidden = true; $("userInit").hid
 // « Sortir » : retour au choix du mode (confirmation si une partie est en cours)
 $("btnUser").onclick = () => {
   if (online.active()) {
-    ask("Quitter la salle ?", "Vous quitterez la partie en cours.", "Quitter", () => { online.leave(); show("s-mode"); });
+    ask("Quitter la salle ?", "Vous quitterez la partie en cours.", "Quitter", () => { S.editRoom = false; online.setEditing(false); online.leave(); show("s-mode"); });
     return;
   }
   if (!S.inGame) { stopTimer(); return show("s-mode"); }
@@ -604,7 +618,8 @@ $("cfYes").onclick = () => { $("confirm").hidden = true; const f = S.onYes; S.on
 $("btnResetLives").onclick = () => ask("Réinitialiser les vies ?", "Toutes les vies de tous les joueurs reviendront à 0.", "Réinitialiser", resetLives);
 document.querySelectorAll("[data-back]").forEach((b) => (b.onclick = () => {
   let t = b.dataset.back;
-  if (t === "auto") t = M().online ? "s-online" : M().solo ? "s-mode" : "s-names";
+  if (t === "auto") t = S.editRoom ? "s-lobby" : M().online ? "s-online" : M().solo ? "s-mode" : "s-names";
+  if (t === "s-lobby") { S.editRoom = false; online.setEditing(false); }
   show(t);
 }));
 $("btnLogout").onclick = async () => { try { localStorage.removeItem(SESS); } catch {} online.leave(); await logout(); S.uid = null; show("s-login"); };
@@ -632,14 +647,20 @@ $("btnTime").onclick = () => {
   else if (M().joker) { renderJokers(); show("s-jokers"); }
   else startGame();
 };
-$("btnStart").onclick = () => (M().online ? online.create({ themes: [...S.active], time: S.cfg.time, lives: S.cfg.lives }) : startGame());
+$("btnStart").onclick = () => {
+  if (!M().online) return startGame();
+  const cfg = { themes: [...S.active], time: S.cfg.time, lives: S.cfg.lives };
+  if (S.editRoom) { S.editRoom = false; online.setEditing(false); online.config(cfg); } // l'hôte modifie la salle
+  else online.create(cfg);
+};
 $("btnRetry").onclick = () => (M().online ? online.retry() : loadAndPlay());
 $("btnSwap").onclick = () => { if (S.locked || !S.inGame) return; stopTimer(); loadAndPlay(); };
 $("btnStopTimer").onclick = stopTimer;
 $("card").onclick = flip;
 $("card").addEventListener("keydown", (e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), flip()));
 $("btnJoker").onclick = useJoker;
-$("btnNext").onclick = () => { $("dockNext").hidden = true; $("mcq").hidden = true; finish(S.pending, true); };
+$("btnNext").onclick = () => {
+  if (M().online) { $("dockNext").hidden = true; online.next(); return; } $("dockNext").hidden = true; $("mcq").hidden = true; finish(S.pending, true); };
 $("btnOk").onclick = () => judge(true);
 $("btnKo").onclick = () => judge(false);
 $("btnUseLife").onclick = () => revive(true);
@@ -656,7 +677,16 @@ document.addEventListener("focusin", (e) => { if (e.target.matches && e.target.m
 document.addEventListener("focusout", () => document.body.classList.remove("typing"));
 
 // jeu en ligne : créer / rejoindre une salle
-$("btnRoomCreate").onclick = () => { renderThemes(); show("s-themes"); };
+$("btnRoomCreate").onclick = () => { S.editRoom = false; renderThemes(); show("s-themes"); };
+$("btnLobbyEdit").onclick = () => {
+  const c = online.cfg();
+  if (!c) return;
+  S.editRoom = true; online.setEditing(true);
+  S.rand = c.themes.length >= THEMES.length;
+  S.themes = new Set(S.rand ? [] : c.themes.filter((t) => THEMES.includes(t)));
+  S.cfg.time = c.time; S.cfg.lives = c.lives;
+  renderThemes(); show("s-themes");
+};
 $("btnRoomJoin").onclick = () => online.join($("roomCode").value);
 $("roomCode").addEventListener("input", (e) => (e.target.value = e.target.value.toUpperCase()));
 $("roomCode").addEventListener("keydown", (e) => e.key === "Enter" && online.join($("roomCode").value));
