@@ -126,6 +126,8 @@ export function initOnline({ $, show, flash, confetti, me }) {
     $("tag").textContent = m.tag;
     const ql = m.q.length;
     $("qText").textContent = m.q;
+    const qi = $("qImg");
+    if (m.img) { qi.hidden = false; qi.onerror = () => { qi.hidden = true; }; qi.src = m.img; } else { qi.hidden = true; qi.removeAttribute("src"); }
     $("qText").dataset.len = ql > 170 ? "xl" : ql > 120 ? "l" : ql > 80 ? "m" : "s";
     ["btnSwap", "dockGame", "dockJudge", "dockNext"].forEach((id) => ($(id).hidden = true));
     const box = $("mcq");
