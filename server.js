@@ -5,6 +5,11 @@ import { WebSocketServer } from "ws";
 const app = express();
 app.use(express.json({ limit: "60kb" }));
 
+// utilisé par la page de réveil et par un éventuel service qui garde le serveur éveillé
+app.get("/health", (req, res) => {
+  res.set({ "Access-Control-Allow-Origin": "*", "Cache-Control": "no-store" }).json({ ok: true });
+});
+
 const KEY = process.env.AI_API_KEY;
 const BASE = process.env.AI_BASE_URL || "https://api.groq.com/openai/v1";
 const MODEL = process.env.MODEL || "openai/gpt-oss-120b";
