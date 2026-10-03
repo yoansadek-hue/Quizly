@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import { WebSocketServer } from "ws";
+import { LOCAL_THEMES, makeLocal } from "./public/js/local.js";
 
 const app = express();
 app.use(express.json({ limit: "60kb" }));
@@ -109,13 +110,19 @@ function lobbyMsg(room, p) {
 }
 const castLobby = (room) => players(room).forEach((p) => !p.left && send(p.ws, lobbyMsg(room, p)));
 
+function okPhoto(s) {
+  s = String(s || "");
+  if (s.startsWith("https://lh3.googleusercontent.com/")) return s.slice(0, 300);
+  return /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(s) && s.length <= 9000 ? s : ""; // photo d'un compte local
+}
+
 function join(ws, room, name, photo) {
   const base = clean(name) || "Joueur";
   let n = base, k = 2;
   while (players(room).some((p) => !p.left && p.name.toLowerCase() === n.toLowerCase())) n = `${base} ${k++}`;
   const p = {
     id: Math.random().toString(36).slice(2, 9), ws, name: n,
-    photo: String(photo || "").startsWith("https://lh3.googleusercontent.com/") ? String(photo).slice(0, 300) : "",
+    photo: okPhoto(photo),
     lives: 0, score: 0, points: 0, dead: false, outAt: 0, left: false, ci: room.nextCi++
   };
   room.players.set(p.id, p); ws.room = room; ws.pid = p.id;
@@ -132,8 +139,9 @@ function resetRoom(room) {
 function fill(room) {
   const d = room.diff;
   if (room.loading && room.loading.d === d) return room.loading.p;
-  const themes = shuffle(room.cfg.themes).slice(0, 5);
-  const p = generate(themes, d, 6, room.asked.slice(-15).map((q) => q.slice(0, 70)))
+  const themes = shuffle(room.cfg.themes.filter((t) => !LOCAL_THEMES.includes(t))).slice(0, 5);
+  if (!themes.length) return Promise.resolve();
+  const p = generate(themes, d, 6, room.asked.filter((q) => !q.startsWith("~")).slice(-15).map((q) => q.slice(0, 70)))
     .then((qs) => qs.forEach((q) => {
       if (!room.asked.some((a) => norm(a) === norm(q.q)) && !room.buf.some((b) => norm(b.q) === norm(q.q))) room.buf.push({ ...q, d });
     }))
@@ -142,6 +150,15 @@ function fill(room) {
   return p;
 }
 async function takeQuestion(room) {
+  // thèmes « sans IA » (drapeaux, capitales, calcul…) : fabriqués ici, toujours justes
+  const locals = room.cfg.themes.filter((t) => LOCAL_THEMES.includes(t));
+  const withAI = room.cfg.themes.length > locals.length;
+  if (locals.length && (!withAI || Math.random() < locals.length / room.cfg.themes.length)) {
+    for (let i = 0; i < 8; i++) {
+      const lq = makeLocal(locals[Math.floor(Math.random() * locals.length)], room.diff);
+      if (!room.asked.includes(lq.key) || i === 7) { room.asked.push(lq.key); return lq; }
+    }
+  }
   for (let t = 0; t < 3; t++) {
     const pool = room.buf.filter((q) => !q.u && q.d === room.diff);
     if (pool.length) {
@@ -182,7 +199,7 @@ async function loadQuestion(room) {
   if (ms) room.timer = setTimeout(() => resolveTurn(room, false, -1), ms);
   cast(room, {
     t: "q", who: p.id, name: p.name, lives: p.lives, alive: alive(room).length, total: ps.filter((x) => !x.left).length + ps.filter((x) => x.left && !x.dead).length,
-    tag: `${q.t} · ${LEVELS[room.diff]}`, q: q.q, options: room.q.options, ms, diff: room.diff
+    tag: `${q.t} · ${LEVELS[room.diff]}`, q: q.q, img: q.img || null, options: room.q.options, ms, diff: room.diff
   });
 }
 function answer(room, me, i) {
@@ -251,7 +268,7 @@ function leave(ws) {
 }
 
 function readCfg(m) {
-  const themes = (Array.isArray(m.themes) ? m.themes : []).map((t) => clean(t, 30)).filter(Boolean).slice(0, 40);
+  const themes = (Array.isArray(m.themes) ? m.themes : []).map((t) => clean(t, 30)).filter(Boolean).slice(0, 60);
   if (!themes.length) return "Choisissez au moins un thème.";
   return { themes, time: clamp(+m.time, 0, 120), lives: clamp(+m.lives || 2, 1, 5) };
 }
@@ -259,7 +276,7 @@ function readCfg(m) {
 function handle(ws, m) {
   if (m.t === "create") {
     if (ws.room) leave(ws);
-    const themes = (Array.isArray(m.themes) ? m.themes : []).map((t) => clean(t, 30)).filter(Boolean).slice(0, 40);
+    const themes = (Array.isArray(m.themes) ? m.themes : []).map((t) => clean(t, 30)).filter(Boolean).slice(0, 60);
     if (!themes.length) return send(ws, { t: "error", msg: "Choisissez au moins un thème." });
     const now = Date.now(), recent = (hits.get("c" + ws.ip) || []).filter((t) => now - t < 60000);
     if (recent.length >= 6) return send(ws, { t: "error", msg: "Trop de salles créées, patientez." });
@@ -303,7 +320,7 @@ function handle(ws, m) {
 
 const port = process.env.PORT || 3000;
 const server = app.listen(port, () => console.log(`Quizly sur http://localhost:${port}`));
-const wss = new WebSocketServer({ server, path: "/ws", maxPayload: 4096 });
+const wss = new WebSocketServer({ server, path: "/ws", maxPayload: 20480 });
 wss.on("connection", (ws, req) => {
   ws.ip = req.headers["x-forwarded-for"]?.split(",")[0].trim() || req.socket.remoteAddress;
   ws.isAlive = true;
