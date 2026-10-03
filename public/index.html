@@ -89,6 +89,7 @@ addEventListener("error", function (e) {
     <button class="code" id="lobbyCode" aria-label="Copier le code"></button>
     <p class="lead small meta" id="lobbyInfo"></p>
     <p class="lead small meta" id="lobbyCount"></p>
+    <button class="btn ghost sm" id="btnLobbyEdit" hidden style="margin:14px auto 0;display:block">Modifier les paramètres</button>
     <ul id="lobbyList" class="chips"></ul>
     <p id="lobbyWait" class="lead small meta" hidden>En attente de l'hôte…</p>
     <p id="lobbyMsg" class="msg" role="alert"></p>
@@ -175,7 +176,7 @@ addEventListener("error", function (e) {
       <div class="face back">
         <span class="chip small" id="backTag">Réponse</span>
         <p class="a" id="aText"></p>
-        <span class="tap">Touchez pour revoir la question</span>
+        
       </div>
     </div></div>
     <p class="swap"><button class="link" id="btnSwap">Changer de question</button></p>
@@ -196,8 +197,8 @@ addEventListener("error", function (e) {
     <h2 class="big" id="lvName"></h2>
     <p class="lead small" id="lvWait" hidden>L'hôte choisit le niveau…</p>
     <div class="stack">
-      <button class="btn sun" id="btnUp">Monter d'un niveau</button>
-      <button class="btn ghost" id="btnStay">Garder ce niveau</button>
+      <button class="btn sun" id="btnStay">Garder ce niveau</button>
+      <button class="btn ghost" id="btnUp">Augmenter la difficulté</button>
     </div>
   </section>
 
