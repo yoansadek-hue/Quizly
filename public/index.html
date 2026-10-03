@@ -52,6 +52,7 @@ addEventListener("error", function (e) {
         <li>Quatre modes : Classique, QCM, Solo et En ligne.</li>
       </ol>
     </div>
+    <p class="version ver"></p>
   </section>
 
   <!-- Compte local -->
@@ -60,11 +61,18 @@ addEventListener("error", function (e) {
     <h2>Compte local</h2>
     <p class="lead small">Jouez sans Google : vos joueurs et vos vies restent sur cet appareil.</p>
     <div id="localList" class="chips"></div>
-    <div class="row" style="margin-top:18px">
-      <input id="localName" type="text" placeholder="Votre pseudo" maxlength="20" autocomplete="off" enterkeyhint="go">
-      <button class="btn sun sm" id="btnLocal">Entrer</button>
+    <label class="pick" for="localPhoto">
+      <img id="localPreview" class="avatar big" alt="" hidden>
+      <span id="localPlus" class="avatar big">+</span>
+      <span id="localPickText">Choisir une photo dans la galerie</span>
+    </label>
+    <input id="localPhoto" type="file" accept="image/*" hidden>
+    <div class="stack">
+      <input id="localName" type="text" placeholder="Votre pseudo" maxlength="20" autocomplete="off" enterkeyhint="next">
+      <input id="localEmail" type="email" placeholder="Votre e-mail" autocomplete="email" inputmode="email" enterkeyhint="go">
+      <button class="btn sun" id="btnLocal">Entrer</button>
+      <p id="localMsg" class="msg" role="alert"></p>
     </div>
-    <p id="localMsg" class="msg" role="alert"></p>
   </section>
 
   <!-- Jeu en ligne -->
@@ -102,6 +110,7 @@ addEventListener("error", function (e) {
     <h2>Choisissez un mode</h2>
     <div id="modes" class="modes"></div>
     <p class="center-link"><button class="link" id="btnLogout">Changer de compte</button></p>
+    <p class="version ver"></p>
   </section>
 
   <!-- Nombre de joueurs -->
@@ -171,6 +180,7 @@ addEventListener("error", function (e) {
     <div class="scene" id="scene"><div class="card" id="card" role="button" tabindex="0" aria-label="Retourner la carte">
       <div class="face front">
         <span class="chip small" id="tag"></span>
+        <img id="qImg" class="qimg" alt="" hidden>
         <p class="q" id="qText"></p>
         
       </div>
