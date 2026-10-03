@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1b2cc1">
+<title>Quizly</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&display=swap" rel="stylesheet">
+<style>
+  :root{--ink:#12132b;--sun:#ffd84d;--mint:#29d9a1;--coral:#ff5c5c;--lilac:#c9ceff}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:24px;text-align:center;
+    font:500 18px/1.4 "Bricolage Grotesque",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#fff;background:#1b2cc1;overflow:hidden}
+  body::before,body::after{content:"";position:fixed;inset:-25%;z-index:-1;will-change:transform}
+  body::before{background:radial-gradient(38% 38% at 22% 28%,rgba(70,92,255,.55),transparent 70%),radial-gradient(34% 34% at 78% 72%,rgba(10,18,120,.55),transparent 70%);animation:d1 24s ease-in-out infinite alternate}
+  body::after{background:radial-gradient(30% 30% at 75% 22%,rgba(90,110,255,.4),transparent 70%),radial-gradient(40% 40% at 25% 80%,rgba(14,24,140,.5),transparent 70%);animation:d2 32s ease-in-out infinite alternate}
+  @keyframes d1{0%{transform:translate3d(-4%,-3%,0) scale(1)}100%{transform:translate3d(5%,6%,0) scale(1.12)}}
+  @keyframes d2{0%{transform:translate3d(5%,4%,0) scale(1.1)}100%{transform:translate3d(-6%,-5%,0) scale(1)}}
+  h1{margin:0;font-weight:800;font-size:clamp(56px,18vw,96px);line-height:1;letter-spacing:-.03em}
+  .by{color:var(--sun);font-size:16px}
+  .dots{display:flex;gap:14px;margin:30px 0 18px}
+  .dots span{width:24px;height:24px;border-radius:50%;background:var(--sun);border:3px solid var(--ink);animation:b .8s infinite}
+  .dots span:nth-child(2){background:var(--mint);animation-delay:.15s}
+  .dots span:nth-child(3){background:var(--coral);animation-delay:.3s}
+  @keyframes b{50%{transform:translateY(-22px)}}
+  p{margin:0;color:var(--lilac)}
+  #late{display:none;margin-top:18px}
+  a.btn{display:inline-block;margin-top:12px;padding:14px 22px;font-weight:800;color:var(--ink);background:var(--sun);border:3px solid var(--ink);border-radius:16px;box-shadow:4px 4px 0 var(--ink);text-decoration:none}
+  @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important}}
+</style>
+</head>
+<body>
+  <h1>Quizly</h1>
+  <span class="by">par YoskanGame</span>
+  <div class="dots"><span></span><span></span><span></span></div>
+  <p id="msg">Réveil du jeu… cela peut prendre jusqu'à une minute.</p>
+  <div id="late"><p>Toujours en cours, merci de patienter.</p><a class="btn" id="open" href="#">Ouvrir quand même</a></div>
+<script>
+  // Adresse du jeu sur Render : à adapter si elle change
+  var APP = "https://quizly-np1p.onrender.com";
+  document.getElementById("open").href = APP;
+  var t0 = Date.now(), done = false;
+  function go() { if (done) return; done = true; document.getElementById("msg").textContent = "C'est prêt !"; location.replace(APP); }
+  function ping() {
+    if (done) return;
+    var c = new AbortController(); var to = setTimeout(function () { c.abort(); }, 8000);
+    fetch(APP + "/health?t=" + Date.now(), { cache: "no-store", signal: c.signal })
+      .then(function (r) { return r.json(); })
+      .then(function (j) { clearTimeout(to); if (j && j.ok) go(); else setTimeout(ping, 3000); })
+      .catch(function () { clearTimeout(to); setTimeout(ping, 3000); }); // serveur encore endormi : on réessaie
+    if (Date.now() - t0 > 90000) document.getElementById("late").style.display = "block";
+  }
+  ping();
+</script>
+</body>
+</html>
