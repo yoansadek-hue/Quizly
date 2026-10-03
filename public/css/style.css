@@ -329,3 +329,10 @@ body.typing .dock{display:none}
 .code{margin:10px 0 0}
 #lobbyList .chip{color:var(--ink)}
 @media (min-width:700px){ .mode[data-m=online]{grid-column:1 / -1} }
+
+/* écran de démarrage (affiché jusqu'à ce que le jeu soit prêt) */
+#splash{position:fixed;inset:0;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg);transition:opacity .4s}
+#splash.off{opacity:0;pointer-events:none}
+#splash .hero{animation:none}
+#splash small{margin-top:6px;color:var(--sun);font:500 16px var(--font)}
+#splash .dots{margin:30px 0 0}
