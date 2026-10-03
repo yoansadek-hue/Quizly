@@ -99,7 +99,7 @@ const shuffle = (a) => a.map((x) => [Math.random(), x]).sort((p, q) => p[0] - q[
 function lobbyMsg(room, p) {
   return {
     t: "lobby", code: room.code, host: room.hostId, you: p.id, phase: room.phase, cfg: room.cfg,
-    players: players(room).filter((x) => !x.left).map(({ id, name, photo }) => ({ id, name, photo }))
+    players: players(room).filter((x) => !x.left).map(({ id, name, photo, ci }) => ({ id, name, photo, ci }))
   };
 }
 const castLobby = (room) => players(room).forEach((p) => !p.left && send(p.ws, lobbyMsg(room, p)));
@@ -111,7 +111,7 @@ function join(ws, room, name, photo) {
   const p = {
     id: Math.random().toString(36).slice(2, 9), ws, name: n,
     photo: String(photo || "").startsWith("https://lh3.googleusercontent.com/") ? String(photo).slice(0, 300) : "",
-    lives: 0, score: 0, points: 0, dead: false, outAt: 0, left: false
+    lives: 0, score: 0, points: 0, dead: false, outAt: 0, left: false, ci: room.nextCi++
   };
   room.players.set(p.id, p); ws.room = room; ws.pid = p.id;
   return p;
@@ -193,10 +193,11 @@ function resolveTurn(room, correct, picked) {
   if (correct) { p.score++; p.points += 10 * room.diff; }
   else { p.lives--; if (p.lives <= 0) { p.dead = true; p.outAt = ++room.elim; } }
   cast(room, { t: "result", who: p.id, name: p.name, correct, picked, answer: room.q.a, lives: p.lives, dead: p.dead });
-  room.timer = setTimeout(() => afterTurn(room), 3500);
+  room.timer = setTimeout(() => afterTurn(room), 25000); // filet de sécurité : normalement le bouton « Continuer » fait avancer
 }
 function afterTurn(room) {
   if (!rooms.has(room.code)) return;
+  clearTimeout(room.timer);
   if (alive(room).length <= 1) return endGame(room);
   const p = players(room)[room.i];
   if (p) room.played.add(p.id);
@@ -244,6 +245,12 @@ function leave(ws) {
   else if (room.phase === "level") askLevel(room);
 }
 
+function readCfg(m) {
+  const themes = (Array.isArray(m.themes) ? m.themes : []).map((t) => clean(t, 30)).filter(Boolean).slice(0, 40);
+  if (!themes.length) return "Choisissez au moins un thème.";
+  return { themes, time: clamp(+m.time, 0, 120), lives: clamp(+m.lives || 2, 1, 5) };
+}
+
 function handle(ws, m) {
   if (m.t === "create") {
     if (ws.room) leave(ws);
@@ -255,7 +262,7 @@ function handle(ws, m) {
     const room = {
       code: newCode(), hostId: null, players: new Map(), phase: "lobby",
       cfg: { themes, time: clamp(+m.time, 0, 120), lives: clamp(+m.lives || 2, 1, 5) },
-      diff: 1, buf: [], asked: [], played: new Set(), i: -1, elim: 0, q: null, timer: null, loading: null
+      diff: 1, buf: [], asked: [], played: new Set(), i: -1, elim: 0, q: null, timer: null, loading: null, nextCi: 0
     };
     rooms.set(room.code, room);
     room.hostId = join(ws, room, m.name, m.photo).id;
@@ -280,6 +287,12 @@ function handle(ws, m) {
   else if (m.t === "level" && host && room.phase === "level") chooseLevel(room, !!m.up);
   else if (m.t === "retry" && host && room.phase === "error") loadQuestion(room);
   else if (m.t === "again") { if (host && room.phase === "end") { resetRoom(room); castLobby(room); } else send(ws, lobbyMsg(room, me)); }
+  else if (m.t === "config" && host && room.phase === "lobby") {
+    const c = readCfg(m);
+    if (typeof c === "string") return send(ws, { t: "error", msg: c });
+    room.cfg = c; castLobby(room);
+  }
+  else if (m.t === "next" && room.phase === "result" && (host || players(room)[room.i]?.id === me.id)) afterTurn(room);
   else if (m.t === "leave") leave(ws);
 }
 
