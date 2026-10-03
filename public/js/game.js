@@ -29,6 +29,8 @@ function show(id) {
   document.querySelectorAll(".screen").forEach((s) => (s.hidden = s.id !== id));
   $("bar").hidden = id === "s-login" || id === "s-local";
   window.scrollTo(0, 0);
+  const sp = document.getElementById("splash"); // le jeu est prêt : on retire l'écran de démarrage
+  if (sp) { sp.classList.add("off"); setTimeout(() => sp.remove(), 450); }
 }
 function flash(kind) {
   const fx = $("fx");
