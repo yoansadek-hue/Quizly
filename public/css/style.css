@@ -351,3 +351,6 @@ input[type=email]{flex:1;min-width:0;min-height:52px;padding:10px 16px;font:800 
 html,body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 input,textarea{-webkit-user-select:text;user-select:text}
 img{-webkit-user-drag:none;user-drag:none}
+
+/* 2.5.0 : retours à la ligne dans les questions (Vrai ou faux, emojis, proverbes) */
+.q{white-space:pre-line}
