@@ -357,3 +357,7 @@ img{-webkit-user-drag:none;user-drag:none}
 
 /* 2.5.1 : carte du mode Chrono en ligne */
 .mode[data-m=chrono]{background:var(--coral)}
+
+/* 2.5.1 : choix du mode du salon (Survie / Chrono) */
+.mode[data-m=survie]{background:var(--mint)}
+@media (min-width:700px){#roomModes{grid-template-columns:repeat(2,1fr)} #roomModes .mode{grid-column:auto}}
