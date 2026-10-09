@@ -3,7 +3,7 @@ import { watch, signIn, logout } from "./auth.js";
 import { initOnline } from "./online.js";
 import { makeLocal, LOCAL_THEMES } from "./local.js";
 
-const VERSION = "2.5.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.5.1"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -11,6 +11,7 @@ const MODES = {
   classic: { name: "Classique", desc: "Réponse à l'oral, le groupe valide. Carte retournable à volonté, jokers 4 choix.", qcm: false, time: 30, joker: true, lives: true },
   qcm: { name: "QCM", desc: "Toutes les questions en 4 choix, correction automatique.", qcm: true, time: 30, joker: false, lives: true },
   solo: { name: "Solo", desc: "Seul face aux questions : QCM, 3 vies, battez votre record.", qcm: true, time: 30, joker: false, lives: true, solo: true },
+  chrono: { name: "Chrono en ligne", desc: "60 secondes, tout le monde en même temps sur son téléphone. Le plus de points gagne.", qcm: true, time: 60, joker: false, lives: false, online: true, chrono: true },
   online: { name: "En ligne", desc: "Une salle et un code : chacun joue sur son téléphone, au QCM. Le dernier en vie gagne.", qcm: true, time: 30, joker: false, lives: true, online: true }
 };
 const TIMES = [10, 15, 20, 30, 45, 60, 0];
@@ -23,7 +24,15 @@ const S = {
 };
 const M = () => MODES[S.mode];
 document.querySelectorAll(".ver").forEach((e) => (e.textContent = `Quizly v${VERSION} · par YoskanGame`));
-const online = initOnline({ $, show, flash, confetti, me: () => ({ name: S.firstName || "Joueur", photo: S.photo || "" }) });
+const online = initOnline({ $, show, flash, confetti, me: () => ({ name: S.firstName || "Joueur", photo: S.photo || "" }), record: chronoRecord });
+// record personnel du Chrono en ligne (gardé sur l'appareil, par compte)
+function chronoRecord(points) {
+  const key = `quizly:${S.uid}:bestChrono`;
+  let best = 0; try { best = +localStorage.getItem(key) || 0; } catch {}
+  const rec = points > best;
+  if (rec) try { localStorage.setItem(key, points); } catch {}
+  return { rec, best: Math.max(best, points) };
+}
 
 // pas de zoom (pincement iOS)
 ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault()));
@@ -560,7 +569,13 @@ function renderModes() {
 function chooseMode(id) {
   S.mode = id;
   S.cfg.time = M().time;
-  if (M().online) { $("onMsg").textContent = ""; show("s-online"); return; }
+  if (M().online) {
+    $("onMsg").textContent = "";
+    document.querySelector("#s-online .lead").textContent = M().chrono
+      ? "Une salle, un code : 60 secondes pour tout le monde en même temps, chacun sur son téléphone. Le plus de points gagne."
+      : "Une salle, un code : chacun joue sur son téléphone, au QCM. Le dernier en vie gagne.";
+    show("s-online"); return;
+  }
   $("modeLabel").textContent = `Mode : ${M().name}`;
   loadRoster();
   if (M().solo) {
@@ -714,6 +729,7 @@ $("btnThemes").onclick = () => {
   if (!S.rand && !S.themes.size) { $("setupMsg").textContent = "Choisissez au moins un thème, ou « Aléatoire »."; return; }
   $("setupMsg").textContent = "";
   S.active = S.rand ? new Set(THEMES) : new Set(S.themes);
+  if (M().chrono) return submitRoom(); // Chrono : 60 s fixes, pas de vies, on crée la salle tout de suite
   $("btnTime").textContent = M().joker || M().online ? "Valider" : "Lancer la partie";
   renderTime(); show("s-time");
 };
@@ -722,12 +738,12 @@ $("btnTime").onclick = () => {
   else if (M().joker) { renderJokers(); show("s-jokers"); }
   else startGame();
 };
-$("btnStart").onclick = () => {
-  if (!M().online) return startGame();
-  const cfg = { themes: [...S.active], time: S.cfg.time, lives: S.cfg.lives };
+function submitRoom() {
+  const cfg = { kind: M().chrono ? "chrono" : "survie", themes: [...S.active], time: S.cfg.time, lives: S.cfg.lives };
   if (S.editRoom) { S.editRoom = false; online.setEditing(false); online.config(cfg); } // l'hôte modifie la salle
   else online.create(cfg);
-};
+}
+$("btnStart").onclick = () => (M().online ? submitRoom() : startGame());
 $("btnRetry").onclick = () => (M().online ? online.retry() : loadAndPlay());
 $("btnSwap").onclick = () => { if (S.locked || !S.inGame) return; stopTimer(); loadAndPlay(); };
 $("btnStopTimer").onclick = stopTimer;
@@ -757,6 +773,7 @@ $("btnLobbyEdit").onclick = () => {
   const c = online.cfg();
   if (!c) return;
   S.editRoom = true; online.setEditing(true);
+  S.mode = c.kind === "chrono" ? "chrono" : "online"; // garde le type de salle, même si l'hôte a changé
   S.rand = c.themes.length >= THEMES.length;
   S.themes = new Set(S.rand ? [] : c.themes.filter((t) => THEMES.includes(t)));
   S.cfg.time = c.time; S.cfg.lives = c.lives;
