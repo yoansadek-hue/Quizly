@@ -400,22 +400,24 @@ const AREA = { "Russie": 17100, "Canada": 9980, "Brésil": 8510, "Australie": 76
   "Japon": 378, "Allemagne": 357, "Pologne": 313, "Italie": 301, "Équateur": 256, "Royaume-Uni": 243, "Roumanie": 238, "Nouvelle-Zélande": 268,
   "Uruguay": 176, "Tunisie": 164, "Grèce": 132, "Cuba": 110, "Islande": 103, "Portugal": 92, "Autriche": 84, "Irlande": 70, "Danemark": 43,
   "Belgique": 30.5, "Luxembourg": 2.6 };
-const GAP = [0, 4, 2.5, 1.6, 1.35, 1.25]; // écart minimum entre la bonne réponse et les autres, selon le niveau
+// écart entre la bonne réponse et les autres choix, selon le niveau : [minimum, maximum]
+// (plus le niveau monte, plus les pays sont proches et donc durs à départager)
+const GAP = [null, [3, 12], [1.8, 4], [1.4, 2.5], [1.25, 1.8], [1.15, 1.5]];
 
 function plusMoins(d) {
   const usePop = r(10) < 6, data = usePop ? POP : AREA;
   const most = r(10) < 7; // « le plus » plus souvent que « le moins »
-  const n = d >= 4 ? 4 : 2, gap = GAP[d];
+  const n = d <= 1 ? 2 : 4, [lo, hi] = GAP[d];
   const names = Object.keys(data);
-  for (let tries = 0; tries < 50; tries++) {
+  for (let tries = 0; tries < 80; tries++) {
     const win = pick(names), v = data[win];
-    const ok = names.filter((x) => (most ? v / data[x] : data[x] / v) >= gap && (most ? v / data[x] : data[x] / v) <= gap * 6);
+    const ok = names.filter((x) => { const k = most ? v / data[x] : data[x] / v; return k >= lo && k <= hi; });
     if (ok.length < n - 1) continue;
     const rest = shuffle(ok).slice(0, n - 1);
     const what = usePop ? (most ? "le plus d'habitants" : "le moins d'habitants") : (most ? "la plus grande superficie" : "la plus petite superficie");
     return { t: "Plus ou moins", d, q: `Quel pays a ${what} ?`, a: win, o: [win, ...rest], key: `~pm:${usePop}:${most}:${[win, ...rest].sort().join(",")}` };
   }
-  return { t: "Plus ou moins", d, q: "Quel pays a le plus d'habitants ?", a: "Inde", o: ["Inde", "Brésil"], key: "~pm:repli" };
+  return { t: "Plus ou moins", d, q: "Quel pays a le plus d'habitants ?", a: "Inde", o: ["Inde", "Brésil", "Japon", "France"], key: "~pm:repli" };
 }
 
 /* ---------- Devinettes emojis ---------- */
