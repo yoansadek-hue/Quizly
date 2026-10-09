@@ -131,22 +131,21 @@ function join(ws, room, name, photo) {
 
 function resetRoom(room) {
   clearTimeout(room.timer);
-  Object.assign(room, { phase: "lobby", diff: 1, buf: [], asked: [], played: new Set(), i: -1, elim: 0, q: null, loading: null });
-  room.players.forEach((p, id) => { if (p.left) room.players.delete(id); });
+  Object.assign(room, { phase: "lobby", diff: 1, buf: [], asked: [], played: new Set(), i: -1, elim: 0, q: null, loads: new Map() });
+  room.players.forEach((p, id) => { clearTimeout(p.ctimer); if (p.left) room.players.delete(id); });
 }
 
 /* --- questions d'une salle --- */
-function fill(room) {
-  const d = room.diff;
-  if (room.loading && room.loading.d === d) return room.loading.p;
+function fill(room, d = room.diff) {
+  if (room.loads.has(d)) return room.loads.get(d);
   const themes = shuffle(room.cfg.themes.filter((t) => !LOCAL_THEMES.includes(t))).slice(0, 5);
   if (!themes.length) return Promise.resolve();
   const p = generate(themes, d, 6, room.asked.filter((q) => !q.startsWith("~")).slice(-15).map((q) => q.slice(0, 70)))
     .then((qs) => qs.forEach((q) => {
       if (!room.asked.some((a) => norm(a) === norm(q.q)) && !room.buf.some((b) => norm(b.q) === norm(q.q))) room.buf.push({ ...q, d });
     }))
-    .finally(() => { if (room.loading && room.loading.p === p) room.loading = null; });
-  room.loading = { d, p };
+    .finally(() => { if (room.loads.get(d) === p) room.loads.delete(d); });
+  room.loads.set(d, p);
   return p;
 }
 async function takeQuestion(room) {
@@ -174,7 +173,7 @@ async function takeQuestion(room) {
 
 /* --- déroulement --- */
 function startGame(room) {
-  Object.assign(room, { phase: "load", diff: 1, buf: [], asked: [], played: new Set(), i: -1, elim: 0, loading: null });
+  Object.assign(room, { phase: "load", diff: 1, buf: [], asked: [], played: new Set(), i: -1, elim: 0, loads: new Map() });
   players(room).forEach((p) => Object.assign(p, { lives: room.cfg.lives, score: 0, points: 0, dead: false, outAt: 0 }));
   nextTurn(room);
 }
@@ -248,6 +247,131 @@ function endGame(room) {
   });
 }
 
+/* ====================== Chrono en ligne ====================== */
+// Chaque joueur a ses propres questions et son propre chrono de 60 s.
+// Le temps ne s'écoule que pendant qu'une question est affichée (pause au chargement et à la correction).
+const CHRONO_MS = +process.env.CHRONO_MS || 60000; // réglable seulement pour les tests
+const pick = (a) => a[Math.floor(Math.random() * a.length)];
+
+function startChrono(room) {
+  clearTimeout(room.timer);
+  Object.assign(room, { phase: "cload", buf: [], asked: [], loads: new Map(), elim: 0 });
+  players(room).forEach((p) => {
+    clearTimeout(p.ctimer);
+    Object.assign(p, { score: 0, points: 0, streak: 0, cdiff: 1, ms: CHRONO_MS, done: false, seen: new Set(), cq: null, qAt: 0, fails: 0, dead: false, outAt: 0, lives: 0 });
+  });
+  cast(room, { t: "load", msg: "Préparation du chrono…" });
+  const ai = room.cfg.themes.some((t) => !LOCAL_THEMES.includes(t));
+  const ready = ai ? Promise.allSettled([fill(room, 1), fill(room, 2)]) : Promise.resolve();
+  ready.then(() => {
+    if (!rooms.has(room.code) || room.phase !== "cload") return;
+    room.phase = "chrono";
+    cast(room, { t: "cgo", ms: CHRONO_MS });
+    castBoard(room);
+    players(room).forEach((p) => { if (!p.left) chronoNext(room, p); });
+  });
+}
+async function takeFor(room, p) {
+  const d = p.cdiff;
+  const locals = room.cfg.themes.filter((t) => LOCAL_THEMES.includes(t));
+  const withAI = room.cfg.themes.length > locals.length;
+  const local = () => {
+    for (let i = 0; i < 8; i++) {
+      const lq = makeLocal(pick(locals), d);
+      if (!p.seen.has(lq.key) || i === 7) { p.seen.add(lq.key); return lq; }
+    }
+  };
+  if (locals.length && (!withAI || Math.random() < locals.length / room.cfg.themes.length)) return local();
+  for (let t = 0; t < 3; t++) {
+    const pool = room.buf.filter((q) => q.d === d && !p.seen.has(q.q));
+    if (pool.length) {
+      const q = pick(pool); p.seen.add(q.q);
+      if (pool.length < 4) fill(room, d).catch(() => {});
+      return q;
+    }
+    try { await fill(room, d); } catch (e) { if (t === 2 && !locals.length) throw e; }
+  }
+  const any = room.buf.filter((q) => !p.seen.has(q.q)); // repli : une question d'un autre niveau
+  if (any.length) { const q = pick(any); p.seen.add(q.q); return q; }
+  if (locals.length) return local();
+  throw new Error("L'IA n'a renvoyé aucune nouvelle question.");
+}
+async function chronoNext(room, p) {
+  if (room.phase !== "chrono" || p.left || p.done) return;
+  p.cq = null;
+  const slow = setTimeout(() => send(p.ws, { t: "cwait" }), 400); // « chargement » seulement si ça traîne
+  let q;
+  try { q = await takeFor(room, p); }
+  catch (e) {
+    clearTimeout(slow); console.error(e.message);
+    if (++p.fails >= 3) return chronoDone(room, p);
+    send(p.ws, { t: "cwait" });
+    return setTimeout(() => chronoNext(room, p), 2500);
+  }
+  clearTimeout(slow);
+  if (room.phase !== "chrono" || p.left || p.done) return;
+  p.fails = 0;
+  p.cq = { ...q, options: shuffle(q.o) };
+  p.qAt = Date.now();
+  clearTimeout(p.ctimer);
+  p.ctimer = setTimeout(() => chronoOut(room, p), p.ms);
+  send(p.ws, {
+    t: "cq", tag: `${q.t} · ${LEVELS[p.cdiff]}`, q: q.q, img: q.img || null, options: p.cq.options,
+    ms: p.ms, total: CHRONO_MS, points: p.points, streak: p.streak, diff: p.cdiff
+  });
+}
+function chronoAnswer(room, p, i) {
+  if (room.phase !== "chrono" || !p.cq || p.done || !Number.isInteger(i) || i < 0 || i >= p.cq.options.length) return;
+  clearTimeout(p.ctimer);
+  p.ms = Math.max(0, p.ms - (Date.now() - p.qAt));
+  const q = p.cq, ok = q.options[i] === q.a;
+  p.cq = null;
+  let gain = 0;
+  if (ok) {
+    p.score++; p.streak++;
+    gain = 10 * p.cdiff + Math.min(p.streak - 1, 5) * 5; // 10 pts × niveau + bonus de série
+    p.points += gain;
+    if (p.score % 3 === 0) p.cdiff = Math.min(5, p.cdiff + 1); // un niveau de plus toutes les 3 bonnes réponses
+  } else p.streak = 0;
+  send(p.ws, { t: "cres", correct: ok, picked: i, answer: q.a, gain, points: p.points, streak: p.streak, ms: p.ms });
+  castBoard(room);
+  if (p.ms <= 0) return chronoDone(room, p);
+  setTimeout(() => chronoNext(room, p), ok ? 700 : 1500); // le temps de voir la correction (chrono en pause)
+}
+function chronoOut(room, p) {
+  if (room.phase !== "chrono" || p.done || !p.cq) return;
+  const q = p.cq;
+  p.ms = 0; p.cq = null;
+  send(p.ws, { t: "cres", correct: false, picked: -1, answer: q.a, gain: 0, points: p.points, streak: p.streak, ms: 0 });
+  setTimeout(() => chronoDone(room, p), 1200);
+}
+function chronoDone(room, p) {
+  if (p.done) return;
+  clearTimeout(p.ctimer);
+  p.done = true; p.cq = null;
+  send(p.ws, { t: "cdone", points: p.points, score: p.score });
+  castBoard(room);
+  checkChronoEnd(room);
+}
+function castBoard(room) {
+  const list = players(room).filter((p) => !p.left).sort((a, b) => b.points - a.points || b.score - a.score)
+    .map((p) => ({ id: p.id, name: p.name, points: p.points, done: !!p.done }));
+  cast(room, { t: "cboard", list });
+}
+function checkChronoEnd(room) {
+  if (room.phase !== "chrono" && room.phase !== "cload") return;
+  if (players(room).some((p) => !p.left && !p.done) && room.phase === "chrono") return;
+  if (room.phase === "cload" && players(room).some((p) => !p.left)) return;
+  room.phase = "end";
+  players(room).forEach((p) => clearTimeout(p.ctimer));
+  const order = [...players(room)].sort((a, b) => b.points - a.points || b.score - a.score);
+  const tie = order.length > 1 && order[0].points === order[1].points;
+  cast(room, {
+    t: "end", kind: "chrono", winner: tie ? null : order[0]?.name || null,
+    ranking: order.map((p) => ({ id: p.id, name: p.name, score: p.score, points: p.points, lives: 0, photo: p.photo }))
+  });
+}
+
 function leave(ws) {
   const room = ws.room; if (!room) return;
   ws.room = null;
@@ -259,6 +383,7 @@ function leave(ws) {
   if (!present.length) { clearTimeout(room.timer); rooms.delete(room.code); return; }
   if (room.hostId === me.id) { room.hostId = present[0].id; cast(room, { t: "host", host: room.hostId }); }
   if (lobbyLike) return castLobby(room);
+  if (room.cfg.kind === "chrono") { clearTimeout(me.ctimer); me.done = true; me.cq = null; castBoard(room); return checkChronoEnd(room); }
   if (alive(room).length <= 1) return endGame(room);
   const turn = players(room)[room.i];
   if (turn && turn.id === me.id && room.phase === "q") { clearTimeout(room.timer); afterTurn(room); }
@@ -269,21 +394,21 @@ function leave(ws) {
 function readCfg(m) {
   const themes = (Array.isArray(m.themes) ? m.themes : []).map((t) => clean(t, 30)).filter(Boolean).slice(0, 60);
   if (!themes.length) return "Choisissez au moins un thème.";
-  return { themes, time: clamp(+m.time, 0, 120), lives: clamp(+m.lives || 2, 1, 5) };
+  return { kind: m.kind === "chrono" ? "chrono" : "survie", themes, time: clamp(+m.time, 0, 120), lives: clamp(+m.lives || 2, 1, 5) };
 }
 
 function handle(ws, m) {
   if (m.t === "create") {
     if (ws.room) leave(ws);
-    const themes = (Array.isArray(m.themes) ? m.themes : []).map((t) => clean(t, 30)).filter(Boolean).slice(0, 60);
-    if (!themes.length) return send(ws, { t: "error", msg: "Choisissez au moins un thème." });
+    const cfg = readCfg(m);
+    if (typeof cfg === "string") return send(ws, { t: "error", msg: cfg });
     const now = Date.now(), recent = (hits.get("c" + ws.ip) || []).filter((t) => now - t < 60000);
     if (recent.length >= 6) return send(ws, { t: "error", msg: "Trop de salles créées, patientez." });
     hits.set("c" + ws.ip, [...recent, now]);
     const room = {
       code: newCode(), hostId: null, players: new Map(), phase: "lobby",
-      cfg: { themes, time: clamp(+m.time, 0, 120), lives: clamp(+m.lives || 2, 1, 5) },
-      diff: 1, buf: [], asked: [], played: new Set(), i: -1, elim: 0, q: null, timer: null, loading: null, nextCi: 0
+      cfg,
+      diff: 1, buf: [], asked: [], played: new Set(), i: -1, elim: 0, q: null, timer: null, loads: new Map(), nextCi: 0
     };
     rooms.set(room.code, room);
     room.hostId = join(ws, room, m.name, m.photo).id;
@@ -302,9 +427,10 @@ function handle(ws, m) {
   if (!me) return;
   const host = me.id === room.hostId;
   if (m.t === "start" && host && room.phase === "lobby") {
+    if (room.cfg.kind === "chrono") return startChrono(room); // le Chrono se joue aussi seul
     if (players(room).length < 2) return send(ws, { t: "error", msg: "Il faut au moins 2 joueurs." });
     startGame(room);
-  } else if (m.t === "answer") answer(room, me, Number(m.i));
+  } else if (m.t === "answer") { if (room.cfg.kind === "chrono") chronoAnswer(room, me, Number(m.i)); else answer(room, me, Number(m.i)); }
   else if (m.t === "level" && host && room.phase === "level") chooseLevel(room, !!m.up);
   else if (m.t === "retry" && host && room.phase === "error") loadQuestion(room);
   else if (m.t === "again") { if (host && room.phase === "end") { resetRoom(room); castLobby(room); } else send(ws, lobbyMsg(room, me)); }
