@@ -78,17 +78,21 @@ addEventListener("error", function (e) {
   <!-- Jeu en ligne -->
   <section id="s-online" class="screen" hidden>
     <button class="goback" data-back="s-mode">← Retour</button>
-    <h2>Jouer en ligne</h2>
-    <p class="lead small">Une salle, un code : chacun joue sur son téléphone, au QCM.<br><strong>Survie</strong> : le dernier en vie gagne. <strong>Chrono</strong> : 60 secondes, le plus de points gagne.</p>
     <div class="stack">
-      <button class="btn sun" id="btnRoomCreate">Créer une salle Survie</button>
-      <button class="btn coral" id="btnRoomChrono">Créer une salle Chrono 60 s</button>
+      <button class="btn sun" id="btnRoomCreate">Créer un salon</button>
       <div class="row">
         <input id="roomCode" type="text" placeholder="Code" maxlength="4" autocomplete="off" autocapitalize="characters" enterkeyhint="go">
         <button class="btn white sm" id="btnRoomJoin">Rejoindre</button>
       </div>
       <p id="onMsg" class="msg" role="alert"></p>
     </div>
+  </section>
+
+  <!-- Mode du salon (à la création, ou modifié ensuite par l'hôte) -->
+  <section id="s-roomtype" class="screen" hidden>
+    <button class="goback" id="btnRoomTypeBack">← Retour</button>
+    <h2>Mode du salon</h2>
+    <div id="roomModes" class="modes"></div>
   </section>
 
   <!-- Salle d'attente -->
