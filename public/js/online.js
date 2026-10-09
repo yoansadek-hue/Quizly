@@ -3,8 +3,8 @@ const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
 const PALETTE = ["#ffd84d", "#29d9a1", "#ff9a9a", "#c9ceff", "#ffb86b", "#7fe7ff", "#d7a8ff", "#b7f171", "#ff9ed8", "#ffffff", "#9ad0ff", "#ffe98a"];
 const HEART = "\u2665\uFE0E"; // cœur « texte » (jamais l'emoji rouge)
 
-export function initOnline({ $, show, flash, confetti, me }) {
-  const O = { cfg: null, editing: false, ws: null, you: null, host: null, active: false, inRoom: false, tid: null, cur: null, answered: false };
+export function initOnline({ $, show, flash, confetti, me, record }) {
+  const O = { cfg: null, editing: false, ws: null, you: null, host: null, active: false, inRoom: false, tid: null, cur: null, answered: false, board: [], chrono: false };
   const plural = (n, w) => `${n} ${w}${n > 1 ? "s" : ""}`;
   const msg = (t) => { $("onMsg").textContent = t; $("lobbyMsg").textContent = t; };
 
@@ -51,13 +51,24 @@ export function initOnline({ $, show, flash, confetti, me }) {
     switch (m.t) {
       case "lobby": O.inRoom = true; O.you = m.you; O.host = m.host; O.cfg = m.cfg; renderLobby(m); if (!O.editing) show("s-lobby"); break;
       case "error": msg(m.msg); if (!O.inRoom) { api.leave(); show("s-online"); } break;
-      case "load": stopClock(); $("loadText").textContent = "L'IA prépare la question…"; $("loadErr").hidden = true; show("s-load"); break;
+      case "load": stopClock(); $("loadText").textContent = m.msg || "L'IA prépare la question…"; $("loadErr").hidden = true; show("s-load"); break;
       case "fail": $("loadText").textContent = m.msg; $("loadErr").hidden = O.you !== O.host; show("s-load"); break;
       case "q": renderQ(m); break;
       case "result": renderResult(m); break;
       case "level": renderLevel(m); break;
       case "end": renderEnd(m); break;
       case "host": O.host = m.host; break;
+      // Chrono en ligne
+      case "cgo": O.chrono = true; O.board = []; break;
+      case "cq": renderCQ(m); break;
+      case "cres": renderCRes(m); break;
+      case "cwait": $("alive").textContent = "Chargement de la question… (chrono en pause)"; break;
+      case "cboard": O.board = m.list; if (O.cur && O.cur.chrono && !O.answered) $("alive").textContent = rankText(); break; // ne pas effacer « Bonne réponse »
+      case "cdone":
+        stopClock();
+        $("loadText").textContent = `Temps écoulé ! ${m.points} pts · ${m.score} bonne${m.score > 1 ? "s" : ""} réponse${m.score > 1 ? "s" : ""}. En attente des autres joueurs…`;
+        $("loadErr").hidden = true; show("s-load");
+        break;
     }
   }
 
@@ -79,12 +90,16 @@ export function initOnline({ $, show, flash, confetti, me }) {
     });
     const host = m.host === m.you;
     $("lobbyCount").textContent = `${m.players.length} / 20 joueurs`;
-    $("lobbyInfo").textContent = `${plural(m.cfg.themes.length, "thème")} · ${m.cfg.time ? m.cfg.time + " s" : "sans limite"} · ${plural(m.cfg.lives, "vie")}`;
+    const chrono = m.cfg.kind === "chrono", need = chrono ? 1 : 2; // le Chrono se joue aussi seul
+    O.chrono = false; O.cur = null;
+    $("lobbyInfo").textContent = chrono
+      ? `Chrono 60 s · ${plural(m.cfg.themes.length, "thème")} · le plus de points gagne`
+      : `${plural(m.cfg.themes.length, "thème")} · ${m.cfg.time ? m.cfg.time + " s" : "sans limite"} · ${plural(m.cfg.lives, "vie")}`;
     $("btnLobbyStart").hidden = !host;
-    $("btnLobbyStart").disabled = m.players.length < 2;
-    $("btnLobbyStart").textContent = m.players.length < 2 ? "Il faut au moins 2 joueurs" : "Lancer la partie";
+    $("btnLobbyStart").disabled = m.players.length < need;
+    $("btnLobbyStart").textContent = m.players.length < need ? "Il faut au moins 2 joueurs" : chrono ? "Lancer le chrono" : "Lancer la partie";
     $("btnLobbyEdit").hidden = !host;
-    $("lobbyWait").hidden = host && m.players.length >= 2;
+    $("lobbyWait").hidden = host && m.players.length >= need;
     $("lobbyWait").textContent = host ? "Il faut au moins 2 joueurs pour lancer." : "En attente de l'hôte…";
     msg("");
   }
@@ -102,6 +117,7 @@ export function initOnline({ $, show, flash, confetti, me }) {
     if (!ms) return;
     const bar = $("bar30"), clock = $("clock"), end = Date.now() + ms, warn = ms >= 20000 ? 10 : 3;
     bar.style.setProperty("--dur", ms / 1000 + "s");
+    bar.style.animationDelay = "";
     bar.style.animation = "none"; void bar.offsetWidth; bar.style.animation = ""; bar.style.animationPlayState = "";
     const tick = () => {
       const s = Math.max(0, Math.ceil((end - Date.now()) / 1000));
@@ -179,9 +195,18 @@ export function initOnline({ $, show, flash, confetti, me }) {
 
   function renderEnd(m) {
     stopClock();
+    const chrono = m.kind === "chrono";
+    O.chrono = false; O.cur = null;
     $("endLead").textContent = m.winner ? "Vainqueur" : "Partie terminée";
     $("winner").textContent = m.winner || "Égalité";
     $("endNote").textContent = "";
+    if (chrono) {
+      const mine = m.ranking.find((p) => p.id === O.you);
+      if (mine && record) {
+        const r = record(mine.points); // record personnel du Chrono, gardé sur l'appareil
+        $("endNote").textContent = `${r.rec ? "Nouveau record ! " : ""}Vous : ${mine.points} pts · record : ${r.best} pts`;
+      }
+    }
     const ol = $("ranking");
     ol.replaceChildren();
     m.ranking.forEach((p, i) => {
@@ -191,12 +216,87 @@ export function initOnline({ $, show, flash, confetti, me }) {
       const pos = document.createElement("span"); pos.className = "pos"; pos.textContent = i + 1;
       const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = p.name;
       const st = document.createElement("span"); st.className = "st";
-      st.textContent = `${p.score} bonne${p.score > 1 ? "s" : ""} · ${HEART} ${p.lives}`;
+      st.textContent = chrono ? `${p.points} pts · ${p.score} bonne${p.score > 1 ? "s" : ""}` : `${p.score} bonne${p.score > 1 ? "s" : ""} · ${HEART} ${p.lives}`;
       li.append(pos, nm, st);
       ol.append(li);
     });
     show("s-end");
     confetti();
+  }
+
+  /* ----- Chrono en ligne ----- */
+  function rankText() {
+    const i = O.board.findIndex((p) => p.id === O.you);
+    if (i < 0) return "";
+    const n = O.board.length, s = O.cur ? O.cur.streak : 0;
+    return `${n > 1 ? `${i === 0 ? "1er" : i + 1 + "e"} sur ${n}` : "Entraînement"}${s >= 2 ? ` · Série : ${s}` : ""}`;
+  }
+  function chronoClock(ms, total) {
+    stopClock();
+    $("btnStopTimer").hidden = true;
+    $("clockrow").hidden = false;
+    const bar = $("bar30"), clock = $("clock"), end = Date.now() + ms;
+    bar.style.setProperty("--dur", total / 1000 + "s");
+    bar.style.animation = "none"; void bar.offsetWidth; bar.style.animation = "";
+    bar.style.animationDelay = `-${(total - ms) / 1000}s`; // la barre reprend là où elle s'était arrêtée
+    bar.style.animationPlayState = "running";
+    const tick = () => {
+      const s = Math.max(0, Math.ceil((end - Date.now()) / 1000));
+      clock.textContent = s;
+      clock.classList.toggle("urgent", s > 0 && s <= 10);
+    };
+    tick();
+    O.tid = setInterval(tick, 200);
+  }
+  function renderCQ(m) {
+    O.cur = { ...m, chrono: true }; O.answered = false;
+    $("scene").classList.add("compact");
+    const card = $("card");
+    card.classList.remove("flipped"); card.style.animation = "none"; void card.offsetWidth; card.style.animation = "";
+    $("whoName").textContent = me().name || "Vous";
+    $("whoName").classList.remove("retry");
+    $("whoLives").hidden = false; $("whoLives").textContent = `${m.points} pts`;
+    $("alive").hidden = false; $("alive").textContent = rankText();
+    $("tag").textContent = m.tag;
+    $("qText").textContent = m.q;
+    const ql = m.q.length;
+    $("qText").dataset.len = ql > 170 ? "xl" : ql > 120 ? "l" : ql > 80 ? "m" : "s";
+    const qi = $("qImg");
+    if (m.img) { qi.hidden = false; qi.onerror = () => { qi.hidden = true; }; qi.src = m.img; } else { qi.hidden = true; qi.removeAttribute("src"); }
+    ["btnSwap", "dockGame", "dockJudge", "dockNext"].forEach((id) => ($(id).hidden = true));
+    const box = $("mcq");
+    box.replaceChildren();
+    box.classList.toggle("long", m.options.some((o) => o.length > 24));
+    m.options.forEach((o, i) => {
+      const b = document.createElement("button");
+      b.className = "btn white"; b.textContent = o; b.style.animation = `pop .25s ${i * 40}ms backwards`;
+      b.onclick = () => {
+        if (O.answered) return;
+        O.answered = true; b.classList.add("picked");
+        box.querySelectorAll(".btn").forEach((x) => (x.disabled = true));
+        stopClock(); // le temps s'arrête dès qu'on a répondu
+        send({ t: "answer", i });
+      };
+      box.append(b);
+    });
+    box.hidden = false;
+    show("s-game");
+    chronoClock(m.ms, m.total);
+  }
+  function renderCRes(m) {
+    stopClock();
+    O.answered = true;
+    if (O.cur) O.cur.streak = m.streak;
+    const btns = [...document.querySelectorAll("#mcq .btn")];
+    btns.forEach((b) => { b.disabled = true; if (b.textContent === m.answer) b.classList.add("right"); });
+    if (m.picked >= 0 && !m.correct && O.cur) {
+      const w = O.cur.options[m.picked];
+      btns.forEach((b) => b.textContent === w && b.classList.add("wrong"));
+    }
+    $("whoLives").textContent = `${m.points} pts`;
+    $("clock").textContent = Math.ceil(m.ms / 1000);
+    $("alive").textContent = m.correct ? `Bonne réponse · +${m.gain} pts` : m.picked < 0 ? "Temps écoulé" : "Mauvaise réponse";
+    flash(m.correct ? "ok" : "ko");
   }
 
   /* ----- boutons de la salle ----- */
