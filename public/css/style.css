@@ -354,3 +354,6 @@ img{-webkit-user-drag:none;user-drag:none}
 
 /* 2.5.0 : retours à la ligne dans les questions (Vrai ou faux, emojis, proverbes) */
 .q{white-space:pre-line}
+
+/* 2.5.1 : carte du mode Chrono en ligne */
+.mode[data-m=chrono]{background:var(--coral)}
