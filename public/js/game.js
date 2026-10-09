@@ -698,7 +698,7 @@ $("cfYes").onclick = () => { $("confirm").hidden = true; const f = S.onYes; S.on
 $("btnResetLives").onclick = () => ask("Réinitialiser les vies ?", "Toutes les vies de tous les joueurs reviendront à 0.", "Réinitialiser", resetLives);
 document.querySelectorAll("[data-back]").forEach((b) => (b.onclick = () => {
   let t = b.dataset.back;
-  if (t === "auto") t = S.editRoom ? "s-lobby" : M().online ? "s-online" : M().solo ? "s-mode" : "s-names";
+  if (t === "auto") t = M().online ? "s-roomtype" : M().solo ? "s-mode" : "s-names";
   if (t === "s-lobby") { S.editRoom = false; online.setEditing(false); }
   show(t);
 }));
@@ -765,9 +765,34 @@ document.addEventListener("focusin", (e) => { if (e.target.matches && e.target.m
 document.addEventListener("focusout", () => document.body.classList.remove("typing"));
 
 // jeu en ligne : créer / rejoindre une salle
-// le type de salle (Survie ou Chrono) se choisit ici
-$("btnRoomCreate").onclick = () => { S.mode = "online"; S.cfg.time = M().time; S.editRoom = false; renderThemes(); show("s-themes"); };
-$("btnRoomChrono").onclick = () => { S.mode = "chrono"; S.editRoom = false; renderThemes(); show("s-themes"); };
+// créer un salon : on choisit d'abord son mode (Survie ou Chrono)
+const ROOM_MODES = [
+  ["online", "Survie", "Chacun son tour, avec des vies. Le dernier en vie gagne."],
+  ["chrono", "Chrono 60 s", "Tout le monde joue en même temps pendant 60 secondes. Le plus de points gagne."]
+];
+function renderRoomModes(current) {
+  const box = $("roomModes");
+  box.replaceChildren();
+  ROOM_MODES.forEach(([id, name, desc], i) => {
+    const b = document.createElement("button");
+    b.className = "mode"; b.dataset.m = id === "online" ? "survie" : "chrono"; b.style.animationDelay = `${i * 70}ms`;
+    const t = document.createElement("strong"); t.textContent = name + (current === id ? " · actuel" : "");
+    const d = document.createElement("span"); d.textContent = desc;
+    b.append(t, d);
+    b.onclick = () => {
+      const was = S.mode;
+      S.mode = id;
+      if (!S.editRoom || was !== id) S.cfg.time = M().time; // on garde le temps choisi si l'hôte ne change pas de mode
+      renderThemes(); show("s-themes");
+    };
+    box.append(b);
+  });
+}
+$("btnRoomCreate").onclick = () => { S.editRoom = false; online.setEditing(false); renderRoomModes(null); show("s-roomtype"); };
+$("btnRoomTypeBack").onclick = () => {
+  if (S.editRoom) { S.editRoom = false; online.setEditing(false); show("s-lobby"); } // retour au salon sans rien changer
+  else show("s-online");
+};
 $("btnLobbyEdit").onclick = () => {
   const c = online.cfg();
   if (!c) return;
@@ -776,7 +801,7 @@ $("btnLobbyEdit").onclick = () => {
   S.rand = c.themes.length >= THEMES.length;
   S.themes = new Set(S.rand ? [] : c.themes.filter((t) => THEMES.includes(t)));
   S.cfg.time = c.time; S.cfg.lives = c.lives;
-  renderThemes(); show("s-themes");
+  renderRoomModes(S.mode); show("s-roomtype"); // l'hôte peut aussi changer le mode du salon
 };
 $("btnRoomJoin").onclick = () => online.join($("roomCode").value);
 $("roomCode").addEventListener("input", (e) => (e.target.value = e.target.value.toUpperCase()));
