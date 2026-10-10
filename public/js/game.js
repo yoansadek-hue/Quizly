@@ -1,18 +1,22 @@
 import { THEMES, fetchAI } from "./questions.js";
 import { watch, signIn, logout } from "./auth.js";
 import { initOnline } from "./online.js";
-import { makeLocal, LOCAL_THEMES } from "./local.js";
+import { makeLocal, LOCAL_THEMES, euros } from "./local.js";
+import { millionUI, millionLocal } from "./million.js";
 
-const VERSION = "2.5.1"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.5.2"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
 const MODES = {
+  online: { name: "En ligne", desc: "Une salle et un code : chacun joue sur son téléphone. Survie, Chrono 60 s ou Qui veut gagner des millions.", qcm: true, time: 30, joker: false, lives: true, online: true },
   classic: { name: "Classique", desc: "Réponse à l'oral, le groupe valide. Carte retournable à volonté, jokers 4 choix.", qcm: false, time: 30, joker: true, lives: true },
   qcm: { name: "QCM", desc: "Toutes les questions en 4 choix, correction automatique.", qcm: true, time: 30, joker: false, lives: true },
   solo: { name: "Solo", desc: "Seul face aux questions : QCM, 3 vies, battez votre record.", qcm: true, time: 30, joker: false, lives: true, solo: true },
-  chrono: { name: "Chrono en ligne", desc: "60 secondes, tout le monde en même temps sur son téléphone. Le plus de points gagne.", qcm: true, time: 60, joker: false, lives: false, online: true, chrono: true, hidden: true }, // choisi depuis « En ligne »
-  online: { name: "En ligne", desc: "Une salle et un code : chacun joue sur son téléphone. En survie ou en chrono 60 s.", qcm: true, time: 30, joker: false, lives: true, online: true }
+  million: { name: "Qui veut gagner des millions", desc: "15 questions de plus en plus dures, 3 jokers, paliers sûrs à 1 500 € et 48 000 €. Visez le million !", qcm: true, time: 0, joker: false, lives: false, million: true },
+  // types de salon, choisis depuis « En ligne »
+  chrono: { name: "Chrono en ligne", qcm: true, time: 60, joker: false, lives: false, online: true, chrono: true, hidden: true },
+  omillion: { name: "Millionnaire en ligne", qcm: true, time: 30, joker: false, lives: false, online: true, million: true, hidden: true }
 };
 const TIMES = [10, 15, 20, 30, 45, 60, 0];
 const JOKERS = [0, 1, 2, 3, 5];
@@ -24,7 +28,7 @@ const S = {
 };
 const M = () => MODES[S.mode];
 document.querySelectorAll(".ver").forEach((e) => (e.textContent = `Quizly v${VERSION} · par YoskanGame`));
-const online = initOnline({ $, show, flash, confetti, me: () => ({ name: S.firstName || "Joueur", photo: S.photo || "" }), record: chronoRecord });
+const online = initOnline({ $, show, flash, confetti, me: () => ({ name: S.firstName || "Joueur", photo: S.photo || "" }), record: chronoRecord, millionUI });
 // record personnel du Chrono en ligne (gardé sur l'appareil, par compte)
 function chronoRecord(points) {
   const key = `quizly:${S.uid}:bestChrono`;
@@ -91,7 +95,7 @@ function loadRoster() {
   S.count = Math.min(20, Math.max(2, S.slots.length || 4));
   $("cNum").textContent = S.count;
 }
-function saveRoster() { if (M().solo) return; try { localStorage.setItem(rosterKey(), JSON.stringify(S.slots)); } catch {} }
+function saveRoster() { if (M().solo || M().million) return; try { localStorage.setItem(rosterKey(), JSON.stringify(S.slots)); } catch {} }
 
 function refresh(slot, input, found) {
   const p = slot.name && getDB()[slot.name.toLowerCase()];
@@ -532,6 +536,40 @@ function endGame(w) {
   confetti();
 }
 
+/* ---------- Qui veut gagner des millions (sur l'appareil) ---------- */
+const mui = millionUI($);
+const million = millionLocal({
+  $, show, flash, ask, ui: mui,
+  getQ: async (d) => { // il faut 4 choix (50/50 et avis du public)
+    S.diff = d;
+    let q;
+    for (let i = 0; i < 6; i++) { q = await getQuestion(); if (new Set(q.o).size >= 4) break; }
+    return q;
+  },
+  onEnd: (amount, n) => {
+    S.inGame = false;
+    const key = `quizly:${S.uid}:bestMillion`;
+    let best = 0; try { best = +localStorage.getItem(key) || 0; } catch {}
+    const rec = amount > best;
+    if (rec) try { localStorage.setItem(key, amount); } catch {}
+    $("ranking").replaceChildren();
+    $("endLead").textContent = n === 15 ? "Vous êtes millionnaire !" : "Vous repartez avec";
+    $("winner").textContent = euros(amount);
+    $("endNote").textContent = `${rec ? "Nouveau record ! " : ""}${n} bonne${n > 1 ? "s" : ""} réponse${n > 1 ? "s" : ""} · record : ${euros(Math.max(best, amount))}`;
+    show("s-end");
+    if (rec || n === 15) confetti();
+  }
+});
+function startMillion() {
+  if (!S.active.size) return;
+  S.players = [{ name: S.firstName || "Moi", lives: 0, jokers: 0, dead: false, score: 0, points: 0, streak: 0, outAt: 0 }];
+  S.asked = []; S.inGame = true; S.diff = 1; S.loading = null;
+  const bank = loadBank();
+  S.buf = bank.filter((q) => S.active.has(q.t) && !seen(q.q));
+  S.rest = bank.filter((q) => !S.active.has(q.t));
+  million.start();
+}
+
 /* ---------- Compte, modes, navigation ---------- */
 async function login(kind) {
   $("loginMsg").textContent = "";
@@ -575,7 +613,7 @@ function chooseMode(id) {
   }
   $("modeLabel").textContent = `Mode : ${M().name}`;
   loadRoster();
-  if (M().solo) {
+  if (M().solo || M().million) {
     S.slots = [{ name: S.firstName || "Moi", lives: 0, imported: false }]; S.count = 1; // pas de nom ni d'import en solo
     renderThemes();
     show("s-themes");
@@ -690,7 +728,7 @@ $("btnUser").onclick = () => {
   if (!S.inGame) { stopTimer(); return show("s-mode"); }
   S.resume = !!S.tid; stopTimer();
   ask("Quitter la partie ?", "Êtes-vous sûr ? La partie en cours sera perdue.", "Quitter",
-    () => { S.inGame = false; S.resume = false; stopTimer(); show("s-mode"); },
+    () => { S.inGame = false; S.resume = false; stopTimer(); million.quit(); show("s-mode"); },
     () => { if (S.resume) resumeTimer(); S.resume = false; });
 };
 $("cfNo").onclick = () => { $("confirm").hidden = true; const f = S.onNo; S.onYes = S.onNo = null; if (f) f(); };
@@ -727,21 +765,23 @@ $("btnThemes").onclick = () => {
   $("setupMsg").textContent = "";
   S.active = S.rand ? new Set(THEMES) : new Set(S.themes);
   if (M().chrono) return submitRoom(); // Chrono : 60 s fixes, pas de vies, on crée la salle tout de suite
+  if (M().million && !M().online) return startMillion(); // Millionnaire sur l'appareil : pas de minuteur
   $("btnTime").textContent = M().joker || M().online ? "Valider" : "Lancer la partie";
   renderTime(); show("s-time");
 };
 $("btnTime").onclick = () => {
+  if (M().online && M().million) return submitRoom(); // Millionnaire en ligne : pas de vies
   if (M().online) { renderLivesOpt(); show("s-jokers"); }
   else if (M().joker) { renderJokers(); show("s-jokers"); }
   else startGame();
 };
 function submitRoom() {
-  const cfg = { kind: M().chrono ? "chrono" : "survie", themes: [...S.active], time: S.cfg.time, lives: S.cfg.lives };
+  const cfg = { kind: M().chrono ? "chrono" : M().million ? "million" : "survie", themes: [...S.active], time: S.cfg.time, lives: S.cfg.lives };
   if (S.editRoom) { S.editRoom = false; online.setEditing(false); online.config(cfg); } // l'hôte modifie la salle
   else online.create(cfg);
 }
 $("btnStart").onclick = () => (M().online ? submitRoom() : startGame());
-$("btnRetry").onclick = () => (M().online ? online.retry() : loadAndPlay());
+$("btnRetry").onclick = () => (M().online ? online.retry() : M().million ? million.retry() : loadAndPlay());
 $("btnSwap").onclick = () => { if (S.locked || !S.inGame) return; stopTimer(); loadAndPlay(); };
 $("btnStopTimer").onclick = stopTimer;
 $("card").onclick = flip;
@@ -757,7 +797,7 @@ $("btnUp").onclick = () => (M().online ? online.level(true) : chooseLevel(true))
 $("btnStay").onclick = () => (M().online ? online.level(false) : chooseLevel(false));
 $("btnAgain").onclick = () => {
   if (M().online) return online.again();
-  if (M().solo) { renderThemes(); show("s-themes"); } else show("s-count"); // même mode, sans lancer la partie
+  if (M().solo || M().million) { renderThemes(); show("s-themes"); } else show("s-count"); // même mode, sans lancer la partie
 };
 
 // pendant la saisie d'un nom, les boutons fixes du bas sont masqués
@@ -767,15 +807,17 @@ document.addEventListener("focusout", () => document.body.classList.remove("typi
 // jeu en ligne : créer / rejoindre une salle
 // créer un salon : on choisit d'abord son mode (Survie ou Chrono)
 const ROOM_MODES = [
-  ["online", "Survie", "Chacun son tour, avec des vies. Le dernier en vie gagne."],
-  ["chrono", "Chrono 60 s", "Tout le monde joue en même temps pendant 60 secondes. Le plus de points gagne."]
+  ["online", "survie", "Survie", "Chacun son tour, avec des vies. Le dernier en vie gagne."],
+  ["chrono", "chrono", "Chrono 60 s", "Tout le monde joue en même temps pendant 60 secondes. Le plus de points gagne."],
+  ["omillion", "million", "Qui veut gagner des millions", "La même échelle de 15 questions pour tous, chacun avec ses jokers. Celui qui repart avec le plus gagne."]
 ];
+const KIND_MODE = { survie: "online", chrono: "chrono", million: "omillion" };
 function renderRoomModes(current) {
   const box = $("roomModes");
   box.replaceChildren();
-  ROOM_MODES.forEach(([id, name, desc], i) => {
+  ROOM_MODES.forEach(([id, look, name, desc], i) => {
     const b = document.createElement("button");
-    b.className = "mode"; b.dataset.m = id === "online" ? "survie" : "chrono"; b.style.animationDelay = `${i * 70}ms`;
+    b.className = "mode"; b.dataset.m = look; b.style.animationDelay = `${i * 70}ms`;
     const t = document.createElement("strong"); t.textContent = name + (current === id ? " · actuel" : "");
     const d = document.createElement("span"); d.textContent = desc;
     b.append(t, d);
@@ -797,7 +839,7 @@ $("btnLobbyEdit").onclick = () => {
   const c = online.cfg();
   if (!c) return;
   S.editRoom = true; online.setEditing(true);
-  S.mode = c.kind === "chrono" ? "chrono" : "online"; // garde le type de salle, même si l'hôte a changé
+  S.mode = KIND_MODE[c.kind] || "online"; // garde le type de salle, même si l'hôte a changé
   S.rand = c.themes.length >= THEMES.length;
   S.themes = new Set(S.rand ? [] : c.themes.filter((t) => THEMES.includes(t)));
   S.cfg.time = c.time; S.cfg.lives = c.lives;
