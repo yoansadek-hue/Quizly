@@ -604,3 +604,30 @@ export function makeLocal(theme, d = 1) {
   }[theme];
   return f ? f(Math.min(5, Math.max(1, d))) : null;
 }
+
+/* ---------- Qui veut gagner des millions : règles communes (jeu sur l'appareil et en ligne) ---------- */
+export const PRIZES = [200, 300, 500, 800, 1500, 3000, 6000, 12000, 24000, 48000, 72000, 100000, 150000, 300000, 1000000];
+export const SAFE = [5, 10]; // paliers sûrs : après la 5e (1 500 €) et la 10e (48 000 €) bonne réponse
+export const millionLevel = (n) => Math.min(5, 1 + Math.floor(n / 3)); // n = bonnes réponses déjà données : 3 questions par niveau
+export const wonAt = (n) => (n > 0 ? PRIZES[n - 1] : 0); // gain en s'arrêtant après n bonnes réponses
+export const safeAt = (n) => { const s = SAFE.filter((x) => x <= n).pop(); return s ? PRIZES[s - 1] : 0; }; // gain en cas d'erreur
+export const euros = (v) => `${String(v).replace(/\B(?=(\d{3})+(?!\d))/g, " ")} €`;
+
+// avis du public : souvent juste au début, de moins en moins fiable ensuite
+export function publicVote(options, answer, d, removed = []) {
+  const live = options.map((o, i) => i).filter((i) => !removed.includes(i));
+  const right = options.indexOf(answer);
+  const trust = [0, 0.95, 0.85, 0.72, 0.6, 0.48][d] || 0.6;
+  const top = Math.random() < trust ? right : pick(live.filter((i) => i !== right));
+  const share = Object.fromEntries(live.map((i) => [i, 0]));
+  share[top] = 40 + r(35);
+  let rest = 100 - share[top];
+  const others = shuffle(live.filter((i) => i !== top));
+  others.forEach((i, k) => {
+    const v = k === others.length - 1 ? rest : Math.min(rest, r(Math.max(1, Math.floor(share[top] * 0.8))));
+    share[i] = Math.min(v, share[top] - 1);
+    rest -= share[i];
+  });
+  if (rest > 0) share[top] += rest;
+  return options.map((o, i) => share[i] ?? 0);
+}
