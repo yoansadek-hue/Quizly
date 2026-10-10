@@ -1,9 +1,11 @@
+import { euros } from "./local.js";
 // Jeu en ligne : le serveur mène la partie, ce fichier affiche ce qu'il envoie.
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
 const PALETTE = ["#ffd84d", "#29d9a1", "#ff9a9a", "#c9ceff", "#ffb86b", "#7fe7ff", "#d7a8ff", "#b7f171", "#ff9ed8", "#ffffff", "#9ad0ff", "#ffe98a"];
 const HEART = "\u2665\uFE0E"; // cœur « texte » (jamais l'emoji rouge)
 
-export function initOnline({ $, show, flash, confetti, me, record }) {
+export function initOnline({ $, show, flash, confetti, me, record, millionUI }) {
+  const mu = millionUI($); // écran « Qui veut gagner des millions »
   const O = { cfg: null, editing: false, ws: null, you: null, host: null, active: false, inRoom: false, tid: null, cur: null, answered: false, board: [], chrono: false };
   const plural = (n, w) => `${n} ${w}${n > 1 ? "s" : ""}`;
   const msg = (t) => { $("onMsg").textContent = t; $("lobbyMsg").textContent = t; };
@@ -36,7 +38,7 @@ export function initOnline({ $, show, flash, confetti, me, record }) {
     join: (code) => open({ t: "join", ...me(), code: String(code || "").trim() }),
     leave() {
       if (O.ws) { send({ t: "leave" }); const w = O.ws; O.ws = null; w.close(); }
-      O.active = false; O.inRoom = false; O.you = null; stopClock();
+      O.active = false; O.inRoom = false; O.you = null; stopClock(); mu.stopClock(); O.mout = false;
     },
     level: (up) => send({ t: "level", up }),
     retry: () => send({ t: "retry" }),
@@ -64,6 +66,29 @@ export function initOnline({ $, show, flash, confetti, me, record }) {
       case "cres": renderCRes(m); break;
       case "cwait": $("alive").textContent = "Chargement de la question… (chrono en pause)"; break;
       case "cboard": O.board = m.list; if (O.cur && O.cur.chrono && !O.answered) $("alive").textContent = rankText(); break; // ne pas effacer « Bonne réponse »
+      // Qui veut gagner des millions en ligne
+      case "mq":
+        O.cur = null; O.mout = false;
+        mu.render({ n: m.n, tag: m.tag, q: m.q, img: m.img, options: m.options, jokers: m.jok, time: m.time, total: m.total, info: millInfo() }, {
+          pick: (i) => send({ t: "answer", i }),
+          joker: (k) => send({ t: "mjoker", k }),
+          stop: () => send({ t: "mstop" })
+        });
+        show("s-million");
+        break;
+      case "mlock": mu.lock(m.i); mu.info(m.i < 0 ? "Vous vous arrêtez. En attente des autres joueurs…" : "Réponse verrouillée. En attente des autres joueurs…"); break;
+      case "mfifty": mu.fifty(m.keep); break;
+      case "mpublic": mu.showPublic(m.perc); break;
+      case "mboard": O.mboard = m.list; if (O.mout) millWait(); break;
+      case "mres":
+        mu.reveal(m);
+        if (!m.stopped) flash(m.correct ? "ok" : "ko");
+        mu.info(m.stopped ? `Vous repartez avec ${euros(m.won)}. La réponse était : ${m.answer}`
+          : m.top ? "Un million d'euros ! Bravo !"
+          : m.correct ? `Bonne réponse ! Vous avez ${euros(m.won)}.`
+          : `${m.timeout ? "Temps écoulé" : "Mauvaise réponse"}. Vous repartez avec ${euros(m.won)}.`);
+        if (m.out) { O.mout = true; O.mwon = m.won; setTimeout(() => { if (O.mout) millWait(); }, 2600); }
+        break;
       case "cdone":
         stopClock();
         $("loadText").textContent = `Temps écoulé ! ${m.points} pts · ${m.score} bonne${m.score > 1 ? "s" : ""} réponse${m.score > 1 ? "s" : ""}. En attente des autres joueurs…`;
@@ -90,14 +115,16 @@ export function initOnline({ $, show, flash, confetti, me, record }) {
     });
     const host = m.host === m.you;
     $("lobbyCount").textContent = `${m.players.length} / 20 joueurs`;
-    const chrono = m.cfg.kind === "chrono", need = chrono ? 1 : 2; // le Chrono se joue aussi seul
+    const chrono = m.cfg.kind === "chrono", mill = m.cfg.kind === "million", need = chrono || mill ? 1 : 2; // Chrono et Millionnaire se jouent aussi seul
     O.chrono = false; O.cur = null;
+    O.mout = false; O.mboard = [];
     $("lobbyInfo").textContent = chrono
       ? `Chrono 60 s · ${plural(m.cfg.themes.length, "thème")} · le plus de points gagne`
+      : mill ? `Qui veut gagner des millions · ${plural(m.cfg.themes.length, "thème")} · ${m.cfg.time ? m.cfg.time + " s par question" : "sans limite"}`
       : `${plural(m.cfg.themes.length, "thème")} · ${m.cfg.time ? m.cfg.time + " s" : "sans limite"} · ${plural(m.cfg.lives, "vie")}`;
     $("btnLobbyStart").hidden = !host;
     $("btnLobbyStart").disabled = m.players.length < need;
-    $("btnLobbyStart").textContent = m.players.length < need ? "Il faut au moins 2 joueurs" : chrono ? "Lancer le chrono" : "Lancer la partie";
+    $("btnLobbyStart").textContent = m.players.length < need ? "Il faut au moins 2 joueurs" : chrono ? "Lancer le chrono" : mill ? "Lancer l'échelle" : "Lancer la partie";
     $("btnLobbyEdit").hidden = !host;
     $("lobbyWait").hidden = host && m.players.length >= need;
     $("lobbyWait").textContent = host ? "Il faut au moins 2 joueurs pour lancer." : "En attente de l'hôte…";
@@ -195,8 +222,8 @@ export function initOnline({ $, show, flash, confetti, me, record }) {
 
   function renderEnd(m) {
     stopClock();
-    const chrono = m.kind === "chrono";
-    O.chrono = false; O.cur = null;
+    const chrono = m.kind === "chrono", mill = m.kind === "million";
+    O.chrono = false; O.cur = null; O.mout = false; mu.stopClock();
     $("endLead").textContent = m.winner ? "Vainqueur" : "Partie terminée";
     $("winner").textContent = m.winner || "Égalité";
     $("endNote").textContent = "";
@@ -216,12 +243,23 @@ export function initOnline({ $, show, flash, confetti, me, record }) {
       const pos = document.createElement("span"); pos.className = "pos"; pos.textContent = i + 1;
       const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = p.name;
       const st = document.createElement("span"); st.className = "st";
-      st.textContent = chrono ? `${p.points} pts · ${p.score} bonne${p.score > 1 ? "s" : ""}` : `${p.score} bonne${p.score > 1 ? "s" : ""} · ${HEART} ${p.lives}`;
+      st.textContent = mill ? `${euros(p.points)} · ${p.score} bonne${p.score > 1 ? "s" : ""}` : chrono ? `${p.points} pts · ${p.score} bonne${p.score > 1 ? "s" : ""}` : `${p.score} bonne${p.score > 1 ? "s" : ""} · ${HEART} ${p.lives}`;
       li.append(pos, nm, st);
       ol.append(li);
     });
     show("s-end");
     confetti();
+  }
+
+  /* ----- Millionnaire : textes ----- */
+  function millInfo() {
+    const n = (O.mboard || []).filter((p) => !p.out).length;
+    return n > 1 ? `${n} joueurs encore en jeu` : "";
+  }
+  function millWait() {
+    const still = (O.mboard || []).filter((p) => !p.out).map((p) => `${p.name} (${euros(p.won)})`);
+    $("loadText").textContent = `Vous repartez avec ${euros(O.mwon || 0)}.` + (still.length ? ` Encore en jeu : ${still.join(", ")}.` : "");
+    $("loadErr").hidden = true; show("s-load");
   }
 
   /* ----- Chrono en ligne ----- */
