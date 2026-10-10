@@ -13,7 +13,7 @@ const MODES = {
   classic: { name: "Classique", desc: "Réponse à l'oral, le groupe valide. Carte retournable à volonté, jokers 4 choix.", qcm: false, time: 30, joker: true, lives: true },
   qcm: { name: "QCM", desc: "Toutes les questions en 4 choix, correction automatique.", qcm: true, time: 30, joker: false, lives: true },
   solo: { name: "Solo", desc: "Seul face aux questions : QCM, 3 vies, battez votre record.", qcm: true, time: 30, joker: false, lives: true, solo: true },
-  million: { name: "Qui veut gagner des millions", desc: "15 questions de plus en plus dures, 3 jokers, paliers sûrs à 1 500 € et 48 000 €. Visez le million !", qcm: true, time: 0, joker: false, lives: false, million: true },
+  million: { name: "Qui veut gagner des millions", desc: "À plusieurs sur un téléphone : chacun son échelle de 15 questions et ses 3 jokers. Celui qui repart avec le plus gagne.", qcm: true, time: 0, joker: false, lives: false, million: true },
   // types de salon, choisis depuis « En ligne »
   chrono: { name: "Chrono en ligne", qcm: true, time: 60, joker: false, lives: false, online: true, chrono: true, hidden: true },
   omillion: { name: "Millionnaire en ligne", qcm: true, time: 30, joker: false, lives: false, online: true, million: true, hidden: true }
@@ -42,8 +42,19 @@ function chronoRecord(points) {
 ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault()));
 
 /* ---------- Écrans & effets ---------- */
+// pendant une partie, le bouton du haut affiche « Quitter » au lieu de « Menu »
+const PLAYING = ["s-game", "s-million", "s-level", "s-revive", "s-load"];
+let curScreen = "";
+function userLabel() {
+  let on = false; try { on = online.active(); } catch {}
+  const quit = PLAYING.includes(curScreen) && (S.inGame || on);
+  $("userName").textContent = `${S.firstName || "Compte"} · ${quit ? "Quitter" : "Menu"}`;
+  $("btnUser").setAttribute("aria-label", quit ? "Quitter la partie" : "Retour au choix du mode");
+}
 function show(id) {
+  curScreen = id;
   document.querySelectorAll(".screen").forEach((s) => (s.hidden = s.id !== id));
+  userLabel();
   $("bar").hidden = id === "s-login" || id === "s-local";
   window.scrollTo(0, 0);
   const sp = document.getElementById("splash"); // le jeu est prêt : on retire l'écran de démarrage
@@ -95,7 +106,7 @@ function loadRoster() {
   S.count = Math.min(20, Math.max(2, S.slots.length || 4));
   $("cNum").textContent = S.count;
 }
-function saveRoster() { if (M().solo || M().million) return; try { localStorage.setItem(rosterKey(), JSON.stringify(S.slots)); } catch {} }
+function saveRoster() { if (M().solo) return; try { localStorage.setItem(rosterKey(), JSON.stringify(S.slots)); } catch {} }
 
 function refresh(slot, input, found) {
   const p = slot.name && getDB()[slot.name.toLowerCase()];
@@ -543,31 +554,46 @@ const million = millionLocal({
   getQ: async (d) => { // il faut 4 choix (50/50 et avis du public)
     S.diff = d;
     let q;
-    for (let i = 0; i < 6; i++) { q = await getQuestion(); if (new Set(q.o).size >= 4) break; }
+    for (let i = 0; i < 6; i++) {
+      try { q = await getQuestion(); }
+      catch { q = makeLocal(LOCAL_THEMES[Math.floor(Math.random() * LOCAL_THEMES.length)], d); } // IA indisponible : question sans IA
+      if (new Set(q.o).size >= 4) break;
+    }
     return q;
   },
-  onEnd: (amount, n) => {
+  onEnd: (list) => {
     S.inGame = false;
-    const key = `quizly:${S.uid}:bestMillion`;
-    let best = 0; try { best = +localStorage.getItem(key) || 0; } catch {}
-    const rec = amount > best;
-    if (rec) try { localStorage.setItem(key, amount); } catch {}
-    $("ranking").replaceChildren();
-    $("endLead").textContent = n === 15 ? "Vous êtes millionnaire !" : "Vous repartez avec";
-    $("winner").textContent = euros(amount);
-    $("endNote").textContent = `${rec ? "Nouveau record ! " : ""}${n} bonne${n > 1 ? "s" : ""} réponse${n > 1 ? "s" : ""} · record : ${euros(Math.max(best, amount))}`;
+    const order = [...list].sort((a, b) => b.won - a.won || b.n - a.n);
+    const solo = order.length === 1, tie = !solo && order[0].won === order[1].won;
+    const top = order[0];
+    $("endLead").textContent = solo ? (top.n === 15 ? "Millionnaire !" : "Vous repartez avec") : tie ? "Partie terminée" : "Vainqueur";
+    $("winner").textContent = solo ? euros(top.won) : tie ? "Égalité" : top.name;
+    $("endNote").textContent = solo || tie ? "" : `${top.name} repart avec ${euros(top.won)}`;
+    const ol = $("ranking");
+    ol.replaceChildren();
+    if (!solo) order.forEach((p, i) => {
+      const li = document.createElement("li");
+      li.className = "rk" + (i === 0 && !tie ? " first" : "");
+      li.style.animationDelay = `${0.35 + i * 0.12}s`;
+      const pos = document.createElement("span"); pos.className = "pos"; pos.textContent = i + 1;
+      const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = p.name;
+      const st = document.createElement("span"); st.className = "st"; st.textContent = `${euros(p.won)} · ${p.n} bonne${p.n > 1 ? "s" : ""}`;
+      li.append(pos, nm, st);
+      ol.append(li);
+    });
     show("s-end");
-    if (rec || n === 15) confetti();
+    if (top.won >= 48000 || !solo) confetti();
   }
 });
 function startMillion() {
-  if (!S.active.size) return;
-  S.players = [{ name: S.firstName || "Moi", lives: 0, jokers: 0, dead: false, score: 0, points: 0, streak: 0, outAt: 0 }];
+  S.active = new Set(THEMES); // toutes les catégories, sans choix
+  S.players = S.slots.map((s) => ({ name: s.name, lives: s.lives, jokers: 0, dead: false, score: 0, points: 0, streak: 0, outAt: 0 }));
+  saveRoster();
   S.asked = []; S.inGame = true; S.diff = 1; S.loading = null;
   const bank = loadBank();
   S.buf = bank.filter((q) => S.active.has(q.t) && !seen(q.q));
   S.rest = bank.filter((q) => !S.active.has(q.t));
-  million.start();
+  million.start(S.slots.map((s) => s.name));
 }
 
 /* ---------- Compte, modes, navigation ---------- */
@@ -583,7 +609,7 @@ function setUser(name, photo) {
   const first = (name || "Compte").split(" ")[0];
   S.firstName = first;
   S.photo = photo || "";
-  $("userName").textContent = `${first} · Menu`;
+  userLabel();
   const img = $("userPhoto"), ini = $("userInit");
   ini.textContent = first.charAt(0).toUpperCase();
   img.hidden = !photo; ini.hidden = !!photo;
@@ -613,7 +639,7 @@ function chooseMode(id) {
   }
   $("modeLabel").textContent = `Mode : ${M().name}`;
   loadRoster();
-  if (M().solo || M().million) {
+  if (M().solo) {
     S.slots = [{ name: S.firstName || "Moi", lives: 0, imported: false }]; S.count = 1; // pas de nom ni d'import en solo
     renderThemes();
     show("s-themes");
@@ -737,6 +763,7 @@ $("btnResetLives").onclick = () => ask("Réinitialiser les vies ?", "Toutes les 
 document.querySelectorAll("[data-back]").forEach((b) => (b.onclick = () => {
   let t = b.dataset.back;
   if (t === "auto") t = M().online ? "s-roomtype" : M().solo ? "s-mode" : "s-names";
+  if (t === "s-themes" && M().million) t = "s-roomtype"; // le Millionnaire n'a pas d'écran de thèmes
   if (t === "s-lobby") { S.editRoom = false; online.setEditing(false); }
   show(t);
 }));
@@ -754,18 +781,22 @@ $("localPhoto").addEventListener("change", async (e) => {
 });
 $("cMinus").onclick = () => setCount(-1);
 $("cPlus").onclick = () => setCount(1);
-$("btnCount").onclick = () => { renderSlots(); show("s-names"); };
+$("btnCount").onclick = () => {
+  $("btnNames").textContent = M().million ? "Lancer la partie" : "Choisir les thèmes"; // pas de thèmes pour le Millionnaire
+  renderSlots(); show("s-names");
+};
 $("btnNames").onclick = () => {
   const err = validateNames();
   $("namesMsg").textContent = err;
-  if (!err) { renderThemes(); show("s-themes"); }
+  if (err) return;
+  if (M().million) return startMillion(); // Millionnaire : pas de choix de thèmes
+  renderThemes(); show("s-themes");
 };
 $("btnThemes").onclick = () => {
   if (!S.rand && !S.themes.size) { $("setupMsg").textContent = "Choisissez au moins un thème, ou « Aléatoire »."; return; }
   $("setupMsg").textContent = "";
   S.active = S.rand ? new Set(THEMES) : new Set(S.themes);
   if (M().chrono) return submitRoom(); // Chrono : 60 s fixes, pas de vies, on crée la salle tout de suite
-  if (M().million && !M().online) return startMillion(); // Millionnaire sur l'appareil : pas de minuteur
   $("btnTime").textContent = M().joker || M().online ? "Valider" : "Lancer la partie";
   renderTime(); show("s-time");
 };
@@ -797,7 +828,7 @@ $("btnUp").onclick = () => (M().online ? online.level(true) : chooseLevel(true))
 $("btnStay").onclick = () => (M().online ? online.level(false) : chooseLevel(false));
 $("btnAgain").onclick = () => {
   if (M().online) return online.again();
-  if (M().solo || M().million) { renderThemes(); show("s-themes"); } else show("s-count"); // même mode, sans lancer la partie
+  if (M().solo) { renderThemes(); show("s-themes"); } else show("s-count"); // même mode, sans lancer la partie
 };
 
 // pendant la saisie d'un nom, les boutons fixes du bas sont masqués
@@ -825,6 +856,7 @@ function renderRoomModes(current) {
       const was = S.mode;
       S.mode = id;
       if (!S.editRoom || was !== id) S.cfg.time = M().time; // on garde le temps choisi si l'hôte ne change pas de mode
+      if (M().million) { S.active = new Set(THEMES); $("btnTime").textContent = "Valider"; renderTime(); return show("s-time"); } // pas de choix de thèmes
       renderThemes(); show("s-themes");
     };
     box.append(b);
