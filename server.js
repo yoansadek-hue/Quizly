@@ -1,7 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import { WebSocketServer } from "ws";
-import { LOCAL_THEMES, makeLocal } from "./public/js/local.js";
+import { LOCAL_THEMES, makeLocal, PRIZES, millionLevel, wonAt, safeAt, publicVote } from "./public/js/local.js";
 
 const app = express();
 app.use(express.json({ limit: "60kb" }));
@@ -372,6 +372,133 @@ function checkChronoEnd(room) {
   });
 }
 
+/* ====================== Qui veut gagner des millions en ligne ====================== */
+// Tout le monde a la même question au même moment. Chacun a ses 3 jokers et peut s'arrêter.
+// Une erreur fait repartir avec le dernier palier ; celui qui repart avec le plus gagne.
+const inGame = (room) => players(room).filter((p) => !p.left && !p.mout);
+
+function startMillion(room) {
+  clearTimeout(room.timer);
+  Object.assign(room, { phase: "mload", buf: [], asked: [], loads: new Map(), mn: 0, mseen: new Set() });
+  players(room).forEach((p) => {
+    clearTimeout(p.ctimer);
+    Object.assign(p, { mn: 0, mout: false, mwon: 0, mjok: { fifty: 1, public: 1, swap: 1 }, mq: null, mpick: null, mstop: false, mremoved: [], seen: new Set(), cdiff: 1, dead: false, outAt: 0, lives: 0, score: 0 });
+  });
+  cast(room, { t: "load", msg: "Préparation de l'échelle…" });
+  const ai = room.cfg.themes.some((t) => !LOCAL_THEMES.includes(t));
+  (ai ? fill(room, 1).catch(() => {}) : Promise.resolve()).then(() => { if (rooms.has(room.code) && room.phase === "mload") mNext(room); });
+}
+async function mQuestion(room, holder, d) { // il faut 4 choix pour le 50/50 et l'avis du public
+  holder.cdiff = d;
+  let q;
+  for (let i = 0; i < 6; i++) { q = await takeFor(room, holder); if (new Set(q.o).size >= 4) break; }
+  return q;
+}
+function mSend(room, p, extra = {}) {
+  const left = room.cfg.time ? Math.max(1, Math.round((room.mEnd - Date.now()) / 1000)) : 0;
+  send(p.ws, {
+    t: "mq", n: room.mn, tag: `${p.mq.t} · ${LEVELS[millionLevel(room.mn)]}`, q: p.mq.q, img: p.mq.img || null,
+    options: p.mq.options, jok: p.mjok, time: left, total: room.cfg.time, ...extra
+  });
+}
+async function mNext(room, again) {
+  if (!rooms.has(room.code)) return;
+  clearTimeout(room.timer);
+  room.phase = "mload";
+  const d = millionLevel(room.mn);
+  let q;
+  try { q = await mQuestion(room, { seen: room.mseen }, d); }
+  catch (e) { console.error(e.message); room.phase = "merror"; return cast(room, { t: "fail", msg: e.status === 429 ? e.message : "L'IA n'a pas répondu." }); }
+  if (!rooms.has(room.code) || room.phase !== "mload") return;
+  const now = inGame(room);
+  if (!now.length) return mEnd(room);
+  room.phase = "mq";
+  room.mEnd = Date.now() + room.cfg.time * 1000;
+  now.forEach((p) => {
+    p.seen.add(q.q);
+    Object.assign(p, { mq: { ...q, options: shuffle(q.o) }, mpick: null, mstop: false, mremoved: [] });
+    mSend(room, p);
+  });
+  mBoard(room);
+  if (room.cfg.time) room.timer = setTimeout(() => mReveal(room), room.cfg.time * 1000 + 1500);
+}
+function mAnswer(room, p, i) {
+  if (room.phase !== "mq" || p.mout || !p.mq || p.mpick !== null || p.mstop) return;
+  if (!Number.isInteger(i) || i < 0 || i >= p.mq.options.length || p.mremoved.includes(i)) return;
+  p.mpick = i;
+  send(p.ws, { t: "mlock", i });
+  mCheck(room);
+}
+function mStop(room, p) {
+  if (room.phase !== "mq" || p.mout || p.mpick !== null || room.mn === 0) return;
+  p.mstop = true;
+  send(p.ws, { t: "mlock", i: -1 });
+  mCheck(room);
+}
+async function mJoker(room, p, k) {
+  if (room.phase !== "mq" || p.mout || !p.mq || p.mpick !== null || p.mstop || !p.mjok[k]) return;
+  p.mjok[k] = 0;
+  const q = p.mq;
+  if (k === "fifty") {
+    const wrong = shuffle(q.options.map((o, i) => i).filter((i) => q.options[i] !== q.a));
+    p.mremoved = wrong.slice(0, 2);
+    send(p.ws, { t: "mfifty", keep: q.options.map((o, i) => i).filter((i) => !p.mremoved.includes(i)) });
+  } else if (k === "public") {
+    send(p.ws, { t: "mpublic", perc: publicVote(q.options, q.a, millionLevel(room.mn), p.mremoved) });
+  } else if (k === "swap") {
+    const n = room.mn;
+    try {
+      const nq = await mQuestion(room, p, millionLevel(n));
+      if (room.phase !== "mq" || room.mn !== n || p.mout || p.mpick !== null) return;
+      p.mq = { ...nq, options: shuffle(nq.o) }; p.mremoved = [];
+      mSend(room, p);
+    } catch { p.mjok.swap = 1; send(p.ws, { t: "error", msg: "Impossible de changer de question." }); }
+  }
+}
+function mCheck(room) {
+  if (room.phase === "mq" && inGame(room).every((p) => p.mpick !== null || p.mstop)) return mReveal(room);
+  if (room.phase !== "end" && !players(room).some((p) => !p.left && !p.mout) && room.phase !== "mres") mEnd(room);
+}
+function mReveal(room) {
+  if (room.phase !== "mq") return;
+  clearTimeout(room.timer);
+  room.phase = "mres";
+  inGame(room).forEach((p) => {
+    const q = p.mq;
+    if (p.mstop) {
+      p.mout = true; p.mwon = wonAt(p.mn);
+      send(p.ws, { t: "mres", correct: false, stopped: true, picked: -1, answer: q.a, won: p.mwon, out: true });
+      return;
+    }
+    const ok = p.mpick !== null && q.options[p.mpick] === q.a;
+    if (ok) {
+      p.mn++; p.score = p.mn; p.mwon = wonAt(p.mn);
+      if (p.mn === 15) p.mout = true; // millionnaire !
+    } else { p.mout = true; p.mwon = safeAt(p.mn); }
+    send(p.ws, { t: "mres", correct: ok, picked: p.mpick ?? -1, answer: q.a, won: p.mwon, out: p.mout, top: p.mn === 15, timeout: p.mpick === null });
+    p.mq = null;
+  });
+  mBoard(room);
+  room.mn++;
+  room.timer = setTimeout(() => (inGame(room).length ? mNext(room) : mEnd(room)), inGame(room).length ? 3500 : 2500);
+}
+function mBoard(room) {
+  const list = players(room).filter((p) => !p.left).sort((a, b) => b.mwon - a.mwon || b.mn - a.mn)
+    .map((p) => ({ id: p.id, name: p.name, won: p.mwon, n: p.mn, out: !!p.mout }));
+  cast(room, { t: "mboard", list });
+}
+function mEnd(room) {
+  if (room.phase === "end") return;
+  clearTimeout(room.timer);
+  room.phase = "end";
+  const order = [...players(room)].sort((a, b) => b.mwon - a.mwon || b.mn - a.mn);
+  const tie = order.length > 1 && order[0].mwon === order[1].mwon;
+  cast(room, {
+    t: "end", kind: "million", winner: tie ? null : order[0]?.name || null,
+    ranking: order.map((p) => ({ id: p.id, name: p.name, score: p.mn, points: p.mwon, lives: 0, photo: p.photo }))
+  });
+}
+
 function leave(ws) {
   const room = ws.room; if (!room) return;
   ws.room = null;
@@ -384,6 +511,7 @@ function leave(ws) {
   if (room.hostId === me.id) { room.hostId = present[0].id; cast(room, { t: "host", host: room.hostId }); }
   if (lobbyLike) return castLobby(room);
   if (room.cfg.kind === "chrono") { clearTimeout(me.ctimer); me.done = true; me.cq = null; castBoard(room); return checkChronoEnd(room); }
+  if (room.cfg.kind === "million") { if (!me.mout) { me.mout = true; me.mq = null; } return mCheck(room); }
   if (alive(room).length <= 1) return endGame(room);
   const turn = players(room)[room.i];
   if (turn && turn.id === me.id && room.phase === "q") { clearTimeout(room.timer); afterTurn(room); }
@@ -394,7 +522,7 @@ function leave(ws) {
 function readCfg(m) {
   const themes = (Array.isArray(m.themes) ? m.themes : []).map((t) => clean(t, 30)).filter(Boolean).slice(0, 60);
   if (!themes.length) return "Choisissez au moins un thème.";
-  return { kind: m.kind === "chrono" ? "chrono" : "survie", themes, time: clamp(+m.time, 0, 120), lives: clamp(+m.lives || 2, 1, 5) };
+  return { kind: ["chrono", "million"].includes(m.kind) ? m.kind : "survie", themes, time: clamp(+m.time, 0, 120), lives: clamp(+m.lives || 2, 1, 5) };
 }
 
 function handle(ws, m) {
@@ -428,9 +556,17 @@ function handle(ws, m) {
   const host = me.id === room.hostId;
   if (m.t === "start" && host && room.phase === "lobby") {
     if (room.cfg.kind === "chrono") return startChrono(room); // le Chrono se joue aussi seul
+    if (room.cfg.kind === "million") return startMillion(room); // le Millionnaire aussi
     if (players(room).length < 2) return send(ws, { t: "error", msg: "Il faut au moins 2 joueurs." });
     startGame(room);
-  } else if (m.t === "answer") { if (room.cfg.kind === "chrono") chronoAnswer(room, me, Number(m.i)); else answer(room, me, Number(m.i)); }
+  } else if (m.t === "answer") {
+    if (room.cfg.kind === "chrono") chronoAnswer(room, me, Number(m.i));
+    else if (room.cfg.kind === "million") mAnswer(room, me, Number(m.i));
+    else answer(room, me, Number(m.i));
+  }
+  else if (m.t === "mjoker" && room.cfg.kind === "million") mJoker(room, me, String(m.k));
+  else if (m.t === "mstop" && room.cfg.kind === "million") mStop(room, me);
+  else if (m.t === "retry" && host && room.phase === "merror") mNext(room, true);
   else if (m.t === "level" && host && room.phase === "level") chooseLevel(room, !!m.up);
   else if (m.t === "retry" && host && room.phase === "error") loadQuestion(room);
   else if (m.t === "again") { if (host && room.phase === "end") { resetRoom(room); castLobby(room); } else send(ws, lobbyMsg(room, me)); }
