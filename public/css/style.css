@@ -361,3 +361,27 @@ img{-webkit-user-drag:none;user-drag:none}
 /* 2.5.1 : choix du mode du salon (Survie / Chrono) */
 .mode[data-m=survie]{background:var(--mint)}
 @media (min-width:700px){#roomModes{grid-template-columns:repeat(2,1fr)} #roomModes .mode{grid-column:auto}}
+
+/* 2.5.2 : Qui veut gagner des millions */
+.mode[data-m=million]{background:var(--ink);color:var(--sun);border-color:var(--sun)}
+.mode[data-m=million] span{color:var(--lilac)}
+@media (min-width:700px){.mode[data-m=million]{grid-column:1 / -1}}
+.ladder{list-style:none;display:flex;gap:6px;margin:12px 0;padding:2px 2px 8px;overflow-x:auto;scrollbar-width:thin}
+.ladder li{flex:none;font:800 13px var(--font);padding:5px 9px;border:2px solid var(--lilac);border-radius:99px;color:var(--lilac);white-space:nowrap}
+.ladder li.safe{border-color:var(--sun);color:var(--sun)}
+.ladder li.done{background:var(--mint);border-color:var(--ink);color:var(--ink)}
+.ladder li.now{background:var(--sun);border-color:var(--ink);color:var(--ink)}
+.mcard{display:flex;flex-direction:column;align-items:flex-start;gap:12px;padding:20px;margin:0 0 14px;color:var(--ink);background:var(--white);border:3px solid var(--ink);border-radius:24px;box-shadow:6px 6px 0 var(--ink)}
+.mcard .q{margin:4px 0}
+#mOpts .btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+#mOpts .pct{font-size:14px;font-weight:800;color:#4a4d78}
+#mOpts .pct:empty{display:none}
+#mOpts .btn.gone{visibility:hidden}
+.mjokers{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:16px 0 12px}
+.mjokers .chip{cursor:pointer;background:var(--sun);color:var(--ink);font:800 15px var(--font)}
+.mjokers .chip.used{background:transparent;color:var(--lilac);border-color:var(--lilac);text-decoration:line-through;cursor:default}
+.mjokers .chip:disabled:not(.used){opacity:.55;cursor:default} /* bloqué le temps de la correction, pas utilisé */
+.clock.urgent{color:var(--coral)}
+@media (min-width:700px){.ladder li{font-size:15px;padding:6px 12px} .mjokers .chip{font-size:17px}}
+#s-million .who{font-size:26px;gap:10px} #mStep,#mWon{white-space:nowrap}
+@media (min-width:700px){#s-million .who{font-size:32px}}
