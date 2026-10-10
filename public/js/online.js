@@ -120,7 +120,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI }) 
     O.mout = false; O.mboard = [];
     $("lobbyInfo").textContent = chrono
       ? `Chrono 60 s · ${plural(m.cfg.themes.length, "thème")} · le plus de points gagne`
-      : mill ? `Qui veut gagner des millions · ${plural(m.cfg.themes.length, "thème")} · ${m.cfg.time ? m.cfg.time + " s par question" : "sans limite"}`
+      : mill ? `Qui veut gagner des millions · toutes les catégories · ${m.cfg.time ? m.cfg.time + " s par question" : "sans limite"}`
       : `${plural(m.cfg.themes.length, "thème")} · ${m.cfg.time ? m.cfg.time + " s" : "sans limite"} · ${plural(m.cfg.lives, "vie")}`;
     $("btnLobbyStart").hidden = !host;
     $("btnLobbyStart").disabled = m.players.length < need;
