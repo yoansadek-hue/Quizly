@@ -48,7 +48,7 @@ export function millionUI($) {
   // m : { n, tag, q, img, options, jokers, time, total, info }
   function render(m, handlers) {
     H = handlers; locked = false;
-    $("mStep").textContent = `Question ${m.n + 1} / 15`;
+    $("mStep").textContent = m.who || `Question ${m.n + 1} / 15`; // sur un téléphone à plusieurs : le nom du joueur
     $("mWon").textContent = euros(PRIZES[m.n]);
     $("mTag").textContent = m.tag;
     $("mText").textContent = m.q;
@@ -74,7 +74,8 @@ export function millionUI($) {
     $("mStop").disabled = false;
     $("mStop").textContent = `Je m'arrête avec ${euros(wonAt(m.n))}`;
     $("mStop").onclick = () => { if (!locked) H.stop && H.stop(); };
-    info(m.info || (m.n ? `Palier assuré : ${euros(safeAt(m.n))}` : "Les paliers sûrs sont à 1 500 € et 48 000 €."));
+    const base = m.n ? `Palier assuré : ${euros(safeAt(m.n))}` : "Paliers sûrs : 1 500 € et 48 000 €";
+    info(m.info || (m.who ? `Question ${m.n + 1} / 15 · ${base}` : base));
     ladder(m.n);
     clock(m.time || 0, m.total || m.time || 0);
   }
@@ -104,47 +105,57 @@ export function millionUI($) {
   return { render, lock, fifty, showPublic, reveal, info, stopClock };
 }
 
-/* ---------- Partie sur l'appareil (un joueur) ---------- */
+/* ---------- Partie sur un téléphone, à plusieurs ----------
+   Chacun a sa propre échelle et ses 3 jokers. On joue à tour de rôle, une question chacun.
+   Celui qui repart avec le plus d'argent gagne. */
 export function millionLocal({ $, show, flash, ask, ui, getQ, onEnd }) {
-  const L = { run: 0, n: 0, q: null, jok: null, removed: [], retry: null };
+  const L = { run: 0, list: [], cur: -1, q: null, removed: [], retry: null };
+  const P = () => L.list[L.cur];
 
   async function load(d) {
     const run = L.run;
     const slow = setTimeout(() => { if (run === L.run) { $("loadText").textContent = "L'IA prépare la question…"; $("loadErr").hidden = true; show("s-load"); } }, 300);
     try { return await getQ(d); } finally { clearTimeout(slow); }
   }
-  async function next(swap) {
-    const run = L.run, n = L.n, d = millionLevel(n);
+  function turn() { // joueur suivant encore en jeu
+    const n = L.list.length;
+    for (let k = 1; k <= n; k++) { const i = (L.cur + k) % n; if (!L.list[i].out) { L.cur = i; return ask1(); } }
+    finish();
+  }
+  async function ask1() {
+    const run = L.run, p = P(), d = millionLevel(p.n);
     let q;
     try { q = await load(d); }
     catch (e) {
       if (run !== L.run) return;
       $("loadText").textContent = `Impossible de charger la question : ${e.message}`;
       $("loadErr").hidden = false; show("s-load");
-      L.retry = () => next(swap);
+      L.retry = ask1;
       return;
     }
     if (run !== L.run) return; // partie quittée entre-temps
     L.q = { ...q, options: shuffle(q.o) }; L.removed = [];
-    ui.render({ n, tag: `${q.t} · ${LEVELS[d]}`, q: q.q, img: q.img, options: L.q.options, jokers: L.jok }, { pick, joker, stop });
+    ui.render({ n: p.n, who: L.list.length > 1 ? p.name : "", tag: `${q.t} · ${LEVELS[d]}`, q: q.q, img: q.img, options: L.q.options, jokers: p.jok }, { pick, joker, stop });
     show("s-million");
   }
+  function after(ms) { const run = L.run; setTimeout(() => run === L.run && turn(), ms); }
   function pick(i) {
-    const run = L.run;
-    ui.info("Réponse verrouillée…");
+    const run = L.run, p = P();
+    ui.info(`${L.list.length > 1 ? p.name + " : r" : "R"}éponse verrouillée…`);
     setTimeout(() => { // un peu de suspense
       if (run !== L.run) return;
       const ok = L.q.options[i] === L.q.a;
       ui.reveal({ answer: L.q.a, picked: i, correct: ok });
       flash(ok ? "ok" : "ko");
       if (ok) {
-        L.n++;
-        if (L.n === 15) return setTimeout(() => run === L.run && finish(PRIZES[14]), 1500);
-        ui.info(`Bonne réponse ! Vous avez ${euros(wonAt(L.n))}.`);
-        setTimeout(() => run === L.run && next(), 1700);
+        p.n++; p.won = wonAt(p.n);
+        if (p.n === 15) { p.out = true; ui.info(`${p.name} gagne 1 000 000 € !`); return after(2200); }
+        ui.info(`Bonne réponse ! ${p.name} a ${euros(p.won)}.`);
+        after(1800);
       } else {
-        ui.info(`Mauvaise réponse. Vous repartez avec ${euros(safeAt(L.n))}.`);
-        setTimeout(() => run === L.run && finish(safeAt(L.n)), 2400);
+        p.out = true; p.won = safeAt(p.n);
+        ui.info(`Mauvaise réponse. ${p.name} repart avec ${euros(p.won)}.`);
+        after(2600);
       }
     }, 1100);
   }
@@ -153,22 +164,26 @@ export function millionLocal({ $, show, flash, ask, ui, getQ, onEnd }) {
       const wrong = shuffle(L.q.options.map((o, i) => i).filter((i) => L.q.options[i] !== L.q.a));
       L.removed = wrong.slice(0, 2);
       ui.fifty(L.q.options.map((o, i) => i).filter((i) => !L.removed.includes(i)));
-    } else if (k === "public") ui.showPublic(publicVote(L.q.options, L.q.a, millionLevel(L.n), L.removed));
-    else if (k === "swap") next(true);
+    } else if (k === "public") ui.showPublic(publicVote(L.q.options, L.q.a, millionLevel(P().n), L.removed));
+    else if (k === "swap") ask1();
   }
   function stop() {
-    const v = wonAt(L.n);
-    ask("Vous arrêtez ?", `Vous repartez avec ${euros(v)}.`, "Je m'arrête", () => {
+    const p = P(), v = wonAt(p.n);
+    ask(`${p.name} s'arrête ?`, `${p.name} repart avec ${euros(v)}.`, "Je m'arrête", () => {
+      p.out = true; p.won = v;
       ui.reveal({ answer: L.q.a, picked: -1, correct: false });
-      ui.info(`La bonne réponse était : ${L.q.a}`);
-      const run = L.run;
-      setTimeout(() => run === L.run && finish(v), 1800);
+      ui.info(`${p.name} repart avec ${euros(v)}. La réponse était : ${L.q.a}`);
+      after(2400);
     });
   }
-  function finish(amount) { L.run++; ui.stopClock(); onEnd(amount, L.n); }
+  function finish() { L.run++; ui.stopClock(); onEnd(L.list); }
 
   return {
-    start() { L.run++; L.n = 0; L.jok = { fifty: 1, public: 1, swap: 1 }; next(); },
+    start(names) {
+      L.run++; L.cur = -1;
+      L.list = names.map((name) => ({ name, n: 0, won: 0, out: false, jok: { fifty: 1, public: 1, swap: 1 } }));
+      turn();
+    },
     quit() { L.run++; ui.stopClock(); },
     retry() { if (L.retry) { const f = L.retry; L.retry = null; f(); } }
   };
