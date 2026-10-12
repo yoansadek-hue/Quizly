@@ -41,6 +41,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     leave() {
       if (O.ws) { send({ t: "leave" }); const w = O.ws; O.ws = null; w.close(); }
       O.active = false; O.inRoom = false; O.you = null; stopClock(); mu.stopClock(); O.mout = false; O.watch = false;
+      tvMode(false);
     },
     level: (up) => send({ t: "level", up }),
     retry: () => send({ t: "retry" }),
@@ -62,6 +63,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
       case "level": renderLevel(m); break;
       case "end": renderEnd(m); break;
       case "host": O.host = m.host; break;
+      case "tvflag": tvMode(m.tv, m.kind); break;
       // Chrono en ligne
       case "cgo": O.chrono = true; O.board = []; break;
       case "cq": renderCQ(m); break;
@@ -124,6 +126,10 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     const host = m.host === m.you;
     $("lobbyCount").textContent = `${m.players.length} / 20 joueurs`;
     const chrono = m.cfg.kind === "chrono", mill = m.cfg.kind === "million", need = chrono || mill ? 1 : 2; // Chrono et Millionnaire se jouent aussi seul
+    tvMode(m.tv, m.cfg.kind);
+    $("lobbyTv").textContent = m.tv
+      ? "📺 Télé connectée : les questions s'affichent sur la télé."
+      : `📺 Sur une télé : ouvrez ${location.host}/tv.html et tapez le code.`;
     O.chrono = false; O.cur = null;
     O.mout = false; O.watch = false; O.mboard = [];
     $("lobbyInfo").textContent = chrono
@@ -264,6 +270,9 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     show("s-end");
     confetti();
   }
+
+  /* ----- Mode TV : en Survie, la question est sur la télé, le téléphone sert de manette ----- */
+  function tvMode(on, kind) { document.body.classList.toggle("tvmode", !!on && (kind || "survie") === "survie"); }
 
   /* ----- Millionnaire : textes ----- */
   function millInfo() {
