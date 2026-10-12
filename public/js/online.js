@@ -38,7 +38,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI }) 
     join: (code) => open({ t: "join", ...me(), code: String(code || "").trim() }),
     leave() {
       if (O.ws) { send({ t: "leave" }); const w = O.ws; O.ws = null; w.close(); }
-      O.active = false; O.inRoom = false; O.you = null; stopClock(); mu.stopClock(); O.mout = false;
+      O.active = false; O.inRoom = false; O.you = null; stopClock(); mu.stopClock(); O.mout = false; O.watch = false;
     },
     level: (up) => send({ t: "level", up }),
     retry: () => send({ t: "retry" }),
@@ -65,11 +65,11 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI }) 
       case "cq": renderCQ(m); break;
       case "cres": renderCRes(m); break;
       case "cwait": $("alive").textContent = "Chargement de la question… (chrono en pause)"; break;
-      case "cboard": O.board = m.list; if (O.cur && O.cur.chrono && !O.answered) $("alive").textContent = rankText(); break; // ne pas effacer « Bonne réponse »
+      case "cboard": O.board = m.list; liveBoard(); if (O.cur && O.cur.chrono && !O.answered) $("alive").textContent = rankText(); break; // ne pas effacer « Bonne réponse »
       // Qui veut gagner des millions en ligne
       case "mq":
-        O.cur = null; O.mout = false;
-        mu.render({ n: m.n, tag: m.tag, q: m.q, img: m.img, options: m.options, jokers: m.jok, time: m.time, total: m.total, info: millInfo() }, {
+        O.cur = null; O.watch = !!m.watch;
+        mu.render({ n: m.n, who: m.watch ? "Vous regardez" : "", tag: m.tag, q: m.q, img: m.img, options: m.options, jokers: m.jok, time: m.time, total: m.total, watch: m.watch, info: m.watch ? watchInfo() : millInfo() }, {
           pick: (i) => send({ t: "answer", i }),
           joker: (k) => send({ t: "mjoker", k }),
           stop: () => send({ t: "mstop" })
@@ -79,7 +79,11 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI }) 
       case "mlock": mu.lock(m.i); mu.info(m.i < 0 ? "Vous vous arrêtez. En attente des autres joueurs…" : "Réponse verrouillée. En attente des autres joueurs…"); break;
       case "mfifty": mu.fifty(m.keep); break;
       case "mpublic": mu.showPublic(m.perc); break;
-      case "mboard": O.mboard = m.list; if (O.mout) millWait(); break;
+      case "mboard": O.mboard = m.list; if (O.watch) mu.info(watchInfo()); break;
+      case "mspec": // spectateur : résultat de la question pour chaque joueur
+        mu.reveal({ answer: m.answer, picked: -1, correct: false });
+        mu.info(m.results.map((r) => `${r.name} : ${r.stopped ? `s'arrête (${euros(r.won)})` : r.correct ? (r.out ? "1 000 000 € !" : `✓ ${euros(r.won)}`) : `✗ repart avec ${euros(r.won)}`}`).join(" · "));
+        break;
       case "mres":
         mu.reveal(m);
         if (!m.stopped) flash(m.correct ? "ok" : "ko");
@@ -87,7 +91,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI }) 
           : m.top ? "Un million d'euros ! Bravo !"
           : m.correct ? `Bonne réponse ! Vous avez ${euros(m.won)}.`
           : `${m.timeout ? "Temps écoulé" : "Mauvaise réponse"}. Vous repartez avec ${euros(m.won)}.`);
-        if (m.out) { O.mout = true; O.mwon = m.won; setTimeout(() => { if (O.mout) millWait(); }, 2600); }
+        if (m.out) { O.mout = true; O.mwon = m.won; } // éliminé : on regarde la suite en direct
         break;
       case "cdone":
         stopClock();
@@ -117,7 +121,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI }) 
     $("lobbyCount").textContent = `${m.players.length} / 20 joueurs`;
     const chrono = m.cfg.kind === "chrono", mill = m.cfg.kind === "million", need = chrono || mill ? 1 : 2; // Chrono et Millionnaire se jouent aussi seul
     O.chrono = false; O.cur = null;
-    O.mout = false; O.mboard = [];
+    O.mout = false; O.watch = false; O.mboard = [];
     $("lobbyInfo").textContent = chrono
       ? `Chrono 60 s · ${plural(m.cfg.themes.length, "thème")} · le plus de points gagne`
       : mill ? `Qui veut gagner des millions · toutes les catégories · ${m.cfg.time ? m.cfg.time + " s par question" : "sans limite"}`
@@ -158,6 +162,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI }) 
   /* ----- question ----- */
   function renderQ(m) {
     O.cur = m; O.answered = false;
+    $("liveBoard").hidden = true; // réservé au Chrono
     const mine = m.who === O.you;
     $("scene").classList.add("compact");
     const card = $("card");
@@ -223,7 +228,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI }) 
   function renderEnd(m) {
     stopClock();
     const chrono = m.kind === "chrono", mill = m.kind === "million";
-    O.chrono = false; O.cur = null; O.mout = false; mu.stopClock();
+    O.chrono = false; O.cur = null; O.mout = false; O.watch = false; mu.stopClock(); $("liveBoard").hidden = true;
     $("endLead").textContent = m.winner ? "Vainqueur" : "Partie terminée";
     $("winner").textContent = m.winner || "Égalité";
     $("endNote").textContent = "";
@@ -256,13 +261,31 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI }) 
     const n = (O.mboard || []).filter((p) => !p.out).length;
     return n > 1 ? `${n} joueurs encore en jeu` : "";
   }
-  function millWait() {
-    const still = (O.mboard || []).filter((p) => !p.out).map((p) => `${p.name} (${euros(p.won)})`);
-    $("loadText").textContent = `Vous repartez avec ${euros(O.mwon || 0)}.` + (still.length ? ` Encore en jeu : ${still.join(", ")}.` : "");
-    $("loadErr").hidden = true; show("s-load");
+  function watchInfo() {
+    const still = (O.mboard || []).filter((p) => !p.out);
+    const me = `Vous : ${euros(O.mwon || 0)}`;
+    if (!still.length) return me;
+    return `En direct · ${still.map((p) => `${p.name} ${p.answered ? "a répondu" : "réfléchit…"} (${euros(p.won)})`).join(" · ")} · ${me}`;
   }
 
   /* ----- Chrono en ligne ----- */
+  // classement en direct, en haut de l'écran : les 5 premiers, plus vous si vous êtes plus bas
+  function liveBoard() {
+    const ol = $("liveBoard");
+    if (!O.chrono || O.board.length < 2) { ol.hidden = true; return; }
+    const mine = O.board.findIndex((p) => p.id === O.you);
+    const rows = O.board.map((p, i) => [p, i]).filter(([, i]) => i < 5 || i === mine);
+    ol.replaceChildren(...rows.map(([p, i]) => {
+      const li = document.createElement("li");
+      li.className = (p.id === O.you ? "me" : "") + (p.done ? " done" : "");
+      const pos = document.createElement("span"); pos.className = "pos"; pos.textContent = i + 1;
+      const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = p.id === O.you ? "Vous" : p.name;
+      const pt = document.createElement("span"); pt.className = "pt"; pt.textContent = `${p.points} pts`;
+      li.append(pos, nm, pt);
+      return li;
+    }));
+    ol.hidden = false;
+  }
   function rankText() {
     const i = O.board.findIndex((p) => p.id === O.you);
     if (i < 0) return "";
@@ -295,6 +318,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI }) 
     $("whoName").classList.remove("retry");
     $("whoLives").hidden = false; $("whoLives").textContent = `${m.points} pts`;
     $("alive").hidden = false; $("alive").textContent = rankText();
+    liveBoard();
     $("tag").textContent = m.tag;
     $("qText").textContent = m.q;
     const ql = m.q.length;
