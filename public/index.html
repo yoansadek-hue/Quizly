@@ -79,6 +79,7 @@ addEventListener("error", function (e) {
   <section id="s-online" class="screen" hidden>
     <button class="goback" data-back="s-mode">← Retour</button>
     <div class="stack">
+      <button class="btn mint" id="btnScan">📷 Scanner la télé</button>
       <button class="btn sun" id="btnRoomCreate">Créer un salon</button>
       <div class="row">
         <input id="roomCode" type="text" placeholder="Code" maxlength="4" autocomplete="off" autocapitalize="characters" enterkeyhint="go">
@@ -86,6 +87,15 @@ addEventListener("error", function (e) {
       </div>
       <p id="onMsg" class="msg" role="alert"></p>
     </div>
+  </section>
+
+  <!-- Scanner le QR code de la télé -->
+  <section id="s-scan" class="screen" hidden>
+    <button class="goback" data-back="s-online">← Retour</button>
+    <h2>Scanner la télé</h2>
+    <p class="lead small">Visez le QR code affiché sur la télé.</p>
+    <div class="scanbox"><video id="scanVideo" playsinline muted></video></div>
+    <p id="scanMsg" class="msg" role="alert"></p>
   </section>
 
   <!-- Mode du salon (à la création, ou modifié ensuite par l'hôte) -->
@@ -99,14 +109,9 @@ addEventListener("error", function (e) {
   <section id="s-lobby" class="screen" hidden>
     <button class="goback" id="btnLeave">← Quitter la salle</button>
     <h2>Salle d'attente</h2>
-    <p class="lead small">Scannez le QR code, partagez le lien ou donnez le code (touchez-le pour le copier).</p>
+    <p class="lead small" id="lobbyHint">Donnez ce code à vos amis (touchez-le pour le copier).</p>
     <button class="code" id="lobbyCode" aria-label="Copier le code"></button>
-    <div class="share">
-      <img id="lobbyQr" class="qr" alt="QR code pour rejoindre le salon" width="170" height="170">
-      <button class="btn white sm" id="btnShare">Partager le lien</button>
-    </div>
     <p class="lead small meta" id="lobbyInfo"></p>
-    <p class="lead small meta" id="lobbyTv"></p>
     <p class="lead small meta" id="lobbyCount"></p>
     <button class="btn ghost sm" id="btnLobbyEdit" hidden style="margin:14px auto 0;display:block">Modifier les paramètres</button>
     <ul id="lobbyList" class="chips"></ul>
