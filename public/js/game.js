@@ -5,7 +5,7 @@ import { makeLocal, LOCAL_THEMES, SONG_THEME, euros } from "./local.js";
 import { millionUI, millionLocal, avatarEl, setAudio } from "./million.js";
 import { startScan, stopScan, tvCodeFrom } from "./scan.js";
 
-const VERSION = "2.6.3"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.7.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -73,7 +73,7 @@ function flash(kind) {
   }
 }
 function confetti() {
-  const cols = ["#ffd84d", "#29d9a1", "#ff5c5c", "#ffffff", "#c9ceff"];
+  const cols = ["#ffe14d", "#34e3b0", "#ff6b8b", "#62c7ff", "#f6f3ff"];
   for (let n = 0; n < 60; n++) {
     const c = document.createElement("i");
     c.className = "conf";
