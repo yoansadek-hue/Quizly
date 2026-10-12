@@ -31,6 +31,8 @@
   .top{display:flex;justify-content:space-between;align-items:center;gap:2vw}
   .chip{display:inline-flex;align-items:center;gap:.5em;padding:.3em .9em;border:3px solid var(--ink);border-radius:99px;background:var(--lilac);color:var(--ink);font:800 clamp(16px,1.5vw,26px) var(--font)}
   .code{font:800 clamp(70px,12vw,220px) var(--font);letter-spacing:.12em;color:var(--sun);line-height:1;margin:1vh 0}
+  .codeRow{display:flex;align-items:center;justify-content:center;gap:4vw}
+  .qr{width:clamp(160px,24vh,320px);height:clamp(160px,24vh,320px);background:var(--white);border:5px solid var(--ink);border-radius:20px;padding:8px;box-shadow:6px 6px 0 var(--ink)}
   .url{font:800 clamp(18px,2vw,34px) var(--font);background:var(--white);color:var(--ink);padding:.3em .8em;border-radius:14px;border:3px solid var(--ink)}
   .players{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:3vh;max-width:90vw}
   .avatar{width:1.6em;height:1.6em;border-radius:50%;object-fit:cover;border:3px solid var(--ink);display:inline-grid;place-items:center;font:800 .8em var(--font);color:var(--ink);background:var(--sun);flex:none}
@@ -82,8 +84,11 @@
 
 <!-- 2. Salle d'attente -->
 <section id="tLobby" class="screen center" hidden>
-  <p class="lead">Rejoignez sur <span class="url" id="tUrl"></span> avec le code</p>
-  <p class="code" id="tLobbyCode"></p>
+  <p class="lead">Scannez le QR code, ou allez sur <span class="url" id="tUrl"></span> avec le code</p>
+  <div class="codeRow">
+    <p class="code" id="tLobbyCode"></p>
+    <img id="tQr" class="qr" alt="QR code pour rejoindre">
+  </div>
   <p class="lead" id="tLobbyInfo"></p>
   <div class="players" id="tPlayers"></div>
   <p class="msg">En attente du lancement par l'hôte…</p>
