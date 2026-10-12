@@ -4,7 +4,7 @@ import { initOnline } from "./online.js";
 import { makeLocal, LOCAL_THEMES, euros } from "./local.js";
 import { millionUI, millionLocal } from "./million.js";
 
-const VERSION = "2.5.3"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.5.4"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -12,6 +12,7 @@ const MODES = {
   online: { name: "En ligne", desc: "Une salle et un code : chacun joue sur son téléphone. Survie, Chrono 60 s ou Qui veut gagner des millions.", qcm: true, time: 30, joker: false, lives: true, online: true },
   classic: { name: "Classique", desc: "Réponse à l'oral, le groupe valide. Carte retournable à volonté, jokers 4 choix.", qcm: false, time: 30, joker: true, lives: true },
   qcm: { name: "QCM", desc: "Toutes les questions en 4 choix, correction automatique.", qcm: true, time: 30, joker: false, lives: true },
+  teams: { name: "Équipes", desc: "Sur un téléphone, en équipes qui jouent chacune leur tour. 3 questions par joueur, les points s'additionnent.", qcm: true, time: 30, joker: false, lives: false, teams: true },
   solo: { name: "Solo", desc: "Seul face aux questions : QCM, 3 vies, battez votre record.", qcm: true, time: 30, joker: false, lives: true, solo: true },
   million: { name: "Qui veut gagner des millions", desc: "Seul ou à plusieurs sur un téléphone : 15 questions, 3 jokers, des paliers sûrs. Visez le million !", qcm: true, time: 0, joker: false, lives: false, million: true },
   // types de salon, choisis depuis « En ligne »
@@ -28,7 +29,7 @@ const S = {
 };
 const M = () => MODES[S.mode];
 document.querySelectorAll(".ver").forEach((e) => (e.textContent = `Quizly v${VERSION} · par YoskanGame`));
-const online = initOnline({ $, show, flash, confetti, me: () => ({ name: S.firstName || "Joueur", photo: S.photo || "" }), record: chronoRecord, millionUI });
+const online = initOnline({ $, show, flash, confetti, me: () => ({ name: S.firstName || "Joueur", photo: S.photo || "" }), record: chronoRecord, millionUI, stat: { answer: (t, ok) => statAnswer(t, ok), game: (k) => statGame(k) } });
 // record personnel du Chrono en ligne (gardé sur l'appareil, par compte)
 function chronoRecord(points) {
   const key = `quizly:${S.uid}:bestChrono`;
@@ -284,7 +285,7 @@ async function getQuestion() {
 
 /* ---------- Partie ---------- */
 const alive = () => S.players.filter((p) => !p.dead);
-const over = () => (M().solo ? alive().length === 0 : alive().length <= 1);
+const over = () => (M().teams ? false : M().solo ? alive().length === 0 : alive().length <= 1);
 const kill = (p) => { p.dead = true; p.outAt = ++S.elim; };
 
 function startGame() {
@@ -295,6 +296,15 @@ function startGame() {
   saveRoster();
   S.retry = false; S.qn = 0; S.elim = 0; S.played = new Set(); S.asked = []; S.inGame = true;
   S.bet = 0; S.lastBet = undefined; S.betMsg = ""; // question à mise (Solo)
+  if (m.teams) { // ordre de passage : A1, B1, A2, B2… (une petite équipe repasse plus souvent)
+    S.players.forEach((p, i) => (p.team = S.teamOf[i]));
+    const groups = Array.from({ length: S.nTeams }, (_, t) => S.players.map((p, i) => i).filter((i) => S.players[i].team === t));
+    const len = Math.max(...groups.map((g) => g.length));
+    S.order = [];
+    for (let r = 0; r < len; r++) groups.forEach((g) => S.order.push(g[r % g.length]));
+    S.turn = 0;
+  }
+  statGame(S.mode);
   S.i = -1; S.diff = 1; S.loading = null;
   const bank = loadBank();
   S.buf = bank.filter((q) => S.active.has(q.t) && !seen(q.q));
@@ -305,6 +315,11 @@ function startGame() {
 function nextTurn() {
   if (!S.inGame) return;
   S.retry = false;
+  if (M().teams) { // Équipes : ordre de passage fixe, une équipe après l'autre
+    if (S.turn >= S.order.length * TEAM_ROUNDS) return endTeams();
+    S.i = S.order[S.turn % S.order.length]; S.turn++;
+    return loadAndPlay();
+  }
   if (over()) return endGame(alive()[0]);
   do { S.i = (S.i + 1) % S.players.length; } while (S.players[S.i].dead);
   loadAndPlay();
@@ -338,7 +353,8 @@ function prepareCard() {
   replay(card); void card.offsetWidth; card.style.transition = "";
   const n = alive().length;
   $("alive").hidden = false;
-  $("alive").textContent = m.solo
+  $("alive").textContent = m.teams ? teamLine(p)
+    : m.solo
     ? `${betMsg ? `${betMsg} · ` : ""}Points : ${p.points} · Série : ${p.streak || 0}${S.bet ? ` · Mise : ${S.bet} pts` : ""}`
     : `${n} joueur${n > 1 ? "s" : ""} en vie sur ${S.players.length}`;
   $("scene").classList.toggle("compact", m.qcm);
@@ -470,6 +486,7 @@ function judge(ok) { if (S.locked) return; S.locked = true; stopTimer(); finish(
 
 function finish(correct, quiet) {
   if (!S.inGame) return;
+  if (S.q) statAnswer(S.q.t, correct); // pour le Profil
   $("btnSwap").hidden = true;
   const pl = S.players[S.i];
   if (correct) { pl.score++; pl.streak = (pl.streak || 0) + 1; pl.points += 10 * S.diff + (M().solo ? Math.min(pl.streak - 1, 5) * 5 : 0); } // 10 pts × niveau, + bonus de série en solo
@@ -485,7 +502,7 @@ function finish(correct, quiet) {
 
 function resolve(correct) {
   if (!S.inGame) return;
-  if (correct) return afterTurn();
+  if (correct || M().teams) return afterTurn();
   const p = S.players[S.i];
   if (M().solo) { p.lives--; if (p.lives <= 0) kill(p); return afterTurn(); } // solo : pas de question, la vie part toute seule
   if (M().lives && p.lives > 0) {
@@ -529,6 +546,16 @@ function revive(useLife) {
 /* Le niveau est demandé quand tous les joueurs encore en jeu ont joué */
 function afterTurn() {
   if (!S.inGame) return;
+  if (M().teams) {
+    if (S.turn >= S.order.length * TEAM_ROUNDS) return endTeams();
+    if (S.turn % S.order.length) return nextTurn();
+    // un tour complet de toutes les équipes : on propose le niveau
+    $("lvName").textContent = `${S.diff} · ${LEVELS[S.diff]}`;
+    $("btnUp").hidden = S.diff >= 5; $("btnStay").hidden = false; $("lvWait").hidden = true;
+    $("btnUp").textContent = `Augmenter la difficulté (${10 * (S.diff + 1)} pts)`;
+    $("btnStay").textContent = `Garder ce niveau (${10 * S.diff} pts)`;
+    return show("s-level");
+  }
   if (over()) return endGame(alive()[0]);
   if (M().solo) { S.qn++; if (S.qn % 3) return nextTurn(); } // solo : difficulté proposée toutes les 3 questions
   S.played.add(S.i);
@@ -581,10 +608,140 @@ function endGame(w) {
   confetti();
 }
 
+/* ---------- Équipes ---------- */
+const TEAM_NAMES = ["Rouge", "Bleue", "Verte", "Jaune"];
+const TEAM_ROUNDS = 3; // 3 questions par joueur
+const teamPts = (t) => S.players.filter((p) => p.team === t).reduce((a, p) => a + p.points, 0);
+function teamLine(p) { // « Équipe Rouge · Rouge 40 · Bleue 30 »
+  const scores = TEAM_NAMES.slice(0, S.nTeams).map((n, t) => `${n} ${teamPts(t)}`).join(" · ");
+  return `Équipe ${TEAM_NAMES[p.team]} · ${scores} pts`;
+}
+function shuffleTeams() {
+  const idx = S.slots.map((s, i) => i);
+  for (let i = idx.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [idx[i], idx[j]] = [idx[j], idx[i]]; }
+  S.teamOf = [];
+  idx.forEach((p, k) => (S.teamOf[p] = k % S.nTeams));
+}
+function renderTeams() {
+  const n = S.slots.length;
+  S.nTeams = Math.min(S.nTeams || 2, n);
+  if (!S.teamOf || S.teamOf.length !== n || S.teamOf.some((t) => t >= S.nTeams)) shuffleTeams();
+  opts($("optTeams"), [2, 3, 4].filter((v) => v <= n), S.nTeams, (v) => `${v} équipes`, (v) => { S.nTeams = v; shuffleTeams(); drawTeams(); });
+  $("teamsMsg").textContent = "";
+  drawTeams();
+}
+function drawTeams() {
+  const box = $("teamBoxes");
+  box.replaceChildren();
+  for (let t = 0; t < S.nTeams; t++) {
+    const d = document.createElement("div");
+    d.className = `team t${t}`;
+    const h = document.createElement("h3"); h.textContent = `Équipe ${TEAM_NAMES[t]}`;
+    const list = document.createElement("div"); list.className = "members";
+    S.slots.forEach((s, i) => {
+      if (S.teamOf[i] !== t) return;
+      const b = document.createElement("button");
+      b.className = "chip"; b.textContent = s.name;
+      b.onclick = () => { S.teamOf[i] = (S.teamOf[i] + 1) % S.nTeams; drawTeams(); }; // toucher = équipe suivante
+      list.append(b);
+    });
+    d.append(h, list);
+    box.append(d);
+  }
+}
+function endTeams() {
+  S.inGame = false;
+  const teams = TEAM_NAMES.slice(0, S.nTeams).map((name, t) => ({ name, pts: teamPts(t), members: S.players.filter((p) => p.team === t) }))
+    .sort((a, b) => b.pts - a.pts);
+  const tie = teams[0].pts === teams[1].pts;
+  const mvp = [...S.players].sort((a, b) => b.points - a.points)[0];
+  $("endLead").textContent = tie ? "Partie terminée" : "Équipe gagnante";
+  $("winner").textContent = tie ? "Égalité" : teams[0].name;
+  $("endNote").textContent = mvp ? `Meilleur joueur : ${mvp.name} (${mvp.points} pts)` : "";
+  const ol = $("ranking");
+  ol.replaceChildren();
+  teams.forEach((tm, i) => {
+    const li = document.createElement("li");
+    li.className = "rk" + (i === 0 && !tie ? " first" : "");
+    li.style.animationDelay = `${0.35 + i * 0.12}s`;
+    const pos = document.createElement("span"); pos.className = "pos"; pos.textContent = i + 1;
+    const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = `${tm.name} (${tm.members.map((p) => p.name).join(", ")})`;
+    const st = document.createElement("span"); st.className = "st"; st.textContent = `${tm.pts} pts`;
+    li.append(pos, nm, st);
+    ol.append(li);
+  });
+  show("s-end");
+  confetti();
+}
+$("btnShuffle").onclick = () => { shuffleTeams(); drawTeams(); };
+$("btnTeams").onclick = () => {
+  const empty = TEAM_NAMES.slice(0, S.nTeams).findIndex((n, t) => !S.teamOf.includes(t));
+  if (empty >= 0) { $("teamsMsg").textContent = `L'équipe ${TEAM_NAMES[empty]} n'a aucun joueur.`; return; }
+  renderThemes(); show("s-themes");
+};
+
+/* ---------- Statistiques (onglet Profil) ---------- */
+const statKey = () => `quizly:${S.uid}:stats`;
+function getStats() {
+  try { return JSON.parse(localStorage.getItem(statKey()) || "null") || { themes: {}, games: {} }; }
+  catch { return { themes: {}, games: {} }; }
+}
+function saveStats(st) { try { localStorage.setItem(statKey(), JSON.stringify(st)); } catch {} }
+function statAnswer(theme, ok) {
+  if (!theme || !S.uid) return;
+  const st = getStats();
+  const t = (st.themes[theme] ||= { ok: 0, n: 0 });
+  t.n++; if (ok) t.ok++;
+  saveStats(st);
+}
+function statGame(kind) {
+  if (!S.uid) return;
+  const st = getStats();
+  st.games[kind] = (st.games[kind] || 0) + 1;
+  saveStats(st);
+}
+const GAME_NAMES = { classic: "Classique", qcm: "QCM", solo: "Solo", teams: "Équipes", million: "Millionnaire", online: "En ligne", chrono: "Chrono", omillion: "Millionnaire en ligne" };
+function renderProfile() {
+  const st = getStats();
+  const best = (k) => { try { return +localStorage.getItem(`quizly:${S.uid}:${k}`) || 0; } catch { return 0; } };
+  $("profName").textContent = `Profil de ${S.firstName || "vous"}`;
+  const themes = Object.entries(st.themes).map(([name, t]) => ({ name, ...t, pct: Math.round((100 * t.ok) / t.n) }));
+  const tot = themes.reduce((a, t) => a + t.n, 0), good = themes.reduce((a, t) => a + t.ok, 0);
+  const games = Object.values(st.games).reduce((a, b) => a + b, 0);
+  const cards = [
+    ["Record Solo", `${best("best2")} pts`], ["Record Chrono", `${best("bestChrono")} pts`],
+    ["Record Millionnaire", euros(best("bestMillion"))], ["Parties jouées", games],
+    ["Bonnes réponses", tot ? `${Math.round((100 * good) / tot)} %` : "—"], ["Questions", tot]
+  ];
+  $("profRecords").replaceChildren(...cards.map(([k, v]) => {
+    const d = document.createElement("div"); d.className = "stat";
+    const b = document.createElement("strong"); b.textContent = v;
+    const s = document.createElement("span"); s.textContent = k;
+    d.append(b, s); return d;
+  }));
+  const ranked = themes.filter((t) => t.n >= 5).sort((a, b) => b.pct - a.pct);
+  $("profSum").textContent = ranked.length >= 2
+    ? `Points forts : ${ranked.slice(0, 3).map((t) => t.name).join(", ")}. À travailler : ${ranked.slice(-2).reverse().map((t) => t.name).join(", ")}.`
+    : "Jouez encore un peu : vos points forts apparaîtront après 5 questions dans un thème.";
+  const fav = Object.entries(st.games).sort((a, b) => b[1] - a[1])[0];
+  if (fav) $("profSum").textContent += ` Mode préféré : ${GAME_NAMES[fav[0]] || fav[0]}.`;
+  $("profThemes").replaceChildren(...themes.sort((a, b) => b.n - a.n).map((t) => {
+    const li = document.createElement("li");
+    const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = t.name;
+    const bar = document.createElement("span"); bar.className = "bar"; const i = document.createElement("i"); i.style.width = `${t.pct}%`; bar.append(i);
+    const v = document.createElement("span"); v.className = "v"; v.textContent = `${t.pct} % · ${t.ok}/${t.n}`;
+    li.append(nm, bar, v); return li;
+  }));
+  $("profEmpty").hidden = themes.length > 0;
+}
+$("btnProfile").onclick = () => { renderProfile(); show("s-profile"); };
+$("btnResetStats").onclick = () => ask("Effacer vos statistiques ?", "Les taux de réussite par thème et le nombre de parties seront remis à zéro. Les records sont conservés.", "Effacer",
+  () => { try { localStorage.removeItem(statKey()); } catch {} renderProfile(); show("s-profile"); });
+
 /* ---------- Qui veut gagner des millions (sur l'appareil) ---------- */
 const mui = millionUI($);
 const million = millionLocal({
-  $, show, flash, ask, ui: mui,
+  $, show, flash, ask, ui: mui, stat: statAnswer,
   getQ: async (d) => { // il faut 4 choix (50/50 et avis du public)
     S.diff = d;
     let q;
@@ -597,6 +754,7 @@ const million = millionLocal({
   },
   onEnd: (list) => {
     S.inGame = false;
+    statGame("million");
     const order = [...list].sort((a, b) => b.won - a.won || b.n - a.n);
     const solo = order.length === 1, tie = !solo && order[0].won === order[1].won;
     const top = order[0];
@@ -802,7 +960,7 @@ $("cfYes").onclick = () => { $("confirm").hidden = true; const f = S.onYes; S.on
 $("btnResetLives").onclick = () => ask("Réinitialiser les vies ?", "Toutes les vies de tous les joueurs reviendront à 0.", "Réinitialiser", resetLives);
 document.querySelectorAll("[data-back]").forEach((b) => (b.onclick = () => {
   let t = b.dataset.back;
-  if (t === "auto") t = M().online ? "s-roomtype" : M().solo ? "s-mode" : "s-names";
+  if (t === "auto") t = M().online ? "s-roomtype" : M().solo ? "s-mode" : M().teams ? "s-teams" : "s-names";
   if (t === "s-themes" && M().million) t = "s-roomtype"; // le Millionnaire n'a pas d'écran de thèmes
   if (t === "s-lobby") { S.editRoom = false; online.setEditing(false); }
   show(t);
@@ -823,7 +981,7 @@ $("cMinus").onclick = () => setCount(-1);
 $("cPlus").onclick = () => setCount(1);
 $("btnCount").onclick = () => {
   if (M().million && S.count === 1) { S.slots = [{ name: S.firstName || "Moi", lives: 0, imported: false }]; return startMillion(); } // solo : pas de nom à saisir
-  $("btnNames").textContent = M().million ? "Lancer la partie" : "Choisir les thèmes"; // pas de thèmes pour le Millionnaire
+  $("btnNames").textContent = M().million ? "Lancer la partie" : M().teams ? "Former les équipes" : "Choisir les thèmes";
   renderSlots(); show("s-names");
 };
 $("btnNames").onclick = () => {
@@ -831,6 +989,7 @@ $("btnNames").onclick = () => {
   $("namesMsg").textContent = err;
   if (err) return;
   if (M().million) return startMillion(); // Millionnaire : pas de choix de thèmes
+  if (M().teams) { renderTeams(); return show("s-teams"); } // Équipes : on forme les équipes
   renderThemes(); show("s-themes");
 };
 $("btnThemes").onclick = () => {
