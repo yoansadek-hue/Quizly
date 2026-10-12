@@ -4,7 +4,7 @@ import { initOnline } from "./online.js";
 import { makeLocal, LOCAL_THEMES, euros } from "./local.js";
 import { millionUI, millionLocal } from "./million.js";
 
-const VERSION = "2.5.5"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.5.6"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -91,7 +91,7 @@ function saveDB() {
 
 /* ---------- Nombre de joueurs ---------- */
 function setCount(d) {
-  const n = Math.min(20, Math.max(M().million ? 1 : 2, S.count + d)); // le Millionnaire se joue aussi seul
+  const n = Math.min(20, Math.max(2, S.count + d)); // le Millionnaire seul a sa propre carte (partie Solo)
   if (n === S.count) return; // aux bornes : aucune animation
   S.count = n;
   const el = $("cNum");
@@ -817,18 +817,39 @@ function setUser(name, photo) {
   if (photo) img.src = photo;
 }
 
+// menu en 3 parties : En ligne · Entre amis (un téléphone) · Solo
+const MENU = [
+  ["En ligne", "", [["online"]]],
+  ["Entre amis, sur un téléphone", "two", [["classic"], ["qcm"], ["teams"],
+    ["million", "Qui veut gagner des millions", "À plusieurs : chacun son échelle de 15 questions et ses 3 jokers. Celui qui repart avec le plus gagne."]]],
+  ["Solo", "two", [["solo"],
+    ["million", "Qui veut gagner des millions", "Seul face à l'échelle : 15 questions, 3 jokers, des paliers sûrs. Visez le million !", true]]]
+];
 function renderModes() {
   const box = $("modes");
   box.replaceChildren();
-  Object.entries(MODES).filter(([, m]) => !m.hidden).forEach(([id, m], i) => {
-    const b = document.createElement("button");
-    b.className = "mode"; b.dataset.m = id; b.style.animationDelay = `${i * 70}ms`;
-    const t = document.createElement("strong"); t.textContent = m.name;
-    const d = document.createElement("span"); d.textContent = m.desc;
-    b.append(t, d);
-    b.onclick = () => chooseMode(id);
-    box.append(b);
+  let k = 0;
+  MENU.forEach(([title, look, items]) => {
+    const h = document.createElement("h3"); h.className = "modesec"; h.textContent = title;
+    const grid = document.createElement("div"); grid.className = `modes ${look}`;
+    items.forEach(([id, name, desc, solo]) => {
+      const m = MODES[id];
+      const b = document.createElement("button");
+      b.className = "mode"; b.dataset.m = id; b.style.animationDelay = `${k++ * 60}ms`;
+      const t = document.createElement("strong"); t.textContent = name || m.name;
+      const d = document.createElement("span"); d.textContent = desc || m.desc;
+      b.append(t, d);
+      b.onclick = () => (solo ? millionSolo() : chooseMode(id));
+      grid.append(b);
+    });
+    box.append(h, grid);
   });
+}
+function millionSolo() { // Millionnaire seul : on lance directement, à votre nom
+  chooseMode("million");
+  S.count = 1;
+  S.slots = [{ name: S.firstName || "Moi", lives: 0, imported: false }];
+  startMillion();
 }
 
 function chooseMode(id) {
