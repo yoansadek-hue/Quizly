@@ -399,3 +399,12 @@ img{-webkit-user-drag:none;user-drag:none}
 @media (min-width:700px){.liveboard li{font-size:17px}}
 /* Millionnaire : spectateur */
 #s-million.watch #mOpts .btn{pointer-events:none}
+
+/* 2.5.3 : sur téléphone, le classement du Chrono tient sur une ligne qui défile */
+@media (max-width:699px){
+  .liveboard{display:flex;gap:6px;overflow-x:auto;padding:6px;scrollbar-width:none}
+  .liveboard::-webkit-scrollbar{display:none}
+  .liveboard li{flex:none;white-space:nowrap;padding:3px 9px;border-radius:99px;background:rgba(255,255,255,.12)}
+  .liveboard li.me{margin:0;padding:3px 9px;border-radius:99px}
+  .liveboard li .nm{flex:none;overflow:visible}
+}
