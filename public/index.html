@@ -114,7 +114,6 @@ addEventListener("error", function (e) {
   <section id="s-mode" class="screen" hidden>
     <h2>Choisissez un mode</h2>
     <div id="modes" class="modes"></div>
-    <div class="stack profbtn"><button class="btn white" id="btnProfile">Mon profil</button></div>
     <p class="center-link"><button class="link" id="btnLogout">Changer de compte</button></p>
     <p class="version ver"></p>
   </section>
@@ -164,7 +163,6 @@ addEventListener("error", function (e) {
     <h3 class="profh">Par thème</h3>
     <p class="lead small" id="profEmpty">Aucune question jouée pour l'instant.</p>
     <ol class="profthemes" id="profThemes"></ol>
-    <p class="center-link"><button class="link" id="btnResetStats">Effacer mes statistiques</button></p>
   </section>
 
   <!-- Thèmes -->
@@ -183,6 +181,11 @@ addEventListener("error", function (e) {
     <h2>Temps par question</h2>
     <p class="lead small">Choisissez la durée dont chaque joueur dispose.</p>
     <div id="optTime" class="chips opts bigopts"></div>
+    <div id="autoRow">
+      <h2 class="subh">Difficulté</h2>
+      <p class="lead small">Évolutive : elle augmente toute seule à chaque tour. Au choix : on vous demande à chaque tour.</p>
+      <div id="optAuto" class="chips opts bigopts"></div>
+    </div>
     <div class="dock"><button class="btn sun" id="btnTime">Valider</button></div>
   </section>
 
