@@ -181,6 +181,7 @@ addEventListener("error", function (e) {
   <section id="s-game" class="screen" hidden>
     <p class="who"><span id="whoName"></span><span id="whoLives" class="chip small"></span></p>
     <p class="alive" id="alive"></p>
+    <ol class="liveboard" id="liveBoard" hidden aria-label="Classement en direct"></ol>
     <div class="clockrow" id="clockrow"><div class="timer"><i id="bar30"></i></div><span id="clock" class="clock">30</span><button class="chip small stop" id="btnStopTimer" aria-label="Arrêter le timer">Arrêter le timer</button></div>
     <div class="scene" id="scene"><div class="card" id="card" role="button" tabindex="0" aria-label="Retourner la carte">
       <div class="face front">
@@ -229,6 +230,14 @@ addEventListener("error", function (e) {
   </section>
 
   <!-- Fin -->
+  <!-- Question à mise (Solo) -->
+  <section id="s-bet" class="screen center" hidden>
+    <p class="lead">Question à mise !</p>
+    <h2 id="betTag"></h2>
+    <p class="lead small" id="betInfo"></p>
+    <div class="stack" id="betOpts"></div>
+  </section>
+
   <!-- Qui veut gagner des millions -->
   <section id="s-million" class="screen" hidden>
     <p class="who"><span id="mStep"></span><span id="mWon" class="chip small"></span></p>
