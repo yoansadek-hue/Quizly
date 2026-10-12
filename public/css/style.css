@@ -436,12 +436,16 @@ img{-webkit-user-drag:none;user-drag:none}
 /* 2.5.5 : choix de la difficulté évolutive */
 .subh{margin:22px 0 4px}
 
-/* 2.5.6 : menu en 3 parties */
-.modesec{margin:22px 0 10px;font:800 20px var(--font);color:var(--lilac)}
-#modes .modesec:first-child{margin-top:8px}
-#modes .modes{display:grid;gap:14px}
+/* 2.5.7 : menu en 3 blocs (En ligne · Party · Solo) */
+#modes .modes,#subModes .modes{display:grid;gap:14px}
+.mode[data-m=party]{background:var(--coral)}
+.mode[data-m=solosec]{background:var(--sun)}
+#modes .mode{min-height:150px;display:flex;flex-direction:column;justify-content:flex-end}
+#modes .mode strong{font-size:32px}
 @media (min-width:700px){
-  #modes .modes{grid-template-columns:repeat(2,1fr);gap:18px}
-  #modes .mode[data-m=million]{grid-column:auto}
-  #modes .modesec{font-size:24px}
+  #modes .modes.three{grid-template-columns:repeat(3,1fr);gap:18px}
+  #modes .mode{min-height:260px;grid-column:auto}
+  #modes .mode strong{font-size:40px}
+  #subModes .modes{grid-template-columns:repeat(2,1fr);gap:18px}
+  #subModes .mode{grid-column:auto}
 }
