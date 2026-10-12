@@ -51,6 +51,7 @@ export function millionUI($) {
     $("s-million").classList.toggle("watch", !!m.watch); // éliminé : on regarde les autres jouer
     document.querySelector(".mjokers").hidden = !!m.watch;
     $("mStep").textContent = m.who || `Question ${m.n + 1} / 15`; // sur un téléphone à plusieurs : le nom du joueur
+    $("mAv").replaceChildren(m.avName ? avatarEl(m.avName, m.avPhoto) : "");
     $("mWon").textContent = euros(PRIZES[m.n]);
     $("mTag").textContent = m.tag;
     $("mText").textContent = m.q;
@@ -111,7 +112,7 @@ export function millionUI($) {
 /* ---------- Partie sur un téléphone, à plusieurs ----------
    Chacun a sa propre échelle et ses 3 jokers. On joue à tour de rôle, une question chacun.
    Celui qui repart avec le plus d'argent gagne. */
-export function millionLocal({ $, show, flash, ask, ui, getQ, onEnd, stat }) {
+export function millionLocal({ $, show, flash, ask, ui, getQ, onEnd, stat, photoOf }) {
   const L = { run: 0, list: [], cur: -1, q: null, removed: [], retry: null };
   const P = () => L.list[L.cur];
 
@@ -138,7 +139,7 @@ export function millionLocal({ $, show, flash, ask, ui, getQ, onEnd, stat }) {
     }
     if (run !== L.run) return; // partie quittée entre-temps
     L.q = { ...q, options: shuffle(q.o) }; L.removed = [];
-    ui.render({ n: p.n, who: L.list.length > 1 ? p.name : "", tag: `${q.t} · ${LEVELS[d]}`, q: q.q, img: q.img, options: L.q.options, jokers: p.jok }, { pick, joker, stop });
+    ui.render({ n: p.n, who: L.list.length > 1 ? p.name : "", avName: p.name, avPhoto: photoOf ? photoOf(p.name) : "", tag: `${q.t} · ${LEVELS[d]}`, q: q.q, img: q.img, options: L.q.options, jokers: p.jok }, { pick, joker, stop });
     show("s-million");
   }
   function after(ms) { const run = L.run; setTimeout(() => run === L.run && turn(), ms); }
@@ -191,4 +192,36 @@ export function millionLocal({ $, show, flash, ask, ui, getQ, onEnd, stat }) {
     quit() { L.run++; ui.stopClock(); },
     retry() { if (L.retry) { const f = L.retry; L.retry = null; f(); } }
   };
+}
+
+/* ---------- Photo de profil (ou initiale colorée) ---------- */
+const AV_COLORS = ["#ffd84d", "#29d9a1", "#ff5c5c", "#c9ceff", "#ff9f43", "#7bd3ff"];
+export function avatarEl(name, photo, big) {
+  const cls = "avatar" + (big ? " big" : "");
+  if (photo) {
+    const im = document.createElement("img");
+    im.className = cls; im.alt = ""; im.referrerPolicy = "no-referrer"; im.src = photo;
+    im.onerror = () => im.replaceWith(avatarEl(name, "", big)); // photo introuvable : initiale
+    return im;
+  }
+  const s = document.createElement("span");
+  s.className = cls;
+  const n = String(name || "?").trim();
+  s.textContent = n.charAt(0).toUpperCase() || "?";
+  let h = 0; for (const c of n) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  s.style.background = AV_COLORS[h % AV_COLORS.length];
+  return s;
+}
+
+/* ---------- Extrait musical (Devine la chanson) ---------- */
+export function setAudio($, url) {
+  const a = $("qAudio"), b = $("qPlay");
+  a.pause();
+  if (!url) { b.hidden = true; a.removeAttribute("src"); return; }
+  a.src = url; b.hidden = false;
+  const label = () => (b.textContent = a.paused ? "▶ Écouter l'extrait" : "■ Arrêter");
+  b.onclick = (e) => { e.stopPropagation(); if (a.paused) { a.currentTime = 0; a.play().then(label).catch(label); } else { a.pause(); label(); } };
+  a.onended = a.onpause = label;
+  label();
+  a.play().then(label).catch(label); // lance tout de suite si le téléphone l'autorise, sinon il faut toucher le bouton
 }
