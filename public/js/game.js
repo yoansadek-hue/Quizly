@@ -4,7 +4,7 @@ import { initOnline } from "./online.js";
 import { makeLocal, LOCAL_THEMES, SONG_THEME, euros } from "./local.js";
 import { millionUI, millionLocal, avatarEl, setAudio } from "./million.js";
 
-const VERSION = "2.6.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.6.1"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -976,12 +976,21 @@ async function enterLocal(p) {
   enter(uid, p.name, p.photo);
 }
 
+// lien de partage : quizly…/?join=ABCD rejoint le salon dès que le joueur est connecté
+let pendingJoin = new URLSearchParams(location.search).get("join");
 function enter(uid, name, photo) {
   S.uid = uid;
   setUser(name, photo);
   loadRoster();
   renderModes();
   show("s-mode");
+  if (pendingJoin) {
+    const code = pendingJoin.toUpperCase().slice(0, 4); pendingJoin = null;
+    try { history.replaceState(null, "", location.pathname); } catch {}
+    chooseMode("online");
+    $("roomCode").value = code;
+    online.join(code);
+  }
 }
 
 const saved = getSess();
