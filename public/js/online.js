@@ -129,7 +129,8 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     tvMode(m.tv, m.cfg.kind);
     $("lobbyTv").textContent = m.tv
       ? "📺 Télé connectée : les questions s'affichent sur la télé."
-      : `📺 Sur une télé : ouvrez ${location.host}/tv.html et tapez le code.`;
+      : `📺 Sur une télé : ouvrez ${location.host}/tv.html?code=${m.code}`;
+    if (O.qrCode !== m.code) { O.qrCode = m.code; $("lobbyQr").src = qrUrl(joinLink(m.code), 340); } // QR code du salon
     O.chrono = false; O.cur = null;
     O.mout = false; O.watch = false; O.mboard = [];
     $("lobbyInfo").textContent = chrono
@@ -271,6 +272,10 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     confetti();
   }
 
+  /* ----- QR code et lien pour rejoindre ----- */
+  function joinLink(code) { return `${location.origin}/?join=${code}`; }
+  function qrUrl(text, size) { return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&margin=8&data=${encodeURIComponent(text)}`; }
+
   /* ----- Mode TV : en Survie, la question est sur la télé, le téléphone sert de manette ----- */
   function tvMode(on, kind) { document.body.classList.toggle("tvmode", !!on && (kind || "survie") === "survie"); }
 
@@ -385,6 +390,14 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
   /* ----- boutons de la salle ----- */
   $("btnLobbyStart").onclick = () => send({ t: "start" });
   $("btnLeave").onclick = () => { api.leave(); show("s-mode"); };
+  // lien direct : quizly…/?join=ABCD ouvre le jeu et rejoint le salon
+  $("btnShare").onclick = async () => {
+    const code = $("lobbyCode").textContent, url = joinLink(code);
+    try {
+      if (navigator.share) await navigator.share({ title: "Quizly", text: `Rejoins ma partie Quizly ! Code : ${code}`, url });
+      else { await navigator.clipboard.writeText(url); $("lobbyMsg").textContent = "Lien copié."; }
+    } catch { /* partage annulé */ }
+  };
   $("lobbyCode").onclick = () => {
     try { navigator.clipboard.writeText($("lobbyCode").textContent); $("lobbyMsg").textContent = "Code copié."; } catch {}
   };
