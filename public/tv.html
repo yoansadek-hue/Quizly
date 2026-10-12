@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Quizly TV</title>
+<link rel="icon" type="image/png" href="icons/icon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&display=swap" rel="stylesheet">
+<style>
+  /* Quizly TV : écran géant façon Kahoot, mêmes couleurs que le jeu */
+  :root{
+    --bg:#1b2cc1; --ink:#12132b; --sun:#ffd84d; --mint:#29d9a1; --coral:#ff5c5c; --lilac:#c9ceff; --white:#fff;
+    --font:"Bricolage Grotesque",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --a0:#e2364b; --a1:#1f6feb; --a2:#e8a900; --a3:#1f9d55; /* couleurs des 4 réponses */
+  }
+  *{box-sizing:border-box}
+  [hidden]{display:none!important}
+  html,body{margin:0;height:100%}
+  body{font-family:var(--font);font-weight:500;background:var(--bg);color:var(--white);overflow:hidden}
+  .screen{position:fixed;inset:0;display:flex;flex-direction:column;padding:3vh 4vw}
+  .center{align-items:center;justify-content:center;text-align:center}
+  .logo{font:800 clamp(28px,3vw,48px) var(--font)}
+  .logo small{display:block;font-size:.45em;color:var(--sun)}
+  .big{font:800 clamp(40px,6vw,110px) var(--font);line-height:1.05;margin:0}
+  .lead{font-size:clamp(18px,2vw,32px);color:var(--lilac);margin:1.5vh 0}
+  .msg{color:var(--sun);font-weight:800;font-size:clamp(16px,1.6vw,26px);min-height:1.4em}
+  input{font:800 clamp(30px,4vw,64px) var(--font);text-align:center;letter-spacing:.3em;text-transform:uppercase;width:min(520px,80vw);padding:14px;border:4px solid var(--ink);border-radius:20px;box-shadow:6px 6px 0 var(--ink)}
+  .btn{font:800 clamp(20px,2vw,32px) var(--font);padding:16px 40px;margin-top:3vh;border:4px solid var(--ink);border-radius:20px;background:var(--sun);color:var(--ink);box-shadow:6px 6px 0 var(--ink);cursor:pointer}
+  .top{display:flex;justify-content:space-between;align-items:center;gap:2vw}
+  .chip{display:inline-flex;align-items:center;gap:.5em;padding:.3em .9em;border:3px solid var(--ink);border-radius:99px;background:var(--lilac);color:var(--ink);font:800 clamp(16px,1.5vw,26px) var(--font)}
+  .code{font:800 clamp(70px,12vw,220px) var(--font);letter-spacing:.12em;color:var(--sun);line-height:1;margin:1vh 0}
+  .url{font:800 clamp(18px,2vw,34px) var(--font);background:var(--white);color:var(--ink);padding:.3em .8em;border-radius:14px;border:3px solid var(--ink)}
+  .players{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:3vh;max-width:90vw}
+  .avatar{width:1.6em;height:1.6em;border-radius:50%;object-fit:cover;border:3px solid var(--ink);display:inline-grid;place-items:center;font:800 .8em var(--font);color:var(--ink);background:var(--sun);flex:none}
+  .avatar.big{width:2.2em;height:2.2em}
+  /* question */
+  .who{display:flex;align-items:center;gap:.6em;font:800 clamp(24px,3vw,52px) var(--font)}
+  .qbox{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:2vh;margin:2vh 0;padding:3vh 3vw;background:var(--white);color:var(--ink);border:5px solid var(--ink);border-radius:32px;box-shadow:10px 10px 0 var(--ink)}
+  .qtext{font:800 clamp(28px,4vw,72px) var(--font);line-height:1.15;white-space:pre-line;margin:0}
+  .qimg{max-height:28vh;max-width:60%;object-fit:contain;border-radius:12px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:1.6vh 1.6vw}
+  .opt{display:flex;align-items:center;gap:.6em;min-height:11vh;padding:1vh 1.5vw;border:5px solid var(--ink);border-radius:22px;color:var(--white);font:800 clamp(20px,2.4vw,44px) var(--font);box-shadow:6px 6px 0 var(--ink);transition:opacity .3s,transform .3s}
+  .opt::before{font-size:1.1em;flex:none}
+  .opt.o0{background:var(--a0)} .opt.o0::before{content:"▲"}
+  .opt.o1{background:var(--a1)} .opt.o1::before{content:"◆"}
+  .opt.o2{background:var(--a2)} .opt.o2::before{content:"●"}
+  .opt.o3{background:var(--a3)} .opt.o3::before{content:"■"}
+  .opt.dim{opacity:.25}
+  .opt.right{transform:scale(1.03);outline:6px solid var(--white)}
+  .bar{height:2.2vh;background:var(--ink);border-radius:99px;overflow:hidden;margin:1.5vh 0}
+  .bar i{display:block;height:100%;background:var(--mint);transform-origin:left}
+  .status{font:800 clamp(18px,2vw,34px) var(--font);color:var(--sun);text-align:center;min-height:1.3em;margin:1vh 0}
+  .live{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+  .live .chip.ok{background:var(--mint)} .live .chip.out{opacity:.45}
+  /* classements */
+  .board{list-style:none;padding:0;margin:3vh auto 0;width:min(1100px,90vw);display:grid;gap:1.2vh}
+  .board li{display:flex;align-items:center;gap:1em;padding:1.2vh 1.5vw;background:var(--white);color:var(--ink);border:4px solid var(--ink);border-radius:20px;box-shadow:5px 5px 0 var(--ink);font:800 clamp(20px,2.4vw,42px) var(--font)}
+  .board li.first{background:var(--sun)}
+  .board .pos{width:1.6em;height:1.6em;display:grid;place-items:center;border-radius:50%;background:var(--ink);color:var(--white);flex:none}
+  .board .nm{flex:1}
+  .board .done{opacity:.6}
+  .podium{display:flex;align-items:flex-end;justify-content:center;gap:2vw;margin-top:4vh}
+  .step{display:flex;flex-direction:column;align-items:center;gap:1vh;font:800 clamp(20px,2.2vw,40px) var(--font)}
+  .step .avatar{font-size:clamp(40px,5vw,90px)}
+  .step .block{width:clamp(120px,14vw,260px);border:5px solid var(--ink);border-radius:20px 20px 0 0;display:grid;place-items:center;color:var(--ink);font-size:clamp(40px,5vw,90px);box-shadow:6px 0 0 var(--ink)}
+  .step.p1 .block{height:34vh;background:var(--sun)} .step.p2 .block{height:24vh;background:var(--lilac)} .step.p3 .block{height:16vh;background:var(--coral)}
+  .step small{font-size:.6em;color:var(--lilac)}
+</style>
+</head>
+<body>
+
+<!-- 1. Code du salon -->
+<section id="tJoin" class="screen center">
+  <p class="logo">Quizly TV<small>par YoskanGame</small></p>
+  <p class="lead">Créez un salon sur votre téléphone, puis tapez son code ici.</p>
+  <input id="tCode" maxlength="4" placeholder="CODE" autocomplete="off" autocapitalize="characters">
+  <button class="btn" id="tGo">Afficher sur la télé</button>
+  <p class="msg" id="tMsg"></p>
+</section>
+
+<!-- 2. Salle d'attente -->
+<section id="tLobby" class="screen center" hidden>
+  <p class="lead">Rejoignez sur <span class="url" id="tUrl"></span> avec le code</p>
+  <p class="code" id="tLobbyCode"></p>
+  <p class="lead" id="tLobbyInfo"></p>
+  <div class="players" id="tPlayers"></div>
+  <p class="msg">En attente du lancement par l'hôte…</p>
+</section>
+
+<!-- 3. Chargement / messages -->
+<section id="tLoad" class="screen center" hidden>
+  <p class="big" id="tLoadText">Préparation…</p>
+</section>
+
+<!-- 4. Question (Survie et Millionnaire) -->
+<section id="tQuestion" class="screen" hidden>
+  <div class="top">
+    <div class="who" id="tWho"></div>
+    <span class="chip" id="tTag"></span>
+  </div>
+  <div class="bar" id="tBarBox"><i id="tBar"></i></div>
+  <div class="qbox">
+    <img id="tImg" class="qimg" alt="" hidden>
+    <p class="qtext" id="tText"></p>
+    <audio id="tAudio" preload="auto"></audio>
+  </div>
+  <div class="grid" id="tOpts"></div>
+  <p class="status" id="tStatus"></p>
+  <div class="live" id="tLive"></div>
+</section>
+
+<!-- 5. Chrono : classement en direct -->
+<section id="tChrono" class="screen" hidden>
+  <div class="top"><p class="big">Chrono 60 s</p><span class="chip" id="tChronoInfo"></span></div>
+  <ol class="board" id="tBoard"></ol>
+</section>
+
+<!-- 6. Choix du niveau -->
+<section id="tLevel" class="screen center" hidden>
+  <p class="lead">Fin du tour</p>
+  <p class="big" id="tLevelText"></p>
+  <p class="msg">L'hôte choisit la suite…</p>
+</section>
+
+<!-- 7. Podium -->
+<section id="tEnd" class="screen center" hidden>
+  <p class="lead" id="tEndLead">Vainqueur</p>
+  <p class="big" id="tWinner"></p>
+  <div class="podium" id="tPodium"></div>
+  <ol class="board" id="tRest"></ol>
+</section>
+
+<script type="module" src="js/tv.js"></script>
+</body>
+</html>
