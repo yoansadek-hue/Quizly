@@ -478,3 +478,7 @@ body.tvmode #s-game #mcq .btn:nth-child(4n+4){background:#1f9d55} body.tvmode #s
 body.tvmode #s-game #mcq .btn:disabled:not(.right):not(.wrong){opacity:.35;color:var(--white);border-color:var(--ink)}
 body.tvmode #s-game #mcq .btn.right{outline:6px solid var(--mint);outline-offset:2px}
 body.tvmode #s-game #mcq .btn.wrong{opacity:.5}
+
+/* 2.6.1 : QR code et partage du salon */
+.share{display:flex;flex-direction:column;align-items:center;gap:10px;margin:12px 0}
+.qr{width:170px;height:170px;background:var(--white);border:3px solid var(--ink);border-radius:16px;padding:6px;box-shadow:var(--shadow)}
