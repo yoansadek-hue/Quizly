@@ -227,6 +227,7 @@ function afterTurn(room) {
   askLevel(room);
 }
 function askLevel(room) {
+  if (room.cfg.auto) return chooseLevel(room, true); // difficulté évolutive : on monte sans demander
   room.phase = "level";
   cast(room, { t: "level", diff: room.diff, host: room.hostId });
   clearTimeout(room.timer); // pas de minuteur : le choix reste affiché tant que l'hôte n'a pas appuyé sur un bouton
@@ -534,7 +535,7 @@ function leave(ws) {
 function readCfg(m) {
   const themes = (Array.isArray(m.themes) ? m.themes : []).map((t) => clean(t, 30)).filter(Boolean).slice(0, 60);
   if (!themes.length) return "Choisissez au moins un thème.";
-  return { kind: ["chrono", "million"].includes(m.kind) ? m.kind : "survie", themes, time: clamp(+m.time, 0, 120), lives: clamp(+m.lives || 2, 1, 5) };
+  return { auto: !!m.auto, kind: ["chrono", "million"].includes(m.kind) ? m.kind : "survie", themes, time: clamp(+m.time, 0, 120), lives: clamp(+m.lives || 2, 1, 5) };
 }
 
 function handle(ws, m) {
