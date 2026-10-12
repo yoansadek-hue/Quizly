@@ -111,7 +111,7 @@ export function millionUI($) {
 /* ---------- Partie sur un téléphone, à plusieurs ----------
    Chacun a sa propre échelle et ses 3 jokers. On joue à tour de rôle, une question chacun.
    Celui qui repart avec le plus d'argent gagne. */
-export function millionLocal({ $, show, flash, ask, ui, getQ, onEnd }) {
+export function millionLocal({ $, show, flash, ask, ui, getQ, onEnd, stat }) {
   const L = { run: 0, list: [], cur: -1, q: null, removed: [], retry: null };
   const P = () => L.list[L.cur];
 
@@ -148,6 +148,7 @@ export function millionLocal({ $, show, flash, ask, ui, getQ, onEnd }) {
     setTimeout(() => { // un peu de suspense
       if (run !== L.run) return;
       const ok = L.q.options[i] === L.q.a;
+      if (stat) stat(L.q.t, ok); // pour le Profil
       ui.reveal({ answer: L.q.a, picked: i, correct: ok });
       flash(ok ? "ok" : "ko");
       if (ok) {
