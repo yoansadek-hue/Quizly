@@ -449,3 +449,20 @@ img{-webkit-user-drag:none;user-drag:none}
   #subModes .modes{grid-template-columns:repeat(2,1fr);gap:18px}
   #subModes .mode{grid-column:auto}
 }
+
+/* 2.5.8 : photos de profil et extrait musical */
+.whoL{display:flex;align-items:center;gap:10px;min-width:0}
+.whoL #whoName,.whoL #mStep{overflow:hidden;text-overflow:ellipsis}
+.avatar.big{width:42px;height:42px;font-size:19px;border-width:3px}
+.rk .avatar{width:34px;height:34px;font-size:16px}
+.liveboard li .avatar{width:22px;height:22px;font-size:12px;border-width:2px}
+.team .chip{display:inline-flex;align-items:center;gap:6px}
+.team .chip .avatar{width:22px;height:22px;font-size:12px}
+.chip.audio{background:var(--sun);color:var(--ink);font:800 16px var(--font);cursor:pointer;align-self:flex-start}
+.chip.audio[hidden]{display:none!important}
+@media (min-width:700px){.avatar.big{width:52px;height:52px;font-size:22px}}
+
+/* 2.5.8 : les 3 blocs du menu affichent seulement leur nom, en gros et centré */
+#modes .mode{justify-content:center;align-items:center;text-align:center;min-height:130px}
+#modes .mode strong{font-size:40px;margin:0}
+@media (min-width:700px){#modes .mode{min-height:240px} #modes .mode strong{font-size:48px}}
