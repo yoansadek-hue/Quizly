@@ -4,7 +4,8 @@ const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
 const PALETTE = ["#ffd84d", "#29d9a1", "#ff9a9a", "#c9ceff", "#ffb86b", "#7fe7ff", "#d7a8ff", "#b7f171", "#ff9ed8", "#ffffff", "#9ad0ff", "#ffe98a"];
 const HEART = "\u2665\uFE0E"; // cœur « texte » (jamais l'emoji rouge)
 
-export function initOnline({ $, show, flash, confetti, me, record, millionUI }) {
+export function initOnline({ $, show, flash, confetti, me, record, millionUI, stat }) {
+  const theme = (tag) => String(tag || "").split(" · ")[0]; // « Drapeaux · Facile » → « Drapeaux »
   const mu = millionUI($); // écran « Qui veut gagner des millions »
   const O = { cfg: null, editing: false, ws: null, you: null, host: null, active: false, inRoom: false, tid: null, cur: null, answered: false, board: [], chrono: false };
   const plural = (n, w) => `${n} ${w}${n > 1 ? "s" : ""}`;
@@ -68,7 +69,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI }) 
       case "cboard": O.board = m.list; liveBoard(); if (O.cur && O.cur.chrono && !O.answered) $("alive").textContent = rankText(); break; // ne pas effacer « Bonne réponse »
       // Qui veut gagner des millions en ligne
       case "mq":
-        O.cur = null; O.watch = !!m.watch;
+        O.cur = null; O.watch = !!m.watch; if (!m.watch) O.mtag = m.tag;
         mu.render({ n: m.n, who: m.watch ? "Vous regardez" : "", tag: m.tag, q: m.q, img: m.img, options: m.options, jokers: m.jok, time: m.time, total: m.total, watch: m.watch, info: m.watch ? watchInfo() : millInfo() }, {
           pick: (i) => send({ t: "answer", i }),
           joker: (k) => send({ t: "mjoker", k }),
@@ -85,6 +86,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI }) 
         mu.info(m.results.map((r) => `${r.name} : ${r.stopped ? `s'arrête (${euros(r.won)})` : r.correct ? (r.out ? "1 000 000 € !" : `✓ ${euros(r.won)}`) : `✗ repart avec ${euros(r.won)}`}`).join(" · "));
         break;
       case "mres":
+        if (stat && !m.stopped) stat.answer(theme(O.mtag), m.correct);
         mu.reveal(m);
         if (!m.stopped) flash(m.correct ? "ok" : "ko");
         mu.info(m.stopped ? `Vous repartez avec ${euros(m.won)}. La réponse était : ${m.answer}`
@@ -201,6 +203,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI }) 
 
   function renderResult(m) {
     stopClock();
+    if (stat && m.who === O.you && O.cur) stat.answer(theme(O.cur.tag), m.correct);
     const btns = [...document.querySelectorAll("#mcq .btn")];
     btns.forEach((b) => { b.disabled = true; if (b.textContent === m.answer) b.classList.add("right"); });
     if (m.picked >= 0 && !m.correct && O.cur) {
@@ -228,6 +231,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI }) 
   function renderEnd(m) {
     stopClock();
     const chrono = m.kind === "chrono", mill = m.kind === "million";
+    if (stat) stat.game(chrono ? "chrono" : mill ? "omillion" : "online");
     O.chrono = false; O.cur = null; O.mout = false; O.watch = false; mu.stopClock(); $("liveBoard").hidden = true;
     $("endLead").textContent = m.winner ? "Vainqueur" : "Partie terminée";
     $("winner").textContent = m.winner || "Égalité";
@@ -346,6 +350,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI }) 
   }
   function renderCRes(m) {
     stopClock();
+    if (stat && O.cur) stat.answer(theme(O.cur.tag), m.correct);
     O.answered = true;
     if (O.cur) O.cur.streak = m.streak;
     const btns = [...document.querySelectorAll("#mcq .btn")];
