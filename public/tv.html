@@ -7,84 +7,93 @@
 <link rel="icon" type="image/png" href="icons/icon-32.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@500;700;800&family=Unbounded:wght@700;800&display=swap" rel="stylesheet">
 <style>
-  /* Quizly TV : écran géant façon Kahoot, mêmes couleurs que le jeu */
+  /* Quizly TV — identité « jeton » : un plateau myrtille, des jetons épais, des pièces lettrées A B C D */
   :root{
-    --bg:#1b2cc1; --ink:#12132b; --sun:#ffd84d; --mint:#29d9a1; --coral:#ff5c5c; --lilac:#c9ceff; --white:#fff;
-    --font:"Bricolage Grotesque",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-    --a0:#e2364b; --a1:#1f6feb; --a2:#e8a900; --a3:#1f9d55; /* couleurs des 4 réponses */
+    --bg:#3b1d8f; --bg-deep:#2c136f; --ink:#1e0f45; --paper:#f6f3ff; --white:#fff;
+    --sun:#ffe14d; --mint:#34e3b0; --coral:#ff6b8b; --sky:#62c7ff; --lilac:#c4b8ff; --muted:#5b4a8f;
+    --font:"Figtree",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --display:"Unbounded","Figtree",system-ui,sans-serif;
   }
   *{box-sizing:border-box}
   [hidden]{display:none!important}
   html,body{margin:0;height:100%}
-  body{font-family:var(--font);font-weight:500;background:var(--bg);color:var(--white);overflow:hidden}
-  .screen{position:fixed;inset:0;display:flex;flex-direction:column;padding:3vh 4vw}
+  body{font-family:var(--font);font-weight:500;color:var(--paper);overflow:hidden;
+    background-color:var(--bg);background-image:radial-gradient(rgba(255,255,255,.075) 1.6px,transparent 1.8px);background-size:30px 30px}
+  .screen{position:fixed;inset:0;display:flex;flex-direction:column;padding:4vh 4vw}
   .center{align-items:center;justify-content:center;text-align:center}
-  .logo{font:800 clamp(28px,3vw,48px) var(--font)}
-  .logo small{display:block;font-size:.45em;color:var(--sun)}
-  .big{font:800 clamp(40px,6vw,110px) var(--font);line-height:1.05;margin:0}
-  .lead{font-size:clamp(18px,2vw,32px);color:var(--lilac);margin:1.5vh 0}
-  .msg{color:var(--sun);font-weight:800;font-size:clamp(16px,1.6vw,26px);min-height:1.4em}
-  input{font:800 clamp(30px,4vw,64px) var(--font);text-align:center;letter-spacing:.3em;text-transform:uppercase;width:min(520px,80vw);padding:14px;border:4px solid var(--ink);border-radius:20px;box-shadow:6px 6px 0 var(--ink)}
-  .btn{font:800 clamp(20px,2vw,32px) var(--font);padding:16px 40px;margin-top:3vh;border:4px solid var(--ink);border-radius:20px;background:var(--sun);color:var(--ink);box-shadow:6px 6px 0 var(--ink);cursor:pointer}
-  .top{display:flex;justify-content:space-between;align-items:center;gap:2vw}
-  .chip{display:inline-flex;align-items:center;gap:.5em;padding:.3em .9em;border:3px solid var(--ink);border-radius:99px;background:var(--lilac);color:var(--ink);font:800 clamp(16px,1.5vw,26px) var(--font)}
-  .code{font:800 clamp(70px,12vw,220px) var(--font);letter-spacing:.12em;color:var(--sun);line-height:1;margin:1vh 0}
-  .back{position:fixed;left:2vw;bottom:2vh;color:var(--lilac);font:800 clamp(14px,1.2vw,20px) var(--font);text-decoration:none}
-  /* salon : tout tient sur un écran, en deux colonnes */
+  .logo{font:800 clamp(24px,3.2vh,44px) var(--display);margin:0;line-height:1}
+  .logo small{display:block;margin-top:.5vh;font:700 .42em var(--font);color:var(--sun)}
+  .big{font:800 clamp(34px,7vh,96px) var(--display);line-height:1.05;margin:0;letter-spacing:-.02em}
+  .lead{font-size:clamp(16px,2.6vh,32px);color:var(--lilac);margin:1.5vh 0}
+  .msg{color:var(--sun);font-weight:800;font-size:clamp(16px,2.6vh,30px);min-height:1.3em}
+  .btn{font:800 clamp(16px,2.4vh,28px) var(--display);padding:1.4vh 2.4vw;margin-top:2vh;border:4px solid var(--ink);border-radius:22px;background:var(--sun);color:var(--ink);box-shadow:0 7px 0 var(--ink);cursor:pointer}
+  .btn:active{transform:translateY(5px);box-shadow:0 2px 0 var(--ink)}
+  .btn.small{font-size:clamp(13px,1.8vh,20px);padding:1vh 1.6vw;margin:0;box-shadow:0 5px 0 var(--ink)}
+  .back{position:fixed;left:2vw;bottom:2vh;color:var(--lilac);font:700 clamp(13px,1.6vh,20px) var(--font);text-decoration:none}
+  .chip{display:inline-flex;align-items:center;gap:.5em;padding:.35em 1em;border:3px solid var(--ink);border-radius:99px;background:var(--paper);color:var(--ink);font:800 clamp(14px,2.2vh,26px) var(--font);box-shadow:0 4px 0 var(--ink)}
+  .avatar{width:1.6em;height:1.6em;border-radius:50%;object-fit:cover;border:3px solid var(--ink);display:inline-grid;place-items:center;font:800 .75em var(--display);color:var(--ink);background:var(--sun);flex:none}
+  .avatar.big{width:2.1em;height:2.1em}
+
+  /* salon : à gauche le QR code dans un jeton, à droite les joueurs */
   .lobby{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:5vw;padding:5vh 6vw}
-  .lobbyL{display:flex;flex-direction:column;align-items:center;gap:2.5vh;text-align:center}
-  .ttl{font:800 clamp(26px,6vh,72px) var(--font);margin:0;line-height:1}
-  .qr.big{width:min(56vh,42vw);height:min(56vh,42vw)}
-  .how{font-size:clamp(15px,2.6vh,30px);color:var(--lilac);margin:0}
-  .lobbyR{display:flex;flex-direction:column;align-items:flex-start;gap:2.5vh;min-width:0;max-height:90vh;overflow:hidden}
-  .lobbyR .logo{margin:0}
-  .info{font:800 clamp(18px,3vh,36px) var(--font);color:var(--white);margin:0}
-  .lobbyR .players{justify-content:flex-start;margin:0;max-height:46vh;overflow:hidden}
-  .lobbyR .msg{margin:0;font-size:clamp(16px,2.8vh,32px)}
-  .btn.small{font-size:clamp(14px,2vh,22px);padding:10px 22px;margin:0}
-  @media (max-aspect-ratio:1/1){ /* écran vertical : une seule colonne */
-    .lobby{grid-template-columns:1fr;justify-items:center;text-align:center}
-    .lobbyR{align-items:center} .lobbyR .players{justify-content:center}
-  }
-  .qr{width:clamp(160px,24vh,320px);height:clamp(160px,24vh,320px);background:var(--white);border:5px solid var(--ink);border-radius:20px;padding:8px;box-shadow:6px 6px 0 var(--ink)}
-  .url{font:800 clamp(18px,2vw,34px) var(--font);background:var(--white);color:var(--ink);padding:.3em .8em;border-radius:14px;border:3px solid var(--ink)}
-  .players{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:3vh;max-width:90vw}
-  .avatar{width:1.6em;height:1.6em;border-radius:50%;object-fit:cover;border:3px solid var(--ink);display:inline-grid;place-items:center;font:800 .8em var(--font);color:var(--ink);background:var(--sun);flex:none}
-  .avatar.big{width:2.2em;height:2.2em}
-  /* question */
-  .who{display:flex;align-items:center;gap:.6em;font:800 clamp(24px,3vw,52px) var(--font)}
-  .qbox{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:2vh;margin:2vh 0;padding:3vh 3vw;background:var(--white);color:var(--ink);border:5px solid var(--ink);border-radius:32px;box-shadow:10px 10px 0 var(--ink)}
-  .qtext{font:800 clamp(28px,4vw,72px) var(--font);line-height:1.15;white-space:pre-line;margin:0}
-  .qimg{max-height:28vh;max-width:60%;object-fit:contain;border-radius:12px}
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:1.6vh 1.6vw}
-  .opt{display:flex;align-items:center;gap:.6em;min-height:11vh;padding:1vh 1.5vw;border:5px solid var(--ink);border-radius:22px;color:var(--white);font:800 clamp(20px,2.4vw,44px) var(--font);box-shadow:6px 6px 0 var(--ink);transition:opacity .3s,transform .3s}
-  .opt::before{font-size:1.1em;flex:none}
-  .opt.o0{background:var(--a0)} .opt.o0::before{content:"▲"}
-  .opt.o1{background:var(--a1)} .opt.o1::before{content:"◆"}
-  .opt.o2{background:var(--a2)} .opt.o2::before{content:"●"}
-  .opt.o3{background:var(--a3)} .opt.o3::before{content:"■"}
-  .opt.dim{opacity:.25}
-  .opt.right{transform:scale(1.03);outline:6px solid var(--white)}
-  .bar{height:2.2vh;background:var(--ink);border-radius:99px;overflow:hidden;margin:1.5vh 0}
+  .lobbyL{display:flex;flex-direction:column;align-items:center;gap:2.6vh;text-align:center}
+  .ttl{font:800 clamp(24px,5.4vh,68px) var(--display);margin:0;line-height:1;letter-spacing:-.02em}
+  .qr{background:var(--white);border:5px solid var(--ink);border-radius:30px;padding:1.4vh;box-shadow:0 10px 0 var(--ink)}
+  .qr.big{width:min(54vh,40vw);height:min(54vh,40vw)}
+  .how{font-size:clamp(14px,2.4vh,28px);color:var(--lilac);margin:0}
+  .how b{color:var(--paper)}
+  .lobbyR{display:flex;flex-direction:column;align-items:flex-start;gap:2.6vh;min-width:0;max-height:90vh;overflow:hidden}
+  .info{font:800 clamp(16px,2.8vh,34px) var(--display);margin:0}
+  .players{display:flex;flex-wrap:wrap;gap:12px;max-height:46vh;overflow:hidden}
+  .players .chip:nth-child(4n+1){background:var(--sun)} .players .chip:nth-child(4n+2){background:var(--mint)}
+  .players .chip:nth-child(4n+3){background:var(--coral)} .players .chip:nth-child(4n+4){background:var(--sky)}
+  @media (max-aspect-ratio:1/1){.lobby{grid-template-columns:1fr;justify-items:center;text-align:center}.lobbyR{align-items:center}.players{justify-content:center}}
+
+  /* question : une grande carte, puis 4 jetons lettrés */
+  .top{display:flex;justify-content:space-between;align-items:center;gap:2vw}
+  .who{display:flex;align-items:center;gap:.6em;font:800 clamp(20px,4vh,52px) var(--display);letter-spacing:-.01em}
+  .top .chip{background:var(--sky)}
+  .bar{height:2vh;background:var(--bg-deep);border:3px solid var(--ink);border-radius:99px;overflow:hidden;margin:2vh 0 0}
   .bar i{display:block;height:100%;background:var(--mint);transform-origin:left}
-  .status{font:800 clamp(18px,2vw,34px) var(--font);color:var(--sun);text-align:center;min-height:1.3em;margin:1vh 0}
-  .live{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
-  .live .chip.ok{background:var(--mint)} .live .chip.out{opacity:.45}
+  .qbox{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:2vh;margin:3vh 0 3.5vh;padding:3vh 4vw;background:var(--paper);color:var(--ink);border:5px solid var(--ink);border-radius:40px;box-shadow:0 12px 0 var(--ink);min-height:0}
+  .qtext{font:800 clamp(24px,5.4vh,72px)/1.18 var(--display);white-space:pre-line;margin:0;letter-spacing:-.015em}
+  .qimg{max-height:26vh;max-width:60%;object-fit:contain;border-radius:16px;border:4px solid var(--ink);background:var(--white)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:2.2vh 2vw;counter-reset:opt}
+  .opt{display:flex;align-items:center;gap:1.4vw;min-height:10vh;padding:1.2vh 1.6vw;background:var(--paper);color:var(--ink);border:4px solid var(--ink);border-radius:28px;box-shadow:0 8px 0 var(--ink);font:700 clamp(18px,3.4vh,44px)/1.15 var(--font);transition:opacity .35s,transform .35s,background .35s}
+  .opt::before{counter-increment:opt;content:counter(opt,upper-alpha);flex:none;width:1.9em;height:1.9em;border-radius:50%;display:grid;place-items:center;border:4px solid var(--ink);font:800 .9em var(--display);background:var(--sun)}
+  .opt.o1::before{background:var(--mint)} .opt.o2::before{background:var(--coral)} .opt.o3::before{background:var(--sky)}
+  .opt.dim{opacity:.3;transform:scale(.97)}
+  .opt.right{background:var(--mint);transform:translateY(-6px);box-shadow:0 14px 0 var(--ink)}
+  .status{font:800 clamp(16px,3vh,36px) var(--display);color:var(--sun);text-align:center;min-height:1.3em;margin:2vh 0 0}
+  .live{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:1.5vh}
+  .live .chip.ok{background:var(--mint)}
+
   /* classements */
-  .board{list-style:none;padding:0;margin:3vh auto 0;width:min(1100px,90vw);display:grid;gap:1.2vh}
-  .board li{display:flex;align-items:center;gap:1em;padding:1.2vh 1.5vw;background:var(--white);color:var(--ink);border:4px solid var(--ink);border-radius:20px;box-shadow:5px 5px 0 var(--ink);font:800 clamp(20px,2.4vw,42px) var(--font)}
+  .board{list-style:none;padding:0;margin:3vh auto 0;width:min(1100px,90vw);display:grid;gap:1.4vh}
+  .board li{display:flex;align-items:center;gap:1em;padding:1.1vh 1.6vw;background:var(--paper);color:var(--ink);border:4px solid var(--ink);border-radius:24px;box-shadow:0 6px 0 var(--ink);font:800 clamp(18px,3.2vh,40px) var(--display)}
   .board li.first{background:var(--sun)}
-  .board .pos{width:1.6em;height:1.6em;display:grid;place-items:center;border-radius:50%;background:var(--ink);color:var(--white);flex:none}
-  .board .nm{flex:1}
+  .board .pos{width:1.7em;height:1.7em;display:grid;place-items:center;border-radius:50%;background:var(--ink);color:var(--paper);flex:none;font-size:.8em}
+  .board .nm{flex:1;font-family:var(--font)}
   .board .done{opacity:.6}
-  .podium{display:flex;align-items:flex-end;justify-content:center;gap:2vw;margin-top:4vh}
-  .step{display:flex;flex-direction:column;align-items:center;gap:1vh;font:800 clamp(20px,2.2vw,40px) var(--font)}
-  .step .avatar{font-size:clamp(40px,5vw,90px)}
-  .step .block{width:clamp(120px,14vw,260px);border:5px solid var(--ink);border-radius:20px 20px 0 0;display:grid;place-items:center;color:var(--ink);font-size:clamp(40px,5vw,90px);box-shadow:6px 0 0 var(--ink)}
-  .step.p1 .block{height:34vh;background:var(--sun)} .step.p2 .block{height:24vh;background:var(--lilac)} .step.p3 .block{height:16vh;background:var(--coral)}
-  .step small{font-size:.6em;color:var(--lilac)}
+
+  /* podium : des piles de jetons */
+  .podium{display:flex;align-items:flex-end;justify-content:center;gap:3vw;margin-top:3vh}
+  .step{display:flex;flex-direction:column;align-items:center;gap:1vh;font:800 clamp(18px,3vh,40px) var(--display)}
+  .step .avatar{font-size:clamp(34px,6.5vh,90px)}
+  .step small{font:700 .6em var(--font);color:var(--lilac)}
+  .step .block{width:clamp(110px,13vw,250px);border:5px solid var(--ink);border-radius:26px;display:grid;place-items:start center;padding-top:1.4vh;color:var(--ink);font:800 clamp(28px,5vh,70px) var(--display);box-shadow:0 10px 0 var(--ink)}
+  .step.p1 .block{height:34vh;background:repeating-linear-gradient(to bottom,var(--sun) 0 3.2vh,#e6c52a 3.2vh 3.7vh)}
+  .step.p2 .block{height:24vh;background:repeating-linear-gradient(to bottom,var(--mint) 0 3.2vh,#22c697 3.2vh 3.7vh)}
+  .step.p3 .block{height:16vh;background:repeating-linear-gradient(to bottom,var(--coral) 0 3.2vh,#e85676 3.2vh 3.7vh)}
+  #tRest{width:min(900px,80vw)}
+  #tRest li{font-size:clamp(16px,2.6vh,30px);padding:.8vh 1.4vw}
+
+  @keyframes pop{0%{transform:scale(.6);opacity:0}70%{transform:scale(1.05)}100%{transform:scale(1);opacity:1}}
+  .screen:not([hidden]) .qbox,.screen:not([hidden]) .step,.players .chip{animation:pop .45s backwards}
+  .step.p1{animation-delay:.5s} .step.p2{animation-delay:.25s}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
