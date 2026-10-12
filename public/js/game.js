@@ -4,7 +4,7 @@ import { initOnline } from "./online.js";
 import { makeLocal, LOCAL_THEMES, SONG_THEME, euros } from "./local.js";
 import { millionUI, millionLocal, avatarEl, setAudio } from "./million.js";
 
-const VERSION = "2.5.8"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.6.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
