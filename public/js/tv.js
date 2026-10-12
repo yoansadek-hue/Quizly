@@ -68,7 +68,7 @@ function renderLobby(m) {
   const kind = { survie: "Survie", chrono: "Chrono 60 s", million: "Qui veut gagner des millions" }[T.kind];
   $("tLobbyInfo").textContent = m.players.length ? `${kind} · ${plural(m.players.length, "joueur")}` : "";
   const host = T.pl[m.host];
-  $("tWait").textContent = host ? `${host.name} choisit le mode et lance la partie…` : "En attente du premier joueur…";
+  $("tWait").textContent = host ? `${host.name} choisit le mode et lance la partie…` : "Le premier qui scanne choisit le mode et lance la partie.";
   $("tPlayers").replaceChildren(...m.players.map((p) => {
     const c = document.createElement("span"); c.className = "chip";
     c.append(avatarEl(p.name, p.photo), document.createTextNode(p.name));
