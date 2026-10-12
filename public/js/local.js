@@ -138,7 +138,9 @@ const WORDS = ["LUNE","CIEL","ROSE","PAIN","LAIT","TRAIN","TABLE","PLAGE","SABLE
   "ORDINATEUR","CHAMPIGNON","HIRONDELLE","ASTRONAUTE","CHAMPIONNAT","BIBLIOTHEQUE","PAMPLEMOUSSE","REFRIGERATEUR"];
 
 export const LOCAL_THEMES = ["Drapeaux", "Capitales", "Calcul mental", "Suites logiques", "Anagrammes",
-  "Vrai ou faux", "L'intrus", "Plus ou moins", "Devinettes emojis", "Proverbes", "Logique"];
+  "Vrai ou faux", "L'intrus", "Plus ou moins", "Devinettes emojis", "Proverbes", "Logique",
+  "Chronologie", "Coupe du monde", "Logos", "Devine la chanson"];
+export const SONG_THEME = "Devine la chanson"; // extrait musical : préparé par le serveur (iTunes)
 
 const r = (n) => Math.floor(Math.random() * n);
 const pick = (a) => a[r(a.length)];
@@ -597,10 +599,207 @@ function logique(d) {
   return { t: "Logique", d, q: e.q, a: e.a, o: [e.a, ...e.w], key: `~log:e:${e.q.slice(0, 30)}` };
 }
 
+/* ---------- Chronologie ---------- */
+// événement | année (négative = avant J.-C.)
+const EVENTS = `Chute de l'Empire romain d'Occident|476
+Couronnement de Charlemagne|800
+Bataille d'Hastings|1066
+Arrivée de la peste noire en Europe|1347
+Mort de Jeanne d'Arc|1431
+Christophe Colomb atteint l'Amérique|1492
+Bataille de Marignan|1515
+Martin Luther publie ses 95 thèses|1517
+Édit de Nantes|1598
+Déclaration d'indépendance des États-Unis|1776
+Prise de la Bastille|1789
+Sacre de Napoléon|1804
+Bataille de Waterloo|1815
+Abolition de l'esclavage en France|1848
+Invention du téléphone par Graham Bell|1876
+Inauguration de la tour Eiffel|1889
+Premiers Jeux olympiques modernes|1896
+Premier vol des frères Wright|1903
+Naufrage du Titanic|1912
+Début de la Première Guerre mondiale|1914
+Révolution russe|1917
+Découverte de la pénicilline|1928
+Krach de Wall Street|1929
+Fin de la Seconde Guerre mondiale|1945
+Lancement du satellite Spoutnik|1957
+Youri Gagarine, premier homme dans l'espace|1961
+Mai 68 en France|1968
+Premiers pas sur la Lune|1969
+Chute du mur de Berlin|1989
+Réunification de l'Allemagne|1990
+Élection de Nelson Mandela|1994
+Premier titre mondial de la France en football|1998
+Attentats du 11 septembre|2001
+Mise en circulation des pièces et billets en euros|2002
+Création de Facebook|2004
+Sortie du premier iPhone|2007
+Assassinat de Jules César|-44`.split("\n").map((l) => { const [e, y] = l.split("|"); return { e, y: +y }; });
+const CHRONO_GAP = [0, 150, 60, 25, 10, 3]; // écart minimum entre les années, selon le niveau
+
+function chronologie(d) {
+  const first = r(2) === 1;
+  for (let t = 0; t < 60; t++) {
+    const pickd = shuffle(EVENTS).slice(0, 4).sort((a, b) => a.y - b.y);
+    const ok = pickd.every((e, i) => i === 0 || e.y - pickd[i - 1].y >= CHRONO_GAP[d]);
+    if (!ok) continue;
+    const a = first ? pickd[0] : pickd[3];
+    return { t: "Chronologie", d, q: `Quel événement a eu lieu ${first ? "en premier" : "en dernier"} ?`, a: a.e, o: pickd.map((e) => e.e), key: `~chrono:${pickd.map((e) => e.y).join(",")}:${first}` };
+  }
+  const pickd = shuffle(EVENTS).slice(0, 4).sort((a, b) => a.y - b.y); // repli : sans contrainte d'écart
+  return { t: "Chronologie", d, q: "Quel événement a eu lieu en premier ?", a: pickd[0].e, o: pickd.map((e) => e.e), key: `~chrono:${pickd[0].y}` };
+}
+
+/* ---------- Coupe du monde (jusqu'à 2022) ---------- */
+const WORLD_CUP = `1930|Uruguay|Uruguay
+1934|Italie|Italie
+1938|Italie|France
+1950|Uruguay|Brésil
+1954|Allemagne de l'Ouest|Suisse
+1958|Brésil|Suède
+1962|Brésil|Chili
+1966|Angleterre|Angleterre
+1970|Brésil|Mexique
+1974|Allemagne de l'Ouest|Allemagne de l'Ouest
+1978|Argentine|Argentine
+1982|Italie|Espagne
+1986|Argentine|Mexique
+1990|Allemagne de l'Ouest|Italie
+1994|Brésil|États-Unis
+1998|France|France
+2002|Brésil|Corée du Sud et Japon
+2006|Italie|Allemagne
+2010|Espagne|Afrique du Sud
+2014|Allemagne|Brésil
+2018|France|Russie
+2022|Argentine|Qatar`.split("\n").map((l) => { const [y, w, h] = l.split("|"); return { y: +y, w, h }; });
+const CUP_TEAMS = ["Uruguay", "Italie", "Allemagne de l'Ouest", "Brésil", "Angleterre", "Argentine", "France", "Espagne", "Allemagne", "Pays-Bas", "Croatie", "Portugal", "Belgique", "Hongrie"];
+const CUP_FROM = [0, 1998, 1978, 1958, 1930, 1930]; // années proposées selon le niveau
+
+function coupeDuMonde(d) {
+  const pool = WORLD_CUP.filter((c) => c.y >= CUP_FROM[d] && (d < 4 || c.y < 1998 || r(3) === 0));
+  const c = pick(pool.length ? pool : WORLD_CUP);
+  if (r(10) < 6) { // vainqueur
+    const o = [c.w, ...shuffle(CUP_TEAMS.filter((x) => x !== c.w && !(c.w.startsWith("Allemagne") && x.startsWith("Allemagne")))).slice(0, 3)];
+    return { t: "Coupe du monde", d, q: `Quel pays a remporté la Coupe du monde ${c.y} ?`, a: c.w, o, key: `~cdm:w:${c.y}` };
+  }
+  const hosts = [...new Set(WORLD_CUP.map((x) => x.h))].filter((h) => h !== c.h);
+  return { t: "Coupe du monde", d, q: `Quel pays a organisé la Coupe du monde ${c.y} ?`, a: c.h, o: [c.h, ...shuffle(hosts).slice(0, 3)], key: `~cdm:h:${c.y}` };
+}
+
+/* ---------- Logos ---------- */
+// marque | site (pour l'icône) | niveau
+const BRANDS = `Apple|apple.com|1
+Nike|nike.com|1
+McDonald's|mcdonalds.com|1
+Google|google.com|1
+YouTube|youtube.com|1
+Netflix|netflix.com|1
+Spotify|spotify.com|1
+Instagram|instagram.com|1
+Facebook|facebook.com|1
+Amazon|amazon.com|1
+Coca-Cola|coca-cola.com|1
+Adidas|adidas.com|1
+WhatsApp|whatsapp.com|1
+Snapchat|snapchat.com|1
+TikTok|tiktok.com|1
+Microsoft|microsoft.com|2
+Samsung|samsung.com|2
+Puma|puma.com|2
+IKEA|ikea.com|2
+Lego|lego.com|2
+Starbucks|starbucks.com|2
+Red Bull|redbull.com|2
+PlayStation|playstation.com|2
+Nintendo|nintendo.com|2
+Airbnb|airbnb.com|2
+Uber|uber.com|2
+KFC|kfc.com|2
+Pepsi|pepsi.com|2
+Renault|renault.fr|3
+Peugeot|peugeot.fr|3
+Carrefour|carrefour.fr|3
+Decathlon|decathlon.fr|3
+Air France|airfrance.fr|3
+Orange|orange.fr|3
+Ferrari|ferrari.com|3
+BMW|bmw.com|3
+Mercedes-Benz|mercedes-benz.com|3
+Audi|audi.com|3
+Toyota|toyota.com|3
+Shell|shell.com|3
+Lacoste|lacoste.com|3
+Michelin|michelin.com|3`.split("\n").map((l) => { const [b, dom, n] = l.split("|"); return { b, dom, n: +n }; });
+
+function logo(d) {
+  const top = d <= 1 ? 1 : d <= 3 ? 2 : 3;
+  const c = pick(BRANDS.filter((x) => x.n <= top && (d < 4 || x.n >= 2)));
+  const same = shuffle(BRANDS.filter((x) => x.b !== c.b && Math.abs(x.n - c.n) <= 1)).slice(0, 3).map((x) => x.b);
+  return { t: "Logos", d, q: "À quelle marque appartient ce logo ?", a: c.b, o: [c.b, ...same], img: `https://www.google.com/s2/favicons?domain=${c.dom}&sz=128`, logo: true, key: `~logo:${c.b}` };
+}
+
+/* ---------- Devine la chanson : la liste (l'extrait est cherché sur iTunes par le serveur) ---------- */
+// titre | artiste | niveau
+export const SONGS = `Alors on danse|Stromae|1
+Dernière danse|Indila|1
+Get Lucky|Daft Punk|1
+Bohemian Rhapsody|Queen|1
+Billie Jean|Michael Jackson|1
+Rolling in the Deep|Adele|1
+Shape of You|Ed Sheeran|1
+Despacito|Luis Fonsi|1
+Happy|Pharrell Williams|1
+Pour que tu m'aimes encore|Céline Dion|1
+Djadja|Aya Nakamura|1
+Balance ton quoi|Angèle|1
+Blinding Lights|The Weeknd|1
+Dancing Queen|ABBA|1
+Uptown Funk|Mark Ronson|1
+Papaoutai|Stromae|1
+I Will Survive|Gloria Gaynor|1
+Il est où le bonheur|Christophe Maé|2
+Andalouse|Kendji Girac|2
+Je veux|Zaz|2
+Viva la Vida|Coldplay|2
+Believer|Imagine Dragons|2
+Smells Like Teen Spirit|Nirvana|2
+Lose Yourself|Eminem|2
+Umbrella|Rihanna|2
+Waka Waka|Shakira|2
+Je m'en vais|Vianney|2
+En feu|Soprano|2
+Basique|Orelsan|2
+I Gotta Feeling|Black Eyed Peas|2
+Wake Me Up|Avicii|2
+Titanium|David Guetta|2
+bad guy|Billie Eilish|2
+Ne me quitte pas|Jacques Brel|3
+La vie en rose|Édith Piaf|3
+Les Champs-Élysées|Joe Dassin|3
+La bohème|Charles Aznavour|3
+Je l'aime à mourir|Francis Cabrel|3
+Un autre monde|Téléphone|3
+L'aventurier|Indochine|3
+L'Aziza|Daniel Balavoine|3
+Désenchantée|Mylène Farmer|3
+Les lacs du Connemara|Michel Sardou|3
+Hey Jude|The Beatles|3
+Hotel California|Eagles|3
+Africa|Toto|3
+Take On Me|a-ha|3`.split("\n").map((l) => { const [title, artist, n] = l.split("|"); return { title, artist, n: +n }; });
+export const songLabel = (s) => `${s.title} — ${s.artist}`;
+export function songPool(d) { return SONGS.filter((s) => (d <= 2 ? s.n === 1 : d === 3 ? s.n <= 2 : s.n >= 2)); }
+
 export function makeLocal(theme, d = 1) {
+  if (theme === SONG_THEME) theme = pick(["Chronologie", "Coupe du monde"]); // l'extrait vient du serveur : ici, une autre question
   const f = {
     Drapeaux: flag, Capitales: capital, "Calcul mental": calc, "Suites logiques": suite, Anagrammes: anagramme,
-    "Vrai ou faux": vraiFaux, "L'intrus": intrus, "Plus ou moins": plusMoins, "Devinettes emojis": emojis, Proverbes: proverbe, Logique: logique
+    "Vrai ou faux": vraiFaux, "L'intrus": intrus, "Plus ou moins": plusMoins, "Devinettes emojis": emojis, Proverbes: proverbe, Logique: logique,
+    Chronologie: chronologie, "Coupe du monde": coupeDuMonde, Logos: logo
   }[theme];
   return f ? f(Math.min(5, Math.max(1, d))) : null;
 }
