@@ -114,6 +114,7 @@ addEventListener("error", function (e) {
   <section id="s-mode" class="screen" hidden>
     <h2>Choisissez un mode</h2>
     <div id="modes" class="modes"></div>
+    <div class="stack profbtn"><button class="btn white" id="btnProfile">Mon profil</button></div>
     <p class="center-link"><button class="link" id="btnLogout">Changer de compte</button></p>
     <p class="version ver"></p>
   </section>
@@ -138,6 +139,32 @@ addEventListener("error", function (e) {
     <div id="slots" class="stack"></div>
     <p id="namesMsg" class="msg" role="alert"></p>
     <div class="dock"><button class="btn sun" id="btnNames">Choisir les thèmes</button></div>
+  </section>
+
+  <!-- Équipes -->
+  <section id="s-teams" class="screen" hidden>
+    <button class="goback" data-back="s-names">← Retour</button>
+    <h2>Les équipes</h2>
+    <div class="opts" id="optTeams"></div>
+    <p class="lead small">Touchez un joueur pour le changer d'équipe.</p>
+    <div id="teamBoxes" class="teams"></div>
+    <p id="teamsMsg" class="msg" role="alert"></p>
+    <div class="stack">
+      <button class="btn white" id="btnShuffle">Mélanger au hasard</button>
+      <button class="btn sun" id="btnTeams">Choisir les thèmes</button>
+    </div>
+  </section>
+
+  <!-- Profil -->
+  <section id="s-profile" class="screen" hidden>
+    <button class="goback" data-back="s-mode">← Retour</button>
+    <h2 id="profName">Profil</h2>
+    <div class="profgrid" id="profRecords"></div>
+    <p class="lead small" id="profSum"></p>
+    <h3 class="profh">Par thème</h3>
+    <p class="lead small" id="profEmpty">Aucune question jouée pour l'instant.</p>
+    <ol class="profthemes" id="profThemes"></ol>
+    <p class="center-link"><button class="link" id="btnResetStats">Effacer mes statistiques</button></p>
   </section>
 
   <!-- Thèmes -->
