@@ -1,7 +1,7 @@
 import { euros } from "./local.js";
 // Jeu en ligne : le serveur mène la partie, ce fichier affiche ce qu'il envoie.
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
-const PALETTE = ["#ffd84d", "#29d9a1", "#ff9a9a", "#c9ceff", "#ffb86b", "#7fe7ff", "#d7a8ff", "#b7f171", "#ff9ed8", "#ffffff", "#9ad0ff", "#ffe98a"];
+const PALETTE = ["#ffe14d", "#34e3b0", "#ff6b8b", "#62c7ff", "#c4b8ff", "#ffb36b", "#f6f3ff", "#9df0d4"]; // couleurs des jetons
 const HEART = "\u2665\uFE0E"; // cœur « texte » (jamais l'emoji rouge)
 
 export function initOnline({ $, show, flash, confetti, me, record, millionUI, avatarEl, setAudio, stat }) {
