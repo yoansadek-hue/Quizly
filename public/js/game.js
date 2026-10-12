@@ -5,7 +5,7 @@ import { makeLocal, LOCAL_THEMES, SONG_THEME, euros } from "./local.js";
 import { millionUI, millionLocal, avatarEl, setAudio } from "./million.js";
 import { startScan, stopScan, tvCodeFrom } from "./scan.js";
 
-const VERSION = "2.6.2"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.6.3"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -1150,6 +1150,8 @@ $("btnLobbyEdit").onclick = () => {
   renderRoomModes(S.mode); show("s-roomtype"); // l'hôte peut aussi changer le mode du salon
 };
 $("btnRoomJoin").onclick = () => online.join($("roomCode").value);
+// ordinateur branché sur la télé : ouvre le mode télé (salon caché + QR code) sur cet écran
+$("btnTvHere").onclick = () => { location.href = "tv.html"; };
 // scanner le QR code de la télé depuis l'appli : connexion directe au salon télé
 $("btnScan").onclick = () => {
   $("scanMsg").textContent = "";
