@@ -4,7 +4,8 @@ const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
 const PALETTE = ["#ffd84d", "#29d9a1", "#ff9a9a", "#c9ceff", "#ffb86b", "#7fe7ff", "#d7a8ff", "#b7f171", "#ff9ed8", "#ffffff", "#9ad0ff", "#ffe98a"];
 const HEART = "\u2665\uFE0E"; // cœur « texte » (jamais l'emoji rouge)
 
-export function initOnline({ $, show, flash, confetti, me, record, millionUI, stat }) {
+export function initOnline({ $, show, flash, confetti, me, record, millionUI, avatarEl, setAudio, stat }) {
+  const photoOf = (id) => (O.pl && O.pl[id] ? O.pl[id].photo : "") || ""; // photo d'un joueur du salon
   const theme = (tag) => String(tag || "").split(" · ")[0]; // « Drapeaux · Facile » → « Drapeaux »
   const mu = millionUI($); // écran « Qui veut gagner des millions »
   const O = { cfg: null, editing: false, ws: null, you: null, host: null, active: false, inRoom: false, tid: null, cur: null, answered: false, board: [], chrono: false };
@@ -70,7 +71,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, st
       // Qui veut gagner des millions en ligne
       case "mq":
         O.cur = null; O.watch = !!m.watch; if (!m.watch) O.mtag = m.tag;
-        mu.render({ n: m.n, who: m.watch ? "Vous regardez" : "", tag: m.tag, q: m.q, img: m.img, options: m.options, jokers: m.jok, time: m.time, total: m.total, watch: m.watch, info: m.watch ? watchInfo() : millInfo() }, {
+        mu.render({ n: m.n, who: m.watch ? "Vous regardez" : "", avName: me().name, avPhoto: me().photo, tag: m.tag, q: m.q, img: m.img, options: m.options, jokers: m.jok, time: m.time, total: m.total, watch: m.watch, info: m.watch ? watchInfo() : millInfo() }, {
           pick: (i) => send({ t: "answer", i }),
           joker: (k) => send({ t: "mjoker", k }),
           stop: () => send({ t: "mstop" })
@@ -108,12 +109,13 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, st
     $("lobbyCode").textContent = m.code;
     const ul = $("lobbyList");
     ul.replaceChildren();
+    O.pl = Object.fromEntries(m.players.map((p) => [p.id, p])); // pour afficher les photos pendant la partie
     m.players.forEach((p, i) => {
       const li = document.createElement("li");
       li.className = "chip";
       li.style.background = PALETTE[(p.ci || 0) % PALETTE.length];
       li.style.setProperty("--i", i);
-      if (p.photo) { const im = document.createElement("img"); im.className = "avatar"; im.alt = ""; im.referrerPolicy = "no-referrer"; im.src = p.photo; li.append(im); }
+      li.append(avatarEl(p.name, p.photo));
       const s = document.createElement("span");
       s.textContent = p.name + (p.id === m.host ? " · hôte" : "");
       li.append(s);
@@ -170,6 +172,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, st
     const card = $("card");
     card.classList.remove("flipped"); card.style.animation = "none"; void card.offsetWidth; card.style.animation = "";
     $("whoName").textContent = mine ? `${m.name} (vous)` : m.name;
+    $("whoAv").replaceChildren(avatarEl(m.name, photoOf(m.who), true));
     $("whoName").classList.remove("retry");
     $("whoLives").hidden = false; $("whoLives").textContent = `${HEART} ${m.lives}`;
     $("alive").hidden = false; $("alive").textContent = mine ? "C'est à vous de jouer" : `${m.alive} joueurs en vie`;
@@ -178,6 +181,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, st
     $("qText").textContent = m.q;
     const qi = $("qImg");
     if (m.img) { qi.hidden = false; qi.onerror = () => { qi.hidden = true; }; qi.src = m.img; } else { qi.hidden = true; qi.removeAttribute("src"); }
+    setAudio($, m.audio); // Devine la chanson
     $("qText").dataset.len = ql > 170 ? "xl" : ql > 120 ? "l" : ql > 80 ? "m" : "s";
     ["btnSwap", "dockGame", "dockJudge", "dockNext"].forEach((id) => ($(id).hidden = true));
     const box = $("mcq");
@@ -251,9 +255,10 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, st
       li.style.animationDelay = `${0.35 + i * 0.12}s`;
       const pos = document.createElement("span"); pos.className = "pos"; pos.textContent = i + 1;
       const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = p.name;
+      const av = avatarEl(p.name, p.photo || photoOf(p.id));
       const st = document.createElement("span"); st.className = "st";
       st.textContent = mill ? `${euros(p.points)} · ${p.score} bonne${p.score > 1 ? "s" : ""}` : chrono ? `${p.points} pts · ${p.score} bonne${p.score > 1 ? "s" : ""}` : `${p.score} bonne${p.score > 1 ? "s" : ""} · ${HEART} ${p.lives}`;
-      li.append(pos, nm, st);
+      li.append(pos, av, nm, st);
       ol.append(li);
     });
     show("s-end");
@@ -284,8 +289,9 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, st
       li.className = (p.id === O.you ? "me" : "") + (p.done ? " done" : "");
       const pos = document.createElement("span"); pos.className = "pos"; pos.textContent = i + 1;
       const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = p.id === O.you ? "Vous" : p.name;
+      const av = avatarEl(p.name, photoOf(p.id));
       const pt = document.createElement("span"); pt.className = "pt"; pt.textContent = `${p.points} pts`;
-      li.append(pos, nm, pt);
+      li.append(pos, av, nm, pt);
       return li;
     }));
     ol.hidden = false;
@@ -318,6 +324,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, st
     const card = $("card");
     card.classList.remove("flipped"); card.style.animation = "none"; void card.offsetWidth; card.style.animation = "";
     $("whoName").textContent = me().name || "Vous";
+    $("whoAv").replaceChildren(avatarEl(me().name, me().photo, true));
     $("whoName").classList.remove("retry");
     $("whoLives").hidden = false; $("whoLives").textContent = `${m.points} pts`;
     $("alive").hidden = false; $("alive").textContent = rankText();
@@ -328,6 +335,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, st
     $("qText").dataset.len = ql > 170 ? "xl" : ql > 120 ? "l" : ql > 80 ? "m" : "s";
     const qi = $("qImg");
     if (m.img) { qi.hidden = false; qi.onerror = () => { qi.hidden = true; }; qi.src = m.img; } else { qi.hidden = true; qi.removeAttribute("src"); }
+    setAudio($, m.audio); // Devine la chanson
     ["btnSwap", "dockGame", "dockJudge", "dockNext"].forEach((id) => ($(id).hidden = true));
     const box = $("mcq");
     box.replaceChildren();
