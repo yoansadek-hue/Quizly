@@ -432,3 +432,6 @@ img{-webkit-user-drag:none;user-drag:none}
 .profthemes .bar i{display:block;height:100%;background:var(--sun)}
 .profthemes .v{color:var(--lilac);white-space:nowrap}
 @media (min-width:700px){.profgrid{grid-template-columns:repeat(3,1fr)} .profthemes li{font-size:17px}}
+
+/* 2.5.5 : choix de la difficulté évolutive */
+.subh{margin:22px 0 4px}
