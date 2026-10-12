@@ -32,7 +32,22 @@
   .chip{display:inline-flex;align-items:center;gap:.5em;padding:.3em .9em;border:3px solid var(--ink);border-radius:99px;background:var(--lilac);color:var(--ink);font:800 clamp(16px,1.5vw,26px) var(--font)}
   .code{font:800 clamp(70px,12vw,220px) var(--font);letter-spacing:.12em;color:var(--sun);line-height:1;margin:1vh 0}
   .back{position:fixed;left:2vw;bottom:2vh;color:var(--lilac);font:800 clamp(14px,1.2vw,20px) var(--font);text-decoration:none}
-  .qr.big{width:clamp(220px,40vh,460px);height:clamp(220px,40vh,460px);margin:2vh 0}
+  /* salon : tout tient sur un écran, en deux colonnes */
+  .lobby{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:5vw;padding:5vh 6vw}
+  .lobbyL{display:flex;flex-direction:column;align-items:center;gap:2.5vh;text-align:center}
+  .ttl{font:800 clamp(26px,6vh,72px) var(--font);margin:0;line-height:1}
+  .qr.big{width:min(56vh,42vw);height:min(56vh,42vw)}
+  .how{font-size:clamp(15px,2.6vh,30px);color:var(--lilac);margin:0}
+  .lobbyR{display:flex;flex-direction:column;align-items:flex-start;gap:2.5vh;min-width:0;max-height:90vh;overflow:hidden}
+  .lobbyR .logo{margin:0}
+  .info{font:800 clamp(18px,3vh,36px) var(--font);color:var(--white);margin:0}
+  .lobbyR .players{justify-content:flex-start;margin:0;max-height:46vh;overflow:hidden}
+  .lobbyR .msg{margin:0;font-size:clamp(16px,2.8vh,32px)}
+  .btn.small{font-size:clamp(14px,2vh,22px);padding:10px 22px;margin:0}
+  @media (max-aspect-ratio:1/1){ /* écran vertical : une seule colonne */
+    .lobby{grid-template-columns:1fr;justify-items:center;text-align:center}
+    .lobbyR{align-items:center} .lobbyR .players{justify-content:center}
+  }
   .qr{width:clamp(160px,24vh,320px);height:clamp(160px,24vh,320px);background:var(--white);border:5px solid var(--ink);border-radius:20px;padding:8px;box-shadow:6px 6px 0 var(--ink)}
   .url{font:800 clamp(18px,2vw,34px) var(--font);background:var(--white);color:var(--ink);padding:.3em .8em;border-radius:14px;border:3px solid var(--ink)}
   .players{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:3vh;max-width:90vw}
@@ -82,14 +97,20 @@
 </section>
 
 <!-- 2. Salle d'attente -->
-<section id="tLobby" class="screen center" hidden>
-  <p class="big">Scannez pour jouer</p>
-  <img id="tQr" class="qr big" alt="QR code pour rejoindre">
-  <p class="lead">Dans l'appli Quizly : <b>En ligne</b> › <b>📷 Scanner la télé</b>. Le premier qui scanne choisit le mode et lance la partie.</p>
-  <p class="lead" id="tLobbyInfo"></p>
-  <div class="players" id="tPlayers"></div>
-  <p class="msg" id="tWait">En attente du premier joueur…</p>
-  <button class="btn" id="tSound">🔊 Activer le son</button>
+<section id="tLobby" class="screen lobby" hidden>
+  <!-- à gauche : le QR code ; à droite : les joueurs -->
+  <div class="lobbyL">
+    <p class="ttl">Scannez pour jouer</p>
+    <img id="tQr" class="qr big" alt="QR code pour rejoindre">
+    <p class="how">Appli Quizly › <b>En ligne</b> › <b>📷 Scanner la télé</b></p>
+  </div>
+  <div class="lobbyR">
+    <p class="logo">Quizly<small>par YoskanGame</small></p>
+    <p class="info" id="tLobbyInfo"></p>
+    <div class="players" id="tPlayers"></div>
+    <p class="msg" id="tWait">En attente du premier joueur…</p>
+    <button class="btn small" id="tSound">🔊 Activer le son</button>
+  </div>
   <a class="back" href="./">← Retour à Quizly</a>
 </section>
 
