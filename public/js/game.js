@@ -4,7 +4,7 @@ import { initOnline } from "./online.js";
 import { makeLocal, LOCAL_THEMES, euros } from "./local.js";
 import { millionUI, millionLocal } from "./million.js";
 
-const VERSION = "2.5.4"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.5.5"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -25,7 +25,7 @@ const S = {
   uid: null, firstName: "", count: 4, slots: [], players: [], themes: new Set(), active: new Set(), rand: false, photo: "",
   i: -1, diff: 1, q: null, buf: [], loading: null, joker: false, locked: false, tid: null, left: 30,
   rest: [], qn: 0, editRoom: false, elim: 0, mode: "classic", played: new Set(), asked: [], inGame: false, pending: false, resume: false,
-  cfg: { time: 30, jokers: 1, lives: 2 }
+  cfg: { time: 30, jokers: 1, lives: 2, auto: false } // auto : difficulté évolutive
 };
 const M = () => MODES[S.mode];
 document.querySelectorAll(".ver").forEach((e) => (e.textContent = `Quizly v${VERSION} · par YoskanGame`));
@@ -48,9 +48,9 @@ const PLAYING = ["s-game", "s-million", "s-level", "s-revive", "s-load", "s-bet"
 let curScreen = "";
 function userLabel() {
   let on = false; try { on = online.active(); } catch {}
-  const quit = PLAYING.includes(curScreen) && (S.inGame || on);
-  $("userName").textContent = `${S.firstName || "Compte"} · ${quit ? "Quitter" : "Menu"}`;
-  $("btnUser").setAttribute("aria-label", quit ? "Quitter la partie" : "Retour au choix du mode");
+  const quit = (PLAYING.includes(curScreen) && (S.inGame || on)) || (on && curScreen === "s-lobby");
+  $("userName").textContent = `${S.firstName || "Compte"} · ${quit ? "Quitter" : "Profil"}`;
+  $("btnUser").setAttribute("aria-label", quit ? "Quitter la partie" : "Ouvrir mon profil");
 }
 function show(id) {
   curScreen = id;
@@ -196,7 +196,11 @@ function opts(box, values, current, label, onPick) {
     box.append(b);
   });
 }
-const renderTime = () => opts($("optTime"), TIMES, S.cfg.time, (v) => (v ? `${v} s` : "Sans limite"), (v) => (S.cfg.time = v));
+function renderTime() {
+  opts($("optTime"), TIMES, S.cfg.time, (v) => (v ? `${v} s` : "Sans limite"), (v) => (S.cfg.time = v));
+  $("autoRow").hidden = !!M().million; // le Millionnaire a déjà son échelle
+  opts($("optAuto"), [true, false], S.cfg.auto, (v) => (v ? "Évolutive" : "Au choix"), (v) => (S.cfg.auto = v));
+}
 function renderJokers() {
   $("jkTitle").textContent = "Jokers par joueur"; $("jkText").textContent = "Un joker propose 4 choix de réponse.";
   $("btnStart").textContent = "Lancer la partie";
@@ -549,7 +553,8 @@ function afterTurn() {
   if (M().teams) {
     if (S.turn >= S.order.length * TEAM_ROUNDS) return endTeams();
     if (S.turn % S.order.length) return nextTurn();
-    // un tour complet de toutes les équipes : on propose le niveau
+    // un tour complet de toutes les équipes : niveau suivant (automatique) ou proposé
+    if (S.cfg.auto) return chooseLevel(true);
     $("lvName").textContent = `${S.diff} · ${LEVELS[S.diff]}`;
     $("btnUp").hidden = S.diff >= 5; $("btnStay").hidden = false; $("lvWait").hidden = true;
     $("btnUp").textContent = `Augmenter la difficulté (${10 * (S.diff + 1)} pts)`;
@@ -561,6 +566,7 @@ function afterTurn() {
   S.played.add(S.i);
   if (!alive().every((p) => S.played.has(S.players.indexOf(p)))) return nextTurn();
   S.played.clear();
+  if (S.cfg.auto) return chooseLevel(true); // difficulté évolutive : on monte sans demander
   $("lvName").textContent = `${S.diff} · ${LEVELS[S.diff]}`;
   $("btnUp").hidden = S.diff >= 5;
   $("btnStay").hidden = false; $("lvWait").hidden = true;
@@ -734,9 +740,6 @@ function renderProfile() {
   }));
   $("profEmpty").hidden = themes.length > 0;
 }
-$("btnProfile").onclick = () => { renderProfile(); show("s-profile"); };
-$("btnResetStats").onclick = () => ask("Effacer vos statistiques ?", "Les taux de réussite par thème et le nombre de parties seront remis à zéro. Les records sont conservés.", "Effacer",
-  () => { try { localStorage.removeItem(statKey()); } catch {} renderProfile(); show("s-profile"); });
 
 /* ---------- Qui veut gagner des millions (sur l'appareil) ---------- */
 const mui = millionUI($);
@@ -949,7 +952,7 @@ $("btnUser").onclick = () => {
     ask("Quitter la salle ?", "Vous quitterez la partie en cours.", "Quitter", () => { S.editRoom = false; online.setEditing(false); online.leave(); show("s-mode"); });
     return;
   }
-  if (!S.inGame) { stopTimer(); return show("s-mode"); }
+  if (!S.inGame) { stopTimer(); renderProfile(); return show("s-profile"); } // hors partie : le profil
   S.resume = !!S.tid; stopTimer();
   ask("Quitter la partie ?", "Êtes-vous sûr ? La partie en cours sera perdue.", "Quitter",
     () => { S.inGame = false; S.resume = false; stopTimer(); million.quit(); show("s-mode"); },
@@ -1007,7 +1010,7 @@ $("btnTime").onclick = () => {
   else startGame();
 };
 function submitRoom() {
-  const cfg = { kind: M().chrono ? "chrono" : M().million ? "million" : "survie", themes: [...S.active], time: S.cfg.time, lives: S.cfg.lives };
+  const cfg = { auto: S.cfg.auto, kind: M().chrono ? "chrono" : M().million ? "million" : "survie", themes: [...S.active], time: S.cfg.time, lives: S.cfg.lives };
   if (S.editRoom) { S.editRoom = false; online.setEditing(false); online.config(cfg); } // l'hôte modifie la salle
   else online.create(cfg);
 }
@@ -1074,7 +1077,7 @@ $("btnLobbyEdit").onclick = () => {
   S.mode = KIND_MODE[c.kind] || "online"; // garde le type de salle, même si l'hôte a changé
   S.rand = c.themes.length >= THEMES.length;
   S.themes = new Set(S.rand ? [] : c.themes.filter((t) => THEMES.includes(t)));
-  S.cfg.time = c.time; S.cfg.lives = c.lives;
+  S.cfg.time = c.time; S.cfg.lives = c.lives; S.cfg.auto = !!c.auto;
   renderRoomModes(S.mode); show("s-roomtype"); // l'hôte peut aussi changer le mode du salon
 };
 $("btnRoomJoin").onclick = () => online.join($("roomCode").value);
