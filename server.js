@@ -138,18 +138,23 @@ const newCode = () => { let c; do { c = Array.from({ length: 4 }, () => ALPHA[Ma
 const send = (ws, o) => { if (ws.readyState === 1) ws.send(JSON.stringify(o)); };
 const players = (room) => [...room.players.values()];
 const alive = (room) => players(room).filter((p) => !p.dead);
-const cast = (room, o) => players(room).forEach((p) => send(p.ws, o));
+// les écrans TV (mode Kahoot) reçoivent tout ce qui est envoyé à la salle
+const tvs = (room) => room.tvs || (room.tvs = new Set());
+const cast = (room, o) => { players(room).forEach((p) => send(p.ws, o)); tvs(room).forEach((ws) => send(ws, o)); };
 const clean = (s, n = 20) => String(s || "").replace(/[<>]/g, "").trim().slice(0, n);
 const clamp = (v, a, b) => Math.min(b, Math.max(a, Number.isFinite(v) ? v : a));
 const shuffle = (a) => a.map((x) => [Math.random(), x]).sort((p, q) => p[0] - q[0]).map((x) => x[1]);
 
 function lobbyMsg(room, p) {
   return {
-    t: "lobby", code: room.code, host: room.hostId, you: p.id, phase: room.phase, cfg: room.cfg,
+    t: "lobby", code: room.code, host: room.hostId, you: p.id, phase: room.phase, cfg: room.cfg, tv: tvs(room).size > 0,
     players: players(room).filter((x) => !x.left).map(({ id, name, photo, ci }) => ({ id, name, photo, ci }))
   };
 }
-const castLobby = (room) => players(room).forEach((p) => !p.left && send(p.ws, lobbyMsg(room, p)));
+const castLobby = (room) => {
+  players(room).forEach((p) => !p.left && send(p.ws, lobbyMsg(room, p)));
+  tvs(room).forEach((ws) => send(ws, lobbyMsg(room, { id: null })));
+};
 
 function okPhoto(s) {
   s = String(s || "");
@@ -463,7 +468,7 @@ async function mNext(room, again) {
     Object.assign(p, { mq: { ...q, options: shuffle(q.o) }, mpick: null, mstop: false, mremoved: [] });
     mSend(room, p);
   });
-  watchers(room).forEach((p) => send(p.ws, { // les éliminés suivent la partie en direct
+  [...watchers(room).map((p) => p.ws), ...tvs(room)].forEach((w) => send(w, { // les éliminés et la télé suivent la partie en direct
     t: "mq", watch: true, n: room.mn, tag: `${q.t} · ${LEVELS[millionLevel(room.mn)]}`, q: q.q, img: q.img || null, audio: q.audio || null,
     options: room.mshared.options, jok: {}, time: room.cfg.time, total: room.cfg.time
   }));
@@ -531,7 +536,7 @@ function mReveal(room) {
     results.push({ name: p.name, correct: ok, out: p.mout, won: p.mwon });
     p.mq = null;
   });
-  if (room.mshared) watching.forEach((p) => send(p.ws, { t: "mspec", answer: room.mshared.a, results }));
+  if (room.mshared) [...watching.map((p) => p.ws), ...tvs(room)].forEach((w) => send(w, { t: "mspec", answer: room.mshared.a, results }));
   mBoard(room);
   room.mn++;
   room.timer = setTimeout(() => (inGame(room).length ? mNext(room) : mEnd(room)), inGame(room).length ? 3500 : 2500);
@@ -553,6 +558,19 @@ function mEnd(room) {
   });
 }
 
+function dropTv(ws) {
+  const room = ws.tvRoom; ws.tvRoom = null;
+  if (!room) return;
+  tvs(room).delete(ws);
+  if (rooms.has(room.code)) tvNotify(room);
+}
+// prévient les téléphones qu'une télé est (ou n'est plus) branchée, sans les renvoyer au salon en pleine partie
+function tvNotify(room) {
+  if (room.phase === "lobby" || room.phase === "end") return castLobby(room);
+  players(room).forEach((p) => !p.left && send(p.ws, { t: "tvflag", tv: tvs(room).size > 0, kind: room.cfg.kind }));
+  tvs(room).forEach((w) => send(w, lobbyMsg(room, { id: null }))); // la télé apprend les noms et photos
+}
+
 function leave(ws) {
   const room = ws.room; if (!room) return;
   ws.room = null;
@@ -561,7 +579,11 @@ function leave(ws) {
   if (lobbyLike) room.players.delete(me.id);
   else { me.left = true; if (!me.dead) { me.dead = true; me.outAt = ++room.elim; } }
   const present = players(room).filter((p) => !p.left);
-  if (!present.length) { clearTimeout(room.timer); rooms.delete(room.code); return; }
+  if (!present.length) { // plus personne : la salle ferme (les écrans TV sont prévenus)
+    clearTimeout(room.timer); rooms.delete(room.code);
+    tvs(room).forEach((t) => { send(t, { t: "closed" }); t.tvRoom = null; });
+    return;
+  }
   if (room.hostId === me.id) { room.hostId = present[0].id; cast(room, { t: "host", host: room.hostId }); }
   if (lobbyLike) return castLobby(room);
   if (room.cfg.kind === "chrono") { clearTimeout(me.ctimer); me.done = true; me.cq = null; castBoard(room); return checkChronoEnd(room); }
@@ -580,6 +602,19 @@ function readCfg(m) {
 }
 
 function handle(ws, m) {
+  if (m.t === "tv") { // un écran TV s'abonne à une salle (il ne joue pas)
+    const room = rooms.get(String(m.code || "").toUpperCase().trim());
+    if (!room) return send(ws, { t: "error", msg: "Salle introuvable. Vérifiez le code affiché sur le téléphone." });
+    if (ws.room) leave(ws);
+    if (ws.tvRoom) dropTv(ws);
+    ws.tvRoom = room;
+    tvs(room).add(ws);
+    send(ws, { t: "tvok", code: room.code });
+    tvNotify(room); // les téléphones savent qu'une télé est branchée
+    if (room.phase === "chrono") castBoard(room);
+    if (room.phase === "mq" || room.phase === "mres") mBoard(room);
+    return;
+  }
   if (m.t === "create") {
     if (ws.room) leave(ws);
     const cfg = readCfg(m);
@@ -641,6 +676,6 @@ wss.on("connection", (ws, req) => {
   ws.isAlive = true;
   ws.on("pong", () => (ws.isAlive = true));
   ws.on("message", (buf) => { let m; try { m = JSON.parse(buf); } catch { return; } try { handle(ws, m); } catch (e) { console.error(e); } });
-  ws.on("close", () => leave(ws));
+  ws.on("close", () => { if (ws.tvRoom) dropTv(ws); leave(ws); });
 });
 setInterval(() => wss.clients.forEach((ws) => { if (!ws.isAlive) return ws.terminate(); ws.isAlive = false; ws.ping(); }), 30000);
