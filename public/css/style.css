@@ -385,3 +385,17 @@ img{-webkit-user-drag:none;user-drag:none}
 @media (min-width:700px){.ladder li{font-size:15px;padding:6px 12px} .mjokers .chip{font-size:17px}}
 #s-million .who{font-size:26px;gap:10px} #mStep,#mWon{white-space:nowrap}
 @media (min-width:700px){#s-million .who{font-size:32px}}
+
+/* 2.5.3 : classement en direct du Chrono */
+.liveboard{list-style:none;margin:10px 0 4px;padding:8px 10px;display:grid;gap:4px;background:rgba(18,19,43,.35);border:2px solid var(--lilac);border-radius:14px}
+.liveboard li{display:flex;align-items:center;gap:8px;font:800 15px var(--font);color:var(--white)}
+.liveboard li .pos{min-width:2.2ch;color:var(--lilac)}
+.liveboard li .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.liveboard li .pt{color:var(--sun)}
+.liveboard li.me{background:var(--sun);color:var(--ink);border-radius:8px;padding:1px 6px;margin:0 -6px}
+.liveboard li.me .pos,.liveboard li.me .pt{color:var(--ink)}
+.liveboard li.done .nm::after{content:" · fini";color:var(--lilac);font-weight:500}
+.liveboard li.me.done .nm::after{color:#4a4d78}
+@media (min-width:700px){.liveboard li{font-size:17px}}
+/* Millionnaire : spectateur */
+#s-million.watch #mOpts .btn{pointer-events:none}
