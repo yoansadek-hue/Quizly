@@ -376,6 +376,7 @@ function checkChronoEnd(room) {
 // Tout le monde a la même question au même moment. Chacun a ses 3 jokers et peut s'arrêter.
 // Une erreur fait repartir avec le dernier palier ; celui qui repart avec le plus gagne.
 const inGame = (room) => players(room).filter((p) => !p.left && !p.mout);
+const watchers = (room) => players(room).filter((p) => !p.left && p.mout);
 
 function startMillion(room) {
   clearTimeout(room.timer);
@@ -414,11 +415,16 @@ async function mNext(room, again) {
   if (!now.length) return mEnd(room);
   room.phase = "mq";
   room.mEnd = Date.now() + room.cfg.time * 1000;
+  room.mshared = { ...q, options: shuffle(q.o) }; // la question que voient les spectateurs
   now.forEach((p) => {
     p.seen.add(q.q);
     Object.assign(p, { mq: { ...q, options: shuffle(q.o) }, mpick: null, mstop: false, mremoved: [] });
     mSend(room, p);
   });
+  watchers(room).forEach((p) => send(p.ws, { // les éliminés suivent la partie en direct
+    t: "mq", watch: true, n: room.mn, tag: `${q.t} · ${LEVELS[millionLevel(room.mn)]}`, q: q.q, img: q.img || null,
+    options: room.mshared.options, jok: {}, time: room.cfg.time, total: room.cfg.time
+  }));
   mBoard(room);
   if (room.cfg.time) room.timer = setTimeout(() => mReveal(room), room.cfg.time * 1000 + 1500);
 }
@@ -427,12 +433,14 @@ function mAnswer(room, p, i) {
   if (!Number.isInteger(i) || i < 0 || i >= p.mq.options.length || p.mremoved.includes(i)) return;
   p.mpick = i;
   send(p.ws, { t: "mlock", i });
+  mBoard(room); // les spectateurs voient qui a répondu
   mCheck(room);
 }
 function mStop(room, p) {
   if (room.phase !== "mq" || p.mout || p.mpick !== null || room.mn === 0) return;
   p.mstop = true;
   send(p.ws, { t: "mlock", i: -1 });
+  mBoard(room);
   mCheck(room);
 }
 async function mJoker(room, p, k) {
@@ -463,11 +471,13 @@ function mReveal(room) {
   if (room.phase !== "mq") return;
   clearTimeout(room.timer);
   room.phase = "mres";
+  const watching = watchers(room), results = [];
   inGame(room).forEach((p) => {
     const q = p.mq;
     if (p.mstop) {
       p.mout = true; p.mwon = wonAt(p.mn);
       send(p.ws, { t: "mres", correct: false, stopped: true, picked: -1, answer: q.a, won: p.mwon, out: true });
+      results.push({ name: p.name, stopped: true, won: p.mwon });
       return;
     }
     const ok = p.mpick !== null && q.options[p.mpick] === q.a;
@@ -476,15 +486,17 @@ function mReveal(room) {
       if (p.mn === 15) p.mout = true; // millionnaire !
     } else { p.mout = true; p.mwon = safeAt(p.mn); }
     send(p.ws, { t: "mres", correct: ok, picked: p.mpick ?? -1, answer: q.a, won: p.mwon, out: p.mout, top: p.mn === 15, timeout: p.mpick === null });
+    results.push({ name: p.name, correct: ok, out: p.mout, won: p.mwon });
     p.mq = null;
   });
+  if (room.mshared) watching.forEach((p) => send(p.ws, { t: "mspec", answer: room.mshared.a, results }));
   mBoard(room);
   room.mn++;
   room.timer = setTimeout(() => (inGame(room).length ? mNext(room) : mEnd(room)), inGame(room).length ? 3500 : 2500);
 }
 function mBoard(room) {
   const list = players(room).filter((p) => !p.left).sort((a, b) => b.mwon - a.mwon || b.mn - a.mn)
-    .map((p) => ({ id: p.id, name: p.name, won: p.mwon, n: p.mn, out: !!p.mout }));
+    .map((p) => ({ id: p.id, name: p.name, won: p.mwon, n: p.mn, out: !!p.mout, answered: room.phase === "mq" && !p.mout && (p.mpick !== null || p.mstop) }));
   cast(room, { t: "mboard", list });
 }
 function mEnd(room) {
