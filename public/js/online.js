@@ -127,7 +127,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, st
     $("lobbyInfo").textContent = chrono
       ? `Chrono 60 s · ${plural(m.cfg.themes.length, "thème")} · le plus de points gagne`
       : mill ? `Qui veut gagner des millions · toutes les catégories · ${m.cfg.time ? m.cfg.time + " s par question" : "sans limite"}`
-      : `${plural(m.cfg.themes.length, "thème")} · ${m.cfg.time ? m.cfg.time + " s" : "sans limite"} · ${plural(m.cfg.lives, "vie")}`;
+      : `${plural(m.cfg.themes.length, "thème")} · ${m.cfg.time ? m.cfg.time + " s" : "sans limite"} · ${plural(m.cfg.lives, "vie")}${m.cfg.auto ? " · difficulté évolutive" : ""}`;
     $("btnLobbyStart").hidden = !host;
     $("btnLobbyStart").disabled = m.players.length < need;
     $("btnLobbyStart").textContent = m.players.length < need ? "Il faut au moins 2 joueurs" : chrono ? "Lancer le chrono" : mill ? "Lancer l'échelle" : "Lancer la partie";
