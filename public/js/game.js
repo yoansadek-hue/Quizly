@@ -3,8 +3,9 @@ import { watch, signIn, logout } from "./auth.js";
 import { initOnline } from "./online.js";
 import { makeLocal, LOCAL_THEMES, SONG_THEME, euros } from "./local.js";
 import { millionUI, millionLocal, avatarEl, setAudio } from "./million.js";
+import { startScan, stopScan, tvCodeFrom } from "./scan.js";
 
-const VERSION = "2.6.1"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.6.2"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -53,6 +54,7 @@ function userLabel() {
   $("btnUser").setAttribute("aria-label", quit ? "Quitter la partie" : "Ouvrir mon profil");
 }
 function show(id) {
+  if (curScreen === "s-scan" && id !== "s-scan") stopScan(); // on coupe la caméra en quittant le scanner
   curScreen = id;
   const au = document.getElementById("qAudio"); if (au && id !== "s-game") au.pause(); // l'extrait s'arrête quand on quitte la question
   document.querySelectorAll(".screen").forEach((s) => (s.hidden = s.id !== id));
@@ -976,8 +978,8 @@ async function enterLocal(p) {
   enter(uid, p.name, p.photo);
 }
 
-// lien de partage : quizly…/?join=ABCD rejoint le salon dès que le joueur est connecté
-let pendingJoin = new URLSearchParams(location.search).get("join");
+// QR code de la télé scanné avec l'appareil photo du téléphone : quizly…/?tv=ABCDEFGH rejoint le salon télé dès la connexion
+let pendingJoin = new URLSearchParams(location.search).get("tv");
 function enter(uid, name, photo) {
   S.uid = uid;
   setUser(name, photo);
@@ -985,10 +987,9 @@ function enter(uid, name, photo) {
   renderModes();
   show("s-mode");
   if (pendingJoin) {
-    const code = pendingJoin.toUpperCase().slice(0, 4); pendingJoin = null;
+    const code = pendingJoin.toUpperCase().slice(0, 12); pendingJoin = null;
     try { history.replaceState(null, "", location.pathname); } catch {}
     chooseMode("online");
-    $("roomCode").value = code;
     online.join(code);
   }
 }
@@ -1149,5 +1150,19 @@ $("btnLobbyEdit").onclick = () => {
   renderRoomModes(S.mode); show("s-roomtype"); // l'hôte peut aussi changer le mode du salon
 };
 $("btnRoomJoin").onclick = () => online.join($("roomCode").value);
+// scanner le QR code de la télé depuis l'appli : connexion directe au salon télé
+$("btnScan").onclick = () => {
+  $("scanMsg").textContent = "";
+  show("s-scan");
+  const onCode = (text) => {
+    const code = tvCodeFrom(text);
+    if (!code) { $("scanMsg").textContent = "Ce QR code n'est pas celui d'une télé Quizly."; return setTimeout(() => curScreen === "s-scan" && startScan($("scanVideo"), onCode, onErr), 1500); }
+    stopScan();
+    $("scanMsg").textContent = "Connexion à la télé…";
+    online.join(code);
+  };
+  const onErr = (msg) => ($("scanMsg").textContent = msg);
+  startScan($("scanVideo"), onCode, onErr);
+};
 $("roomCode").addEventListener("input", (e) => (e.target.value = e.target.value.toUpperCase()));
 $("roomCode").addEventListener("keydown", (e) => e.key === "Enter" && online.join($("roomCode").value));
