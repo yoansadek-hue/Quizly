@@ -195,7 +195,7 @@ export function millionLocal({ $, show, flash, ask, ui, getQ, onEnd, stat, photo
 }
 
 /* ---------- Photo de profil (ou initiale colorée) ---------- */
-const AV_COLORS = ["#ffd84d", "#29d9a1", "#ff5c5c", "#c9ceff", "#ff9f43", "#7bd3ff"];
+const AV_COLORS = ["#ffe14d", "#34e3b0", "#ff6b8b", "#62c7ff", "#c4b8ff", "#ffb36b"];
 export function avatarEl(name, photo, big) {
   const cls = "avatar" + (big ? " big" : "");
   if (photo) {
