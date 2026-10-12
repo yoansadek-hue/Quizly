@@ -435,3 +435,13 @@ img{-webkit-user-drag:none;user-drag:none}
 
 /* 2.5.5 : choix de la difficulté évolutive */
 .subh{margin:22px 0 4px}
+
+/* 2.5.6 : menu en 3 parties */
+.modesec{margin:22px 0 10px;font:800 20px var(--font);color:var(--lilac)}
+#modes .modesec:first-child{margin-top:8px}
+#modes .modes{display:grid;gap:14px}
+@media (min-width:700px){
+  #modes .modes{grid-template-columns:repeat(2,1fr);gap:18px}
+  #modes .mode[data-m=million]{grid-column:auto}
+  #modes .modesec{font-size:24px}
+}
