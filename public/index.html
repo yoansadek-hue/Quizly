@@ -99,8 +99,12 @@ addEventListener("error", function (e) {
   <section id="s-lobby" class="screen" hidden>
     <button class="goback" id="btnLeave">← Quitter la salle</button>
     <h2>Salle d'attente</h2>
-    <p class="lead small">Donnez ce code à vos amis (touchez-le pour le copier).</p>
+    <p class="lead small">Scannez le QR code, partagez le lien ou donnez le code (touchez-le pour le copier).</p>
     <button class="code" id="lobbyCode" aria-label="Copier le code"></button>
+    <div class="share">
+      <img id="lobbyQr" class="qr" alt="QR code pour rejoindre le salon" width="170" height="170">
+      <button class="btn white sm" id="btnShare">Partager le lien</button>
+    </div>
     <p class="lead small meta" id="lobbyInfo"></p>
     <p class="lead small meta" id="lobbyTv"></p>
     <p class="lead small meta" id="lobbyCount"></p>
