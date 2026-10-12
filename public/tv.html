@@ -31,6 +31,7 @@
   .top{display:flex;justify-content:space-between;align-items:center;gap:2vw}
   .chip{display:inline-flex;align-items:center;gap:.5em;padding:.3em .9em;border:3px solid var(--ink);border-radius:99px;background:var(--lilac);color:var(--ink);font:800 clamp(16px,1.5vw,26px) var(--font)}
   .code{font:800 clamp(70px,12vw,220px) var(--font);letter-spacing:.12em;color:var(--sun);line-height:1;margin:1vh 0}
+  .back{position:fixed;left:2vw;bottom:2vh;color:var(--lilac);font:800 clamp(14px,1.2vw,20px) var(--font);text-decoration:none}
   .qr.big{width:clamp(220px,40vh,460px);height:clamp(220px,40vh,460px);margin:2vh 0}
   .qr{width:clamp(160px,24vh,320px);height:clamp(160px,24vh,320px);background:var(--white);border:5px solid var(--ink);border-radius:20px;padding:8px;box-shadow:6px 6px 0 var(--ink)}
   .url{font:800 clamp(18px,2vw,34px) var(--font);background:var(--white);color:var(--ink);padding:.3em .8em;border-radius:14px;border:3px solid var(--ink)}
@@ -89,6 +90,7 @@
   <div class="players" id="tPlayers"></div>
   <p class="msg" id="tWait">En attente du premier joueur…</p>
   <button class="btn" id="tSound">🔊 Activer le son</button>
+  <a class="back" href="./">← Retour à Quizly</a>
 </section>
 
 <!-- 3. Chargement / messages -->
