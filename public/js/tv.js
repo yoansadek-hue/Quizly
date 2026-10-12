@@ -1,6 +1,7 @@
 // Quizly TV : la télé s'abonne à un salon et affiche la partie en grand. Elle ne joue pas.
 import { avatarEl } from "./million.js";
 import { euros, PRIZES } from "./local.js";
+import { THEMES } from "./questions.js";
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -13,32 +14,31 @@ function show(id) {
 const plural = (n, w) => `${n} ${w}${n > 1 ? "s" : ""}`;
 const photo = (id) => (T.pl[id] && T.pl[id].photo) || "";
 
-/* ---------- connexion ---------- */
-function connect(code) {
-  T.code = code.toUpperCase().trim();
-  if (T.code.length !== 4) { $("tMsg").textContent = "Le code fait 4 lettres."; return; }
-  $("tMsg").textContent = "Connexion…";
-  if (T.ws) try { T.ws.close(); } catch {}
+/* ---------- connexion : la télé crée son propre salon (caché, rejoint uniquement par le QR code) ---------- */
+const sendWs = (o) => T.ws && T.ws.readyState === 1 && T.ws.send(JSON.stringify(o));
+function connect() {
+  $("tMsg").textContent = T.code ? "Reconnexion…" : "Préparation du salon télé…";
+  $("tGo").hidden = true;
+  if (T.ws) try { T.ws.onclose = null; T.ws.close(); } catch {}
   const ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`);
   T.ws = ws;
-  ws.onopen = () => ws.send(JSON.stringify({ t: "tv", code: T.code }));
+  ws.onopen = () => sendWs(T.code ? { t: "tv", code: T.code } : { t: "tvcreate", themes: THEMES }); // on retrouve le même salon après une coupure
   ws.onmessage = (e) => { let m; try { m = JSON.parse(e.data); } catch { return; } onMsg(m); };
-  ws.onclose = () => {
-    if (T.ws !== ws) return;
-    if (T.code) setTimeout(() => T.ws === ws && connect(T.code), 3000); // le serveur gratuit peut couper : on se reconnecte
-  };
+  ws.onclose = () => { if (T.ws === ws) setTimeout(() => T.ws === ws && connect(), 3000); }; // le serveur gratuit peut couper : on se reconnecte
 }
-$("tGo").onclick = () => { $("tAudio").play().catch(() => {}); connect($("tCode").value); }; // le clic autorise aussi le son
-$("tCode").addEventListener("keydown", (e) => e.key === "Enter" && $("tGo").click());
-const qs = new URLSearchParams(location.search).get("code"); // tv.html?code=ABCD
-if (qs) { $("tCode").value = qs; }
+$("tGo").onclick = () => { T.code = ""; connect(); };
+$("tSound").onclick = () => { $("tAudio").play().catch(() => {}); $("tAudio").pause(); $("tSound").hidden = true; }; // un clic autorise le son des extraits
+connect();
 
 /* ---------- messages du serveur ---------- */
 function onMsg(m) {
   switch (m.t) {
-    case "error": $("tMsg").textContent = m.msg; T.code = ""; show("tJoin"); break;
-    case "closed": $("tMsg").textContent = "La salle est fermée."; T.code = ""; show("tJoin"); break;
-    case "tvok": $("tMsg").textContent = ""; break;
+    case "error": // salon perdu (serveur redémarré…) : on en recrée un
+      if (T.code) { T.code = ""; sendWs({ t: "tvcreate", themes: THEMES }); }
+      else { $("tMsg").textContent = m.msg; $("tGo").hidden = false; show("tJoin"); }
+      break;
+    case "closed": T.code = ""; sendWs({ t: "tvcreate", themes: THEMES }); break;
+    case "tvok": T.code = m.code; break;
     case "lobby": renderLobby(m); break;
     case "load": stopBar(); $("tLoadText").textContent = m.msg || "L'IA prépare la question…"; show("tLoad"); break;
     case "fail": stopBar(); $("tLoadText").textContent = m.msg; show("tLoad"); break;
@@ -63,12 +63,12 @@ function renderLobby(m) {
   T.kind = m.cfg.kind || "survie";
   T.pl = Object.fromEntries(m.players.map((p) => [p.id, p]));
   if (m.phase !== "lobby") return; // partie en cours ou podium affiché : on ne repasse pas au salon
-  $("tUrl").textContent = location.host;
-  $("tLobbyCode").textContent = m.code;
-  const link = `${location.origin}/?join=${m.code}`; // le QR code ouvre le jeu et rejoint le salon
+  const link = `${location.origin}/?tv=${m.code}`; // lu par le scanner de l'appli (ou l'appareil photo du téléphone)
   if ($("tQr").dataset.code !== m.code) { $("tQr").dataset.code = m.code; $("tQr").src = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&margin=8&data=${encodeURIComponent(link)}`; }
   const kind = { survie: "Survie", chrono: "Chrono 60 s", million: "Qui veut gagner des millions" }[T.kind];
-  $("tLobbyInfo").textContent = `${kind} · ${plural(m.players.length, "joueur")}`;
+  $("tLobbyInfo").textContent = m.players.length ? `${kind} · ${plural(m.players.length, "joueur")}` : "";
+  const host = T.pl[m.host];
+  $("tWait").textContent = host ? `${host.name} choisit le mode et lance la partie…` : "En attente du premier joueur…";
   $("tPlayers").replaceChildren(...m.players.map((p) => {
     const c = document.createElement("span"); c.className = "chip";
     c.append(avatarEl(p.name, p.photo), document.createTextNode(p.name));
