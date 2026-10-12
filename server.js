@@ -1,7 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import { WebSocketServer } from "ws";
-import { LOCAL_THEMES, makeLocal, PRIZES, millionLevel, wonAt, safeAt, publicVote } from "./public/js/local.js";
+import { LOCAL_THEMES, makeLocal, PRIZES, millionLevel, wonAt, safeAt, publicVote, SONG_THEME, songPool, songLabel, SONGS } from "./public/js/local.js";
 
 const app = express();
 app.use(express.json({ limit: "60kb" }));
@@ -72,6 +72,47 @@ async function generate(themes, diff, count, avoid) {
 }
 
 const hits = new Map(); // 10 requêtes / minute / IP
+/* ---------- Devine la chanson : extraits de 30 s trouvés sur iTunes ---------- */
+const songCache = new Map(); // titre → adresse de l'extrait
+const plain = (x) => String(x).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+async function itunesPreview(s) {
+  if (songCache.has(s.title)) return songCache.get(s.title);
+  const ctl = new AbortController(), stop = setTimeout(() => ctl.abort(), 5000);
+  try {
+    const url = `https://itunes.apple.com/search?term=${encodeURIComponent(`${s.artist} ${s.title}`)}&entity=song&media=music&limit=15&country=FR`;
+    const r = await fetch(url, { signal: ctl.signal });
+    if (!r.ok) return null;
+    const { results = [] } = await r.json();
+    const words = plain(s.artist).split(" ").filter((w) => w.length >= 3);
+    const hit = results.find((x) => x.previewUrl
+      && plain(x.trackName).startsWith(plain(s.title))
+      && (words.length === 0 || words.some((w) => plain(x.artistName).includes(w)))
+      && !/karaok|tribute|cover|instrumental|reprise/i.test(`${x.trackName} ${x.collectionName} ${x.artistName}`)); // pas de karaoké ni de reprise
+    if (hit) songCache.set(s.title, hit.previewUrl);
+    return hit ? hit.previewUrl : null;
+  } catch { return null; } finally { clearTimeout(stop); }
+}
+async function songQuestion(d) {
+  const pool = songPool(d);
+  for (let t = 0; t < 5; t++) {
+    const s = pool[Math.floor(Math.random() * pool.length)];
+    const audio = await itunesPreview(s);
+    if (!audio) continue;
+    const near = shuffle(SONGS.filter((x) => x !== s && Math.abs(x.n - s.n) <= 1)).slice(0, 3);
+    return { t: SONG_THEME, d, q: "Quelle est cette chanson ?", a: songLabel(s), o: [songLabel(s), ...near.map(songLabel)], audio, key: `~song:${s.title}` };
+  }
+  throw new Error("Extrait musical introuvable.");
+}
+// question « sans IA » : l'extrait musical passe par iTunes, le reste est fabriqué sur place
+async function makeAny(theme, d) {
+  if (theme === SONG_THEME) { try { return await songQuestion(d); } catch { /* on passe à une autre question */ } }
+  return makeLocal(theme, d);
+}
+app.get("/api/song", async (req, res) => {
+  try { res.json(await songQuestion(clamp(+req.query.d || 1, 1, 5))); }
+  catch (e) { res.status(502).json({ error: e.message }); }
+});
+
 app.post("/api/questions", async (req, res) => {
   const now = Date.now();
   const recent = (hits.get(req.ip) || []).filter((t) => now - t < 60000);
@@ -154,7 +195,7 @@ async function takeQuestion(room) {
   const withAI = room.cfg.themes.length > locals.length;
   if (locals.length && (!withAI || Math.random() < locals.length / room.cfg.themes.length)) {
     for (let i = 0; i < 8; i++) {
-      const lq = makeLocal(locals[Math.floor(Math.random() * locals.length)], room.diff);
+      const lq = await makeAny(locals[Math.floor(Math.random() * locals.length)], room.diff);
       if (!room.asked.includes(lq.key) || i === 7) { room.asked.push(lq.key); return lq; }
     }
   }
@@ -198,7 +239,7 @@ async function loadQuestion(room) {
   if (ms) room.timer = setTimeout(() => resolveTurn(room, false, -1), ms);
   cast(room, {
     t: "q", who: p.id, name: p.name, lives: p.lives, alive: alive(room).length, total: ps.filter((x) => !x.left).length + ps.filter((x) => x.left && !x.dead).length,
-    tag: `${q.t} · ${LEVELS[room.diff]}`, q: q.q, img: q.img || null, options: room.q.options, ms, diff: room.diff
+    tag: `${q.t} · ${LEVELS[room.diff]}`, q: q.q, img: q.img || null, audio: q.audio || null, options: room.q.options, ms, diff: room.diff
   });
 }
 function answer(room, me, i) {
@@ -276,9 +317,9 @@ async function takeFor(room, p) {
   const d = p.cdiff;
   const locals = room.cfg.themes.filter((t) => LOCAL_THEMES.includes(t));
   const withAI = room.cfg.themes.length > locals.length;
-  const local = () => {
+  const local = async () => {
     for (let i = 0; i < 8; i++) {
-      const lq = makeLocal(pick(locals), d);
+      const lq = await makeAny(pick(locals), d);
       if (!p.seen.has(lq.key) || i === 7) { p.seen.add(lq.key); return lq; }
     }
   };
@@ -317,7 +358,7 @@ async function chronoNext(room, p) {
   clearTimeout(p.ctimer);
   p.ctimer = setTimeout(() => chronoOut(room, p), p.ms);
   send(p.ws, {
-    t: "cq", tag: `${q.t} · ${LEVELS[p.cdiff]}`, q: q.q, img: q.img || null, options: p.cq.options,
+    t: "cq", tag: `${q.t} · ${LEVELS[p.cdiff]}`, q: q.q, img: q.img || null, audio: q.audio || null, options: p.cq.options,
     ms: p.ms, total: CHRONO_MS, points: p.points, streak: p.streak, diff: p.cdiff
   });
 }
@@ -423,7 +464,7 @@ async function mNext(room, again) {
     mSend(room, p);
   });
   watchers(room).forEach((p) => send(p.ws, { // les éliminés suivent la partie en direct
-    t: "mq", watch: true, n: room.mn, tag: `${q.t} · ${LEVELS[millionLevel(room.mn)]}`, q: q.q, img: q.img || null,
+    t: "mq", watch: true, n: room.mn, tag: `${q.t} · ${LEVELS[millionLevel(room.mn)]}`, q: q.q, img: q.img || null, audio: q.audio || null,
     options: room.mshared.options, jok: {}, time: room.cfg.time, total: room.cfg.time
   }));
   mBoard(room);
