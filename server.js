@@ -134,7 +134,7 @@ app.post("/api/questions", async (req, res) => {
 /* ====================== Salles en ligne (WebSocket) ====================== */
 const rooms = new Map();
 const ALPHA = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-const newCode = () => { let c; do { c = Array.from({ length: 4 }, () => ALPHA[Math.floor(Math.random() * ALPHA.length)]).join(""); } while (rooms.has(c)); return c; };
+const newCode = (n = 4) => { let c; do { c = Array.from({ length: n }, () => ALPHA[Math.floor(Math.random() * ALPHA.length)]).join(""); } while (rooms.has(c)); return c; };
 const send = (ws, o) => { if (ws.readyState === 1) ws.send(JSON.stringify(o)); };
 const players = (room) => [...room.players.values()];
 const alive = (room) => players(room).filter((p) => !p.dead);
@@ -147,7 +147,7 @@ const shuffle = (a) => a.map((x) => [Math.random(), x]).sort((p, q) => p[0] - q[
 
 function lobbyMsg(room, p) {
   return {
-    t: "lobby", code: room.code, host: room.hostId, you: p.id, phase: room.phase, cfg: room.cfg, tv: tvs(room).size > 0,
+    t: "lobby", code: room.code, host: room.hostId, you: p.id, phase: room.phase, cfg: room.cfg, tv: tvs(room).size > 0, tvRoom: !!room.tvRoom,
     players: players(room).filter((x) => !x.left).map(({ id, name, photo, ci }) => ({ id, name, photo, ci }))
   };
 }
@@ -172,6 +172,7 @@ function join(ws, room, name, photo) {
     lives: 0, score: 0, points: 0, dead: false, outAt: 0, left: false, ci: room.nextCi++
   };
   room.players.set(p.id, p); ws.room = room; ws.pid = p.id;
+  if (!room.hostId || !room.players.has(room.hostId)) room.hostId = p.id; // salon télé : le premier qui scanne est l'hôte
   return p;
 }
 
@@ -562,6 +563,7 @@ function dropTv(ws) {
   const room = ws.tvRoom; ws.tvRoom = null;
   if (!room) return;
   tvs(room).delete(ws);
+  if (room.tvRoom && !tvs(room).size && !players(room).some((p) => !p.left)) { clearTimeout(room.timer); rooms.delete(room.code); return; } // télé partie, salon vide
   if (rooms.has(room.code)) tvNotify(room);
 }
 // prévient les téléphones qu'une télé est (ou n'est plus) branchée, sans les renvoyer au salon en pleine partie
@@ -579,6 +581,12 @@ function leave(ws) {
   if (lobbyLike) room.players.delete(me.id);
   else { me.left = true; if (!me.dead) { me.dead = true; me.outAt = ++room.elim; } }
   const present = players(room).filter((p) => !p.left);
+  if (!present.length && room.tvRoom && tvs(room).size) { // salon télé : on revient à l'attente, le QR code reste affiché
+    clearTimeout(room.timer); players(room).forEach((p) => clearTimeout(p.ctimer));
+    room.players.clear(); room.hostId = null;
+    resetRoom(room);
+    return castLobby(room);
+  }
   if (!present.length) { // plus personne : la salle ferme (les écrans TV sont prévenus)
     clearTimeout(room.timer); rooms.delete(room.code);
     tvs(room).forEach((t) => { send(t, { t: "closed" }); t.tvRoom = null; });
@@ -602,6 +610,22 @@ function readCfg(m) {
 }
 
 function handle(ws, m) {
+  if (m.t === "tvcreate") {
+    const now = Date.now(), recent = (hits.get("c" + ws.ip) || []).filter((t) => now - t < 60000);
+    if (recent.length >= 6) return send(ws, { t: "error", msg: "Trop de salles créées, patientez." });
+    hits.set("c" + ws.ip, [...recent, now]);
+    const cfg = readCfg({ themes: m.themes, time: 30, lives: 2, kind: "survie" });
+    if (typeof cfg === "string") return send(ws, { t: "error", msg: cfg });
+    if (ws.tvRoom) dropTv(ws);
+    const room = {
+      code: newCode(8), tvRoom: true, hostId: null, players: new Map(), phase: "lobby", cfg,
+      diff: 1, buf: [], asked: [], played: new Set(), i: -1, elim: 0, q: null, timer: null, loads: new Map(), nextCi: 0
+    };
+    rooms.set(room.code, room);
+    ws.tvRoom = room; tvs(room).add(ws);
+    send(ws, { t: "tvok", code: room.code });
+    return castLobby(room);
+  }
   if (m.t === "tv") { // un écran TV s'abonne à une salle (il ne joue pas)
     const room = rooms.get(String(m.code || "").toUpperCase().trim());
     if (!room) return send(ws, { t: "error", msg: "Salle introuvable. Vérifiez le code affiché sur le téléphone." });
