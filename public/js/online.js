@@ -286,11 +286,10 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI }) 
     }));
     ol.hidden = false;
   }
-  function rankText() {
-    const i = O.board.findIndex((p) => p.id === O.you);
-    if (i < 0) return "";
-    const n = O.board.length, s = O.cur ? O.cur.streak : 0;
-    return `${n > 1 ? `${i === 0 ? "1er" : i + 1 + "e"} sur ${n}` : "Entraînement"}${s >= 2 ? ` · Série : ${s}` : ""}`;
+  function rankText() { // la place est dans le classement en direct : ici, seulement la série
+    const s = O.cur ? O.cur.streak : 0;
+    if (O.board.length < 2) return `Entraînement${s >= 2 ? ` · Série : ${s}` : ""}`;
+    return s >= 2 ? `Série : ${s}` : "";
   }
   function chronoClock(ms, total) {
     stopClock();
