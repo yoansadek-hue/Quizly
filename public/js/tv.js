@@ -65,6 +65,8 @@ function renderLobby(m) {
   if (m.phase !== "lobby") return; // partie en cours ou podium affiché : on ne repasse pas au salon
   $("tUrl").textContent = location.host;
   $("tLobbyCode").textContent = m.code;
+  const link = `${location.origin}/?join=${m.code}`; // le QR code ouvre le jeu et rejoint le salon
+  if ($("tQr").dataset.code !== m.code) { $("tQr").dataset.code = m.code; $("tQr").src = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&margin=8&data=${encodeURIComponent(link)}`; }
   const kind = { survie: "Survie", chrono: "Chrono 60 s", million: "Qui veut gagner des millions" }[T.kind];
   $("tLobbyInfo").textContent = `${kind} · ${plural(m.players.length, "joueur")}`;
   $("tPlayers").replaceChildren(...m.players.map((p) => {
