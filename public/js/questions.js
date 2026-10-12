@@ -5,7 +5,7 @@ const AI_THEMES = [
   "Littérature","Jeux vidéo","Mythologie","Politique","Anatomie","Astronomie","Botanique","Mode",
   "Automobile","Informatique","Bricolage","Séries TV","Mangas","Célébrités","Langues",
   "Mathématiques","Chimie","Physique","Architecture","Dessins animés","Super-héros","Espace",
-  "Océans","Inventions","Philosophie","Économie","Internet","Aéronautique","Magie","Transports","Société"
+  "Océans","Inventions","Philosophie","Économie","Internet","Aéronautique","Magie","Transports","Société","Football"
 ];
 // thèmes sans IA (toujours justes) : drapeaux, capitales, calcul, suites, anagrammes
 export const THEMES = [...AI_THEMES, ...LOCAL_THEMES];
