@@ -47,7 +47,9 @@ export function millionUI($) {
   }
   // m : { n, tag, q, img, options, jokers, time, total, info }
   function render(m, handlers) {
-    H = handlers; locked = false;
+    H = handlers; locked = !!m.watch;
+    $("s-million").classList.toggle("watch", !!m.watch); // éliminé : on regarde les autres jouer
+    document.querySelector(".mjokers").hidden = !!m.watch;
     $("mStep").textContent = m.who || `Question ${m.n + 1} / 15`; // sur un téléphone à plusieurs : le nom du joueur
     $("mWon").textContent = euros(PRIZES[m.n]);
     $("mTag").textContent = m.tag;
@@ -67,10 +69,11 @@ export function millionUI($) {
       b.append(t, p);
       b.style.animation = `pop .25s ${i * 50}ms backwards`;
       b.onclick = () => { if (locked) return; lock(i); H.pick && H.pick(i); };
+      if (m.watch) b.disabled = true;
       box.append(b);
     });
-    setJokers(m.jokers);
-    $("mStop").hidden = m.n === 0;
+    if (!m.watch) setJokers(m.jokers);
+    $("mStop").hidden = m.n === 0 || !!m.watch;
     $("mStop").disabled = false;
     $("mStop").textContent = `Je m'arrête avec ${euros(wonAt(m.n))}`;
     $("mStop").onclick = () => { if (!locked) H.stop && H.stop(); };
