@@ -1,10 +1,10 @@
 import { THEMES, fetchAI } from "./questions.js";
 import { watch, signIn, logout } from "./auth.js";
 import { initOnline } from "./online.js";
-import { makeLocal, LOCAL_THEMES, euros } from "./local.js";
-import { millionUI, millionLocal } from "./million.js";
+import { makeLocal, LOCAL_THEMES, SONG_THEME, euros } from "./local.js";
+import { millionUI, millionLocal, avatarEl, setAudio } from "./million.js";
 
-const VERSION = "2.5.7"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.5.8"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -29,7 +29,7 @@ const S = {
 };
 const M = () => MODES[S.mode];
 document.querySelectorAll(".ver").forEach((e) => (e.textContent = `Quizly v${VERSION} · par YoskanGame`));
-const online = initOnline({ $, show, flash, confetti, me: () => ({ name: S.firstName || "Joueur", photo: S.photo || "" }), record: chronoRecord, millionUI, stat: { answer: (t, ok) => statAnswer(t, ok), game: (k) => statGame(k) } });
+const online = initOnline({ $, show, flash, confetti, me: () => ({ name: S.firstName || "Joueur", photo: S.photo || "" }), record: chronoRecord, millionUI, avatarEl, setAudio, stat: { answer: (t, ok) => statAnswer(t, ok), game: (k) => statGame(k) } });
 // record personnel du Chrono en ligne (gardé sur l'appareil, par compte)
 function chronoRecord(points) {
   const key = `quizly:${S.uid}:bestChrono`;
@@ -54,6 +54,7 @@ function userLabel() {
 }
 function show(id) {
   curScreen = id;
+  const au = document.getElementById("qAudio"); if (au && id !== "s-game") au.pause(); // l'extrait s'arrête quand on quitte la question
   document.querySelectorAll(".screen").forEach((s) => (s.hidden = s.id !== id));
   userLabel();
   $("bar").hidden = id === "s-login" || id === "s-local";
@@ -264,13 +265,27 @@ function fill() {
   S.loading = { d, p };
   return p;
 }
+// « Devine la chanson » : l'extrait est cherché par le serveur ; le reste est fabriqué sur place
+async function makeAnyLocal(theme, d) {
+  if (theme === SONG_THEME) {
+    try { const r = await fetch(`/api/song?d=${d}`); if (r.ok) return await r.json(); } catch {}
+  }
+  return makeLocal(theme, d);
+}
+// photo d'un joueur : la vôtre, ou celle d'un compte local du même nom
+function photoOf(name) {
+  if (!name) return "";
+  if (S.firstName && name.toLowerCase() === S.firstName.toLowerCase()) return S.photo || "";
+  const p = getProfiles()[name.toLowerCase()];
+  return (p && p.photo) || "";
+}
 async function getQuestion() {
   // thèmes « sans IA » (drapeaux, capitales, calcul…) : question fabriquée sur place, toujours juste
   const locals = [...S.active].filter((t) => LOCAL_THEMES.includes(t));
   const withAI = S.active.size > locals.length;
   if (locals.length && (!withAI || Math.random() < locals.length / S.active.size)) {
     for (let i = 0; i < 8; i++) {
-      const lq = makeLocal(locals[Math.floor(Math.random() * locals.length)], S.diff);
+      const lq = await makeAnyLocal(locals[Math.floor(Math.random() * locals.length)], S.diff);
       if (!S.asked.includes(lq.key) || i === 7) { S.asked.push(lq.key); return lq; }
     }
   }
@@ -364,6 +379,7 @@ function prepareCard() {
   $("scene").classList.toggle("compact", m.qcm);
   $("liveBoard").hidden = true; // réservé au Chrono en ligne
   $("whoName").textContent = p.name;
+  $("whoAv").replaceChildren(avatarEl(p.name, photoOf(p.name), true));
   $("whoName").classList.toggle("retry", !!S.retry); // nom en rouge quand la question est reposée après une vie utilisée
   $("whoLives").textContent = `♥︎ ${p.lives}`;
   $("whoLives").hidden = !m.lives;
@@ -371,7 +387,13 @@ function prepareCard() {
   $("backTag").textContent = "Réponse";
   $("qText").textContent = S.q.q;
   const qi = $("qImg"); // image de la question (drapeaux)
-  if (S.q.img) { qi.hidden = false; qi.onerror = () => { qi.hidden = true; }; qi.src = S.q.img; } else { qi.hidden = true; qi.removeAttribute("src"); }
+  const badImg = () => { // image introuvable : un logo illisible est remplacé par une autre question
+    qi.hidden = true;
+    if (S.q && S.q.logo && S.inGame && !S.locked) { stopTimer(); loadAndPlay(); }
+  };
+  if (S.q.img) { qi.hidden = false; qi.onerror = badImg; qi.onload = () => { if (S.q.logo && qi.naturalWidth < 32) badImg(); }; qi.src = S.q.img; }
+  else { qi.hidden = true; qi.onload = null; qi.removeAttribute("src"); }
+  setAudio($, S.q.audio); // Devine la chanson
   $("aText").textContent = S.q.a;
   // police adaptée à la longueur pour que le texte reste dans la carte
   const ql = S.q.q.length, al = S.q.a.length;
@@ -607,7 +629,7 @@ function endGame(w) {
     const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = p.name;
     const st = document.createElement("span"); st.className = "st";
     st.textContent = `${p.score} bonne${p.score > 1 ? "s" : ""} · ♥︎ ${p.lives}`;
-    li.append(pos, nm, st);
+    li.append(pos, avatarEl(p.name, photoOf(p.name)), nm, st);
     ol.append(li);
   });
   show("s-end");
@@ -647,7 +669,7 @@ function drawTeams() {
     S.slots.forEach((s, i) => {
       if (S.teamOf[i] !== t) return;
       const b = document.createElement("button");
-      b.className = "chip"; b.textContent = s.name;
+      b.className = "chip"; b.append(avatarEl(s.name, photoOf(s.name)), document.createTextNode(s.name));
       b.onclick = () => { S.teamOf[i] = (S.teamOf[i] + 1) % S.nTeams; drawTeams(); }; // toucher = équipe suivante
       list.append(b);
     });
@@ -744,13 +766,13 @@ function renderProfile() {
 /* ---------- Qui veut gagner des millions (sur l'appareil) ---------- */
 const mui = millionUI($);
 const million = millionLocal({
-  $, show, flash, ask, ui: mui, stat: statAnswer,
+  $, show, flash, ask, ui: mui, stat: statAnswer, photoOf,
   getQ: async (d) => { // il faut 4 choix (50/50 et avis du public)
     S.diff = d;
     let q;
     for (let i = 0; i < 6; i++) {
       try { q = await getQuestion(); }
-      catch { q = makeLocal(LOCAL_THEMES[Math.floor(Math.random() * LOCAL_THEMES.length)], d); } // IA indisponible : question sans IA
+      catch { q = makeLocal(LOCAL_THEMES.filter((t) => t !== SONG_THEME)[Math.floor(Math.random() * (LOCAL_THEMES.length - 1))], d); } // IA indisponible : question sans IA
       if (new Set(q.o).size >= 4) break;
     }
     return q;
@@ -773,7 +795,7 @@ const million = millionLocal({
       const pos = document.createElement("span"); pos.className = "pos"; pos.textContent = i + 1;
       const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = p.name;
       const st = document.createElement("span"); st.className = "st"; st.textContent = `${euros(p.won)} · ${p.n} bonne${p.n > 1 ? "s" : ""}`;
-      li.append(pos, nm, st);
+      li.append(pos, avatarEl(p.name, photoOf(p.name)), nm, st);
       ol.append(li);
     });
     show("s-end");
@@ -787,7 +809,7 @@ function millionRecord(p) { // record personnel en solo
   return `${p.won > best ? "Nouveau record ! " : ""}${p.n} bonne${p.n > 1 ? "s" : ""} réponse${p.n > 1 ? "s" : ""} · record : ${euros(Math.max(best, p.won))}`;
 }
 function startMillion() {
-  S.active = new Set(THEMES); // toutes les catégories, sans choix
+  S.active = new Set(THEMES.filter((t) => t !== SONG_THEME)); // toutes les catégories, sans choix (pas d'extrait musical)
   S.players = S.slots.map((s) => ({ name: s.name, lives: s.lives, jokers: 0, dead: false, score: 0, points: 0, streak: 0, outAt: 0 }));
   if (S.slots.length > 1) saveRoster(); // en solo, on garde la liste de joueurs habituelle
   S.asked = []; S.inGame = true; S.diff = 1; S.loading = null;
@@ -832,8 +854,8 @@ function modeCard(id, name, desc, onClick, i) {
   const b = document.createElement("button");
   b.className = "mode"; b.dataset.m = id; b.style.animationDelay = `${i * 70}ms`;
   const t = document.createElement("strong"); t.textContent = name;
-  const d = document.createElement("span"); d.textContent = desc;
-  b.append(t, d);
+  b.append(t);
+  if (desc) { const d = document.createElement("span"); d.textContent = desc; b.append(d); } // les 3 blocs du menu : juste le nom
   b.onclick = onClick;
   return b;
 }
@@ -841,9 +863,9 @@ function renderModes() {
   S.menuSec = null;
   const grid = document.createElement("div"); grid.className = "modes three";
   grid.append(
-    modeCard("online", MODES.online.name, MODES.online.desc, () => chooseMode("online"), 0),
-    modeCard("party", SECTIONS.party[0], SECTIONS.party[1], () => openSection("party"), 1),
-    modeCard("solosec", SECTIONS.solosec[0], SECTIONS.solosec[1], () => openSection("solosec"), 2)
+    modeCard("online", "En ligne", "", () => chooseMode("online"), 0),
+    modeCard("party", "Party", "", () => openSection("party"), 1),
+    modeCard("solosec", "Solo", "", () => openSection("solosec"), 2)
   );
   $("modes").replaceChildren(grid);
 }
@@ -1096,7 +1118,7 @@ function renderRoomModes(current) {
       const was = S.mode;
       S.mode = id;
       if (!S.editRoom || was !== id) S.cfg.time = M().time; // on garde le temps choisi si l'hôte ne change pas de mode
-      if (M().million) { S.active = new Set(THEMES); $("btnTime").textContent = "Valider"; renderTime(); return show("s-time"); } // pas de choix de thèmes
+      if (M().million) { S.active = new Set(THEMES.filter((t) => t !== SONG_THEME)); $("btnTime").textContent = "Valider"; renderTime(); return show("s-time"); } // pas de choix de thèmes
       renderThemes(); show("s-themes");
     };
     box.append(b);
