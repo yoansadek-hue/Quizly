@@ -4,7 +4,7 @@ import { initOnline } from "./online.js";
 import { makeLocal, LOCAL_THEMES, euros } from "./local.js";
 import { millionUI, millionLocal } from "./million.js";
 
-const VERSION = "2.5.6"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.5.7"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -817,34 +817,49 @@ function setUser(name, photo) {
   if (photo) img.src = photo;
 }
 
-// menu en 3 parties : En ligne · Entre amis (un téléphone) · Solo
-const MENU = [
-  ["En ligne", "", [["online"]]],
-  ["Entre amis, sur un téléphone", "two", [["classic"], ["qcm"], ["teams"],
-    ["million", "Qui veut gagner des millions", "À plusieurs : chacun son échelle de 15 questions et ses 3 jokers. Celui qui repart avec le plus gagne."]]],
-  ["Solo", "two", [["solo"],
-    ["million", "Qui veut gagner des millions", "Seul face à l'échelle : 15 questions, 3 jokers, des paliers sûrs. Visez le million !", true]]]
-];
-function renderModes() {
-  const box = $("modes");
-  box.replaceChildren();
-  let k = 0;
-  MENU.forEach(([title, look, items]) => {
-    const h = document.createElement("h3"); h.className = "modesec"; h.textContent = title;
-    const grid = document.createElement("div"); grid.className = `modes ${look}`;
-    items.forEach(([id, name, desc, solo]) => {
-      const m = MODES[id];
-      const b = document.createElement("button");
-      b.className = "mode"; b.dataset.m = id; b.style.animationDelay = `${k++ * 60}ms`;
-      const t = document.createElement("strong"); t.textContent = name || m.name;
-      const d = document.createElement("span"); d.textContent = desc || m.desc;
-      b.append(t, d);
-      b.onclick = () => (solo ? millionSolo() : chooseMode(id));
-      grid.append(b);
-    });
-    box.append(h, grid);
-  });
+// menu : 3 blocs (En ligne · Party · Solo). Party et Solo ouvrent leur propre liste de modes.
+const SECTIONS = {
+  party: ["Party", "Sur un seul téléphone, entre amis : Classique, QCM, Équipes et Qui veut gagner des millions.", [
+    ["classic"], ["qcm"], ["teams"],
+    ["million", "Qui veut gagner des millions", "À plusieurs : chacun son échelle de 15 questions et ses 3 jokers. Celui qui repart avec le plus gagne."]
+  ]],
+  solosec: ["Solo", "Seul face aux questions : Solo et Qui veut gagner des millions.", [
+    ["solo"],
+    ["million", "Qui veut gagner des millions", "Seul face à l'échelle : 15 questions, 3 jokers, des paliers sûrs. Visez le million !", true]
+  ]]
+};
+function modeCard(id, name, desc, onClick, i) {
+  const b = document.createElement("button");
+  b.className = "mode"; b.dataset.m = id; b.style.animationDelay = `${i * 70}ms`;
+  const t = document.createElement("strong"); t.textContent = name;
+  const d = document.createElement("span"); d.textContent = desc;
+  b.append(t, d);
+  b.onclick = onClick;
+  return b;
 }
+function renderModes() {
+  S.menuSec = null;
+  const grid = document.createElement("div"); grid.className = "modes three";
+  grid.append(
+    modeCard("online", MODES.online.name, MODES.online.desc, () => chooseMode("online"), 0),
+    modeCard("party", SECTIONS.party[0], SECTIONS.party[1], () => openSection("party"), 1),
+    modeCard("solosec", SECTIONS.solosec[0], SECTIONS.solosec[1], () => openSection("solosec"), 2)
+  );
+  $("modes").replaceChildren(grid);
+}
+function openSection(key) {
+  S.menuSec = key;
+  const [title, , items] = SECTIONS[key];
+  $("subTitle").textContent = title;
+  const grid = document.createElement("div"); grid.className = "modes";
+  items.forEach(([id, name, desc, solo], i) => {
+    const m = MODES[id];
+    grid.append(modeCard(id, name || m.name, desc || m.desc, () => (solo ? millionSolo() : chooseMode(id)), i));
+  });
+  $("subModes").replaceChildren(grid);
+  show("s-sub");
+}
+$("btnSubBack").onclick = () => { S.menuSec = null; show("s-mode"); };
 function millionSolo() { // Millionnaire seul : on lance directement, à votre nom
   chooseMode("million");
   S.count = 1;
@@ -987,6 +1002,7 @@ document.querySelectorAll("[data-back]").forEach((b) => (b.onclick = () => {
   if (t === "auto") t = M().online ? "s-roomtype" : M().solo ? "s-mode" : M().teams ? "s-teams" : "s-names";
   if (t === "s-themes" && M().million) t = "s-roomtype"; // le Millionnaire n'a pas d'écran de thèmes
   if (t === "s-lobby") { S.editRoom = false; online.setEditing(false); }
+  if (t === "s-mode" && S.menuSec && ["s-count", "s-themes"].includes(curScreen)) t = "s-sub"; // retour à la liste Party / Solo
   show(t);
 }));
 $("btnLogout").onclick = async () => { try { localStorage.removeItem(SESS); } catch {} online.leave(); await logout(); S.uid = null; show("s-login"); };
