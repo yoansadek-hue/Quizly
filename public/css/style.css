@@ -462,3 +462,17 @@ body.tvmode #s-game #mcq .btn::before{width:54px;height:54px;font-size:24px}
   #slots{grid-template-columns:repeat(3,1fr)}
   .card{height:min(54dvh,540px)}
 }
+
+/* ---------- 2.7.1 : l'hôte agit sur un joueur ---------- */
+#lobbyList .chip.tap{cursor:pointer}
+.pact{margin:14px 0 0;padding:14px;background:var(--bg-deep);border-radius:22px}
+.pactName{margin:0 0 10px;text-align:center;font:800 18px var(--display)}
+.pact .btn.sm{width:100%;font-size:14px}
+/* ---------- 2.7.1 : réactions ---------- */
+.reacts{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:18px 0 0}
+.reacts .chip{min-height:38px;padding:6px 14px;font:800 13px var(--display);box-shadow:var(--edge-s)}
+.react.r0,.bubble.r0{background:var(--sun)} .react.r1,.bubble.r1{background:var(--mint)} .react.r2,.bubble.r2{background:var(--coral)}
+.react.r3,.bubble.r3{background:var(--sky)} .react.r4,.bubble.r4{background:var(--paper)}
+.bubble{position:fixed;bottom:150px;z-index:20;display:flex;gap:6px;align-items:center;padding:7px 14px;border:3px solid var(--ink);border-radius:999px;box-shadow:var(--edge-s);color:var(--ink);font:800 15px var(--display);pointer-events:none;animation:floatup 2.8s ease-out forwards}
+.bubble b{font-family:var(--font);font-weight:800}
+@keyframes floatup{0%{transform:translateY(16px) scale(.6);opacity:0}12%{transform:none;opacity:1}100%{transform:translateY(-280px) rotate(-6deg);opacity:0}}
