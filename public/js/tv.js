@@ -65,7 +65,7 @@ function renderLobby(m) {
   if (m.phase !== "lobby") return; // partie en cours ou podium affiché : on ne repasse pas au salon
   const link = `${location.origin}/?tv=${m.code}`; // lu par le scanner de l'appli (ou l'appareil photo du téléphone)
   if ($("tQr").dataset.code !== m.code) { $("tQr").dataset.code = m.code; $("tQr").src = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&margin=8&data=${encodeURIComponent(link)}`; }
-  const kind = { survie: "Survie", chrono: "Chrono 60 s", million: "Qui veut gagner des millions" }[T.kind];
+  const kind = { survie: "Survie", chrono: "Chrono 60 s", million: "Qui veut gagner des millions", equipes: "Équipes" }[T.kind];
   $("tLobbyInfo").textContent = m.players.length ? `${kind} · ${plural(m.players.length, "joueur")}` : "";
   const host = T.pl[m.host];
   $("tWait").textContent = host ? `${host.name} choisit le mode et lance la partie…` : "Le premier qui scanne choisit le mode et lance la partie.";
@@ -118,14 +118,17 @@ function renderQ(m) { // Survie : la question du joueur dont c'est le tour
   T.cur = m;
   paintQuestion(m);
   $("tWho").replaceChildren(avatarEl(m.name, photo(m.who), true), document.createTextNode(`Au tour de ${m.name}`));
-  $("tStatus").textContent = `♥︎ ${m.lives} · ${plural(m.alive, "joueur")} en vie`;
+  $("tStatus").textContent = m.teams
+    ? `Équipe ${m.team} · ${m.teams.map((t) => `${t.name} ${t.points}`).join(" · ")} pts`
+    : `♥︎ ${m.lives} · ${plural(m.alive, "joueur")} en vie`;
   startBar(m.ms ? m.ms / 1000 : 0, m.ms ? m.ms / 1000 : 0);
   show("tQuestion");
 }
 function renderResult(m) {
   stopBar();
   reveal(m.answer, m.picked);
-  $("tStatus").textContent = m.correct ? `Bonne réponse de ${m.name} !` : m.dead ? `${m.name} est éliminé` : m.picked < 0 ? "Temps écoulé" : `Raté pour ${m.name}`;
+  const res = m.correct ? `Bonne réponse de ${m.name} !` : m.dead ? `${m.name} est éliminé` : m.picked < 0 ? "Temps écoulé" : `Raté pour ${m.name}`;
+  $("tStatus").textContent = m.teams ? `${res} · ${m.teams.map((t) => `${t.name} ${t.points}`).join(" · ")} pts` : res;
 }
 
 /* ---------- Chrono : classement en direct ---------- */
@@ -136,7 +139,7 @@ function renderBoard() {
     const li = document.createElement("li");
     li.className = (i === 0 ? "first" : "") + (p.done ? " done" : "");
     const pos = document.createElement("span"); pos.className = "pos"; pos.textContent = i + 1;
-    const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = p.name + (p.done ? " ✓" : "");
+    const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = p.name + (p.done ? " · fini" : "");
     const pt = document.createElement("span"); pt.textContent = `${p.points} pts`;
     li.append(pos, avatarEl(p.name, photo(p.id)), nm, pt);
     return li;
@@ -165,14 +168,14 @@ function renderMLive() {
 function renderMSpec(m) {
   stopBar();
   reveal(m.answer, -1);
-  $("tStatus").textContent = m.results.map((r) => `${r.name} : ${r.stopped ? `s'arrête (${euros(r.won)})` : r.correct ? (r.out ? "1 000 000 € !" : `✓ ${euros(r.won)}`) : `✗ ${euros(r.won)}`}`).join(" · ");
+  $("tStatus").textContent = m.results.map((r) => `${r.name} : ${r.stopped ? `s'arrête (${euros(r.won)})` : r.correct ? (r.out ? "1 000 000 € !" : `juste, ${euros(r.won)}`) : `raté, ${euros(r.won)}`}`).join(" · ");
   $("tLive").replaceChildren();
 }
 
 /* ---------- fin : podium ---------- */
 function renderEnd(m) {
   stopBar();
-  const fmt = (p) => (m.kind === "million" ? euros(p.points) : m.kind === "chrono" ? `${p.points} pts` : `${p.score} bonne${p.score > 1 ? "s" : ""}`);
+  const fmt = (p) => (m.kind === "million" ? euros(p.points) : m.kind === "chrono" || m.kind === "equipes" ? `${p.points} pts` : `${p.score} bonne${p.score > 1 ? "s" : ""}`);
   $("tEndLead").textContent = m.winner ? "Vainqueur" : "Partie terminée";
   $("tWinner").textContent = m.winner || "Égalité";
   const top = m.ranking.slice(0, 3);
