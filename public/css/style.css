@@ -501,12 +501,15 @@ body.tvmode #s-game #mcq .btn::before{width:54px;height:54px;font-size:24px}
 .mjokers .chip{justify-content:center;text-align:center;min-height:44px;padding:6px 8px;background:var(--bg-deep);color:var(--paper);border:2px solid rgba(196,184,255,.55);box-shadow:none;font:800 12px var(--display)}
 .mjokers .chip.used{background:transparent;color:rgba(196,184,255,.5);border-color:rgba(196,184,255,.25)}
 #mStop{min-height:50px;font-size:15px}
-/* réactions : une ligne discrète tout en bas, la couleur n'apparaît que dans les bulles */
-.reacts{display:flex;flex-wrap:nowrap;overflow-x:auto;gap:6px;justify-content:flex-start;align-items:center;margin:24px 0 0;padding:14px 0 2px;border-top:2px dashed rgba(196,184,255,.28);scrollbar-width:none}
-.reacts::-webkit-scrollbar{display:none}
-.reacts::before{content:"Réagir";flex:none;font:700 13px var(--font);color:var(--lilac);margin-right:4px}
-.reacts .chip.react{flex:none;min-height:34px;padding:4px 12px;background:transparent;color:var(--paper);border:2px solid rgba(196,184,255,.45);box-shadow:none;font:700 13px var(--font)}
-.reacts .chip.react:active{background:var(--sun);color:var(--ink)}
+/* réactions : un rond sur le côté droit ; un appui ouvre les réactions en couleur */
+/* le rond dépasse à peine du bord droit pour ne rien cacher ; ouvert, il rentre dans l'écran */
+.reactbox{position:fixed;right:0;top:46%;z-index:25;display:flex;align-items:center;gap:10px}
+.reactfab{width:48px;height:48px;margin-right:-16px;border-radius:50%;display:grid;place-items:center;padding:0 10px 0 0;color:var(--ink);background:var(--sun);border:3px solid var(--ink);box-shadow:var(--edge-s);cursor:pointer;transition:margin .2s,transform .15s}
+.reactfab svg{width:20px;height:20px}
+.reactfab:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ink)}
+.reactfab.open{margin-right:12px;padding:0;background:var(--paper)}
+.reactmenu{display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+.reactmenu .chip.react{min-height:40px;padding:6px 16px;font:800 14px var(--display);box-shadow:var(--edge-s);animation:pop .22s backwards}
 @media (min-width:700px){
   #s-million .who{font-size:28px}
   #mWon{font-size:17px}
