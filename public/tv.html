@@ -90,6 +90,11 @@
   #tRest{width:min(900px,80vw)}
   #tRest li{font-size:clamp(16px,2.6vh,30px);padding:.8vh 1.4vw}
 
+  /* réactions des joueurs */
+  .bubble{position:fixed;bottom:6vh;z-index:20;display:flex;gap:.4em;align-items:center;padding:.5em 1.1em;border:4px solid var(--ink);border-radius:999px;box-shadow:0 6px 0 var(--ink);color:var(--ink);font:800 clamp(18px,3vh,36px) var(--display);pointer-events:none;animation:floatup 3s ease-out forwards}
+  .bubble b{font-family:var(--font)}
+  .bubble.r0{background:var(--sun)} .bubble.r1{background:var(--mint)} .bubble.r2{background:var(--coral)} .bubble.r3{background:var(--sky)} .bubble.r4{background:var(--paper)}
+  @keyframes floatup{0%{transform:translateY(20px) scale(.6);opacity:0}12%{transform:none;opacity:1}100%{transform:translateY(-55vh) rotate(-6deg);opacity:0}}
   @keyframes pop{0%{transform:scale(.6);opacity:0}70%{transform:scale(1.05)}100%{transform:scale(1);opacity:1}}
   .screen:not([hidden]) .qbox,.screen:not([hidden]) .step,.players .chip{animation:pop .45s backwards}
   .step.p1{animation-delay:.5s} .step.p2{animation-delay:.25s}
