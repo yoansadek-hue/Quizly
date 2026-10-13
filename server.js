@@ -139,10 +139,8 @@ const SECTORS = [
   { qid: "Q786820", q: "Quel constructeur automobile a ce logo ?" },
   { qid: "Q46970", q: "Quelle compagnie aérienne a ce logo ?" },
   { qid: "Q476028", q: "Quel club de football a ce logo ?" },
-  { qid: "Q22687", q: "Quelle banque a ce logo ?" },
-  { qid: "Q2001305", q: "Quelle chaîne de télévision a ce logo ?" },
-  { qid: "Q210167", q: "Quel studio de jeux vidéo a ce logo ?" },
-  { qid: "Q3661311", q: "Quelle maison de mode a ce logo ?" }
+  { qid: "Q22687", q: "Quelle banque a ce logo ?" }
+  // pas de chaînes télé, de maisons de mode ni de studios de jeux : leur logo est presque toujours leur nom écrit
 ];
 const sectorCache = new Map(); // secteur → { at, list: [{ name, dom }] } triée par notoriété
 async function sectorBrands(sec) {
@@ -161,6 +159,7 @@ async function sectorBrands(sec) {
     let dom = "";
     try { dom = new URL(b.site.value).hostname.replace(/^www\./, ""); } catch { continue; }
     if (!name || /^Q\d+$/.test(name) || doms.has(dom) || names.has(plain(name))) continue;
+    if (/^[A-Z0-9&.\- ]{2,5}$/.test(name.trim())) continue; // sigle court (BMW, KLM…) : presque toujours écrit dans le logo
     doms.add(dom); names.add(plain(name));
     list.push({ name, dom });
   }
