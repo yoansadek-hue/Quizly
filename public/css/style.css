@@ -147,12 +147,29 @@ input[type=text],input[type=email]{
 .mode[data-m=classic]{background:var(--paper)}
 .mode[data-m=million]{background:var(--ink);color:var(--sun);border-color:var(--sun);box-shadow:0 6px 0 var(--sun)}
 .mode[data-m=million] span{color:var(--lilac)}
-/* les 3 blocs du menu : un jeton avec un grand cercle en filigrane, le nom au centre */
+/* les 3 blocs du menu : le nom au centre, une phrase en bas, une forme différente en filigrane */
 #modes .modes,#subModes .modes{display:grid;gap:16px}
-#modes .mode{min-height:132px;display:flex;align-items:center;justify-content:center;text-align:center}
-#modes .mode strong{font-size:34px;margin:0;position:relative;z-index:1}
-#modes .mode::after{content:"";position:absolute;width:190px;height:190px;right:-60px;top:-70px;border-radius:50%;border:18px solid rgba(30,15,69,.1)}
-#subModes .mode::after{content:"";position:absolute;width:90px;height:90px;right:-30px;bottom:-36px;border-radius:50%;background:rgba(30,15,69,.08)}
+#modes .mode{min-height:150px;display:flex;flex-direction:column;align-items:center;text-align:center;padding:18px 18px 16px}
+#modes .mode strong{font-size:34px;margin:auto 0}
+#modes .mode span{font-size:14px;font-weight:700;max-width:28ch}
+.mode strong,.mode span{position:relative;z-index:1}
+.mode::after{content:"";position:absolute;pointer-events:none}
+/* En ligne : un anneau */
+.mode[data-m=online]::after,.mode[data-m=survie]::after{width:180px;height:180px;right:-58px;top:-66px;border-radius:50%;border:18px solid rgba(30,15,69,.12)}
+/* Party : un losange aux coins ronds */
+.mode[data-m=party]::after{width:130px;height:130px;left:-44px;bottom:-52px;border-radius:26px;transform:rotate(45deg);background:rgba(30,15,69,.12)}
+/* Solo : un triangle */
+.mode[data-m=solosec]::after,.mode[data-m=solo]::after{width:150px;height:130px;right:-30px;top:-34px;clip-path:polygon(50% 0,100% 100%,0 100%);background:rgba(30,15,69,.12);transform:rotate(18deg)}
+/* Classique : une carte penchée */
+.mode[data-m=classic]::after{width:74px;height:100px;right:16px;top:-26px;border-radius:12px;border:6px solid rgba(30,15,69,.12);transform:rotate(14deg)}
+/* QCM : quatre pastilles */
+.mode[data-m=qcm]::after{width:22px;height:22px;right:58px;top:18px;border-radius:50%;background:rgba(30,15,69,.14);box-shadow:30px 0 0 rgba(30,15,69,.14),0 30px 0 rgba(30,15,69,.14),30px 30px 0 rgba(30,15,69,.14)}
+/* Équipes : deux demi-disques face à face */
+.mode[data-m=teams]::after{width:120px;height:60px;right:-20px;bottom:-14px;border-radius:120px 120px 0 0;background:rgba(30,15,69,.12);box-shadow:0 -74px 0 rgba(30,15,69,.06)}
+/* Chrono : un quart de cadran */
+.mode[data-m=chrono]::after{width:120px;height:120px;right:-40px;bottom:-40px;border-radius:120px 0 0 0;background:rgba(30,15,69,.12)}
+/* Millionnaire : un hexagone doré */
+.mode[data-m=million]::after{width:120px;height:104px;right:-26px;bottom:-30px;clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%);background:rgba(255,225,77,.16)}
 
 /* ---------- carte de question ---------- */
 .who{display:flex;justify-content:space-between;align-items:center;gap:10px;font:800 26px var(--display);margin:8px 0 0}
@@ -341,7 +358,13 @@ body.typing .dock{display:none}
 .profgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:12px 0}
 .profgrid .stat{background:var(--paper);color:var(--ink);border:3px solid var(--ink);border-radius:20px;box-shadow:var(--edge-s);padding:12px 14px}
 .profgrid .stat:nth-child(1){background:var(--sun)} .profgrid .stat:nth-child(2){background:var(--coral)} .profgrid .stat:nth-child(3){background:var(--mint)}
-.profgrid .stat strong{display:block;font:800 20px var(--display)}
+.profgrid .stat{position:relative;overflow:hidden}
+.profgrid .stat::after{content:"";position:absolute;right:-14px;bottom:-14px;width:48px;height:48px;background:rgba(30,15,69,.1);border-radius:50%}
+.profgrid .stat:nth-child(2)::after{border-radius:10px;transform:rotate(45deg)}
+.profgrid .stat:nth-child(3)::after{clip-path:polygon(50% 0,100% 100%,0 100%);border-radius:0}
+.profgrid .stat:nth-child(4)::after{clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%);border-radius:0}
+.profgrid .stat:nth-child(5)::after{border-radius:48px 0 0 0}
+.profgrid .stat strong{display:block;font:800 20px var(--display);position:relative}
 .profgrid .stat span{font-size:13px;color:var(--muted);font-weight:700}
 .profh{margin:22px 0 8px;font-size:20px}
 .profthemes{list-style:none;margin:0;padding:0;display:grid;gap:10px}
@@ -392,9 +415,12 @@ body.tvmode #s-game #mcq .btn::before{width:54px;height:54px;font-size:24px}
   input[type=text],input[type=email]{min-height:60px;font-size:21px}
   .modes{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}
   #modes .modes.three{grid-template-columns:repeat(3,1fr);gap:20px}
-  #modes .mode{min-height:250px}
-  #modes .mode strong{font-size:40px}
-  #modes .mode::after{width:300px;height:300px;right:-110px;top:-120px;border-width:26px}
+  #modes .mode{min-height:260px;padding:24px}
+  #modes .mode strong{font-size:42px}
+  #modes .mode span{font-size:16px}
+  #modes .mode[data-m=online]::after{width:280px;height:280px;right:-100px;top:-110px;border-width:26px}
+  #modes .mode[data-m=party]::after{width:200px;height:200px;left:-70px;bottom:-80px;border-radius:40px}
+  #modes .mode[data-m=solosec]::after{width:230px;height:200px;right:-50px;top:-50px}
   #subModes .modes,#roomModes{grid-template-columns:repeat(2,1fr)}
   .mode{padding:22px}
   .mode strong{font-size:26px}
