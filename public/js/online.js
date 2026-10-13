@@ -75,6 +75,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     next: () => send({ t: "next" }),
     config: (cfg) => send({ t: "config", ...cfg }),
     cfg: () => O.cfg,
+    closeReacts: () => closeReacts(),
     // appli rouverte moins de 60 s après l'avoir quittée : on retourne dans la partie
     tryRejoin() {
       if (O.active || O.reconnecting) return true; // déjà en route
@@ -127,7 +128,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
           joker: (k) => send({ t: "mjoker", k }),
           stop: () => send({ t: "mstop" })
         });
-        reactsOn("reactsM");
+        
         show("s-million");
         break;
       case "mlock": mu.lock(m.i); mu.info(m.i < 0 ? "Vous vous arrêtez. En attente des autres joueurs…" : "Réponse verrouillée. En attente des autres joueurs…"); break;
@@ -264,7 +265,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
       box.append(b);
     });
     box.hidden = false;
-    reactsOn("reacts");
+    
     show("s-game");
     startClock(m.ms);
   }
@@ -346,20 +347,25 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
 
   /* ----- réactions : des mots qui s'envolent, vus par tout le salon ----- */
   const REACTS = ["Bravo", "Haha", "Oh non", "Waouh", "Trop fort"];
-  function buildReacts(id) {
-    const box = $(id);
-    if (box.childElementCount) return;
-    REACTS.forEach((t, i) => {
-      const b = document.createElement("button");
-      b.className = `chip react r${i}`; b.textContent = t;
-      b.onclick = () => {
-        if (Date.now() - (O.reacted || 0) < 900) return; // pas de rafale
-        O.reacted = Date.now(); send({ t: "react", r: i });
-      };
-      box.append(b);
-    });
-  }
-  function reactsOn(id) { buildReacts(id); $(id).hidden = false; }
+  // le rond des réactions : un appui ouvre le menu, un appui sur une réaction l'envoie et referme
+  const menu = $("reactMenu"), fab = $("reactFab");
+  REACTS.forEach((t, i) => {
+    const b = document.createElement("button");
+    b.className = `chip react r${i}`; b.textContent = t;
+    b.style.animationDelay = `${i * 35}ms`;
+    b.onclick = () => {
+      closeReacts();
+      if (Date.now() - (O.reacted || 0) < 900) return; // pas de rafale
+      O.reacted = Date.now(); send({ t: "react", r: i });
+    };
+    menu.append(b);
+  });
+  function closeReacts() { menu.hidden = true; fab.setAttribute("aria-expanded", "false"); fab.classList.remove("open"); }
+  fab.onclick = () => {
+    const open = menu.hidden;
+    menu.hidden = !open; fab.setAttribute("aria-expanded", String(open)); fab.classList.toggle("open", open);
+  };
+  document.addEventListener("pointerdown", (e) => { if (!menu.hidden && !$("reactBox").contains(e.target)) closeReacts(); });
   function showReact(m) {
     const d = document.createElement("div");
     d.className = `bubble r${m.r}`;
@@ -465,7 +471,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
       box.append(b);
     });
     box.hidden = false;
-    reactsOn("reacts");
+    
     show("s-game");
     chronoClock(m.ms, m.total);
   }
