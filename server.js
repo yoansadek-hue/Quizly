@@ -140,14 +140,18 @@ const players = (room) => [...room.players.values()];
 const alive = (room) => players(room).filter((p) => !p.dead);
 // les écrans TV (mode Kahoot) reçoivent tout ce qui est envoyé à la salle
 const tvs = (room) => room.tvs || (room.tvs = new Set());
-const cast = (room, o) => { players(room).forEach((p) => send(p.ws, o)); tvs(room).forEach((ws) => send(ws, o)); };
+const LAST = ["q", "result", "level", "load", "fail", "end"];
+const cast = (room, o) => {
+  if (LAST.includes(o.t)) room.last = { ...o, at: Date.now() }; // dernier état, renvoyé à un joueur qui se reconnecte
+  players(room).forEach((p) => send(p.ws, o)); tvs(room).forEach((ws) => send(ws, o));
+};
 const clean = (s, n = 20) => String(s || "").replace(/[<>]/g, "").trim().slice(0, n);
 const clamp = (v, a, b) => Math.min(b, Math.max(a, Number.isFinite(v) ? v : a));
 const shuffle = (a) => a.map((x) => [Math.random(), x]).sort((p, q) => p[0] - q[0]).map((x) => x[1]);
 
 function lobbyMsg(room, p) {
   return {
-    t: "lobby", code: room.code, host: room.hostId, you: p.id, phase: room.phase, cfg: room.cfg, tv: tvs(room).size > 0, tvRoom: !!room.tvRoom,
+    t: "lobby", code: room.code, host: room.hostId, you: p.id, tok: p.tok, phase: room.phase, cfg: room.cfg, tv: tvs(room).size > 0, tvRoom: !!room.tvRoom,
     players: players(room).filter((x) => !x.left).map(({ id, name, photo, ci }) => ({ id, name, photo, ci }))
   };
 }
@@ -168,6 +172,7 @@ function join(ws, room, name, photo) {
   while (players(room).some((p) => !p.left && p.name.toLowerCase() === n.toLowerCase())) n = `${base} ${k++}`;
   const p = {
     id: Math.random().toString(36).slice(2, 9), ws, name: n,
+    tok: Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2), // secret pour revenir après une coupure
     photo: okPhoto(photo),
     lives: 0, score: 0, points: 0, dead: false, outAt: 0, left: false, ci: room.nextCi++
   };
@@ -499,6 +504,11 @@ async function mQuestion(room, holder, d) { // il faut 4 choix pour le 50/50 et 
   for (let i = 0; i < 6; i++) { q = await takeFor(room, holder); if (new Set(q.o).size >= 4) break; }
   return q;
 }
+function mWatch(room) { // la question commune, vue par les éliminés et la télé
+  const q = room.mshared;
+  const left = room.cfg.time ? Math.max(1, Math.round((room.mEnd - Date.now()) / 1000)) : 0;
+  return { t: "mq", watch: true, n: room.mn, tag: `${q.t} · ${LEVELS[millionLevel(room.mn)]}`, q: q.q, img: q.img || null, audio: q.audio || null, options: q.options, jok: {}, time: left, total: room.cfg.time };
+}
 function mSend(room, p, extra = {}) {
   const left = room.cfg.time ? Math.max(1, Math.round((room.mEnd - Date.now()) / 1000)) : 0;
   send(p.ws, {
@@ -525,10 +535,7 @@ async function mNext(room, again) {
     Object.assign(p, { mq: { ...q, options: shuffle(q.o) }, mpick: null, mstop: false, mremoved: [] });
     mSend(room, p);
   });
-  [...watchers(room).map((p) => p.ws), ...tvs(room)].forEach((w) => send(w, { // les éliminés et la télé suivent la partie en direct
-    t: "mq", watch: true, n: room.mn, tag: `${q.t} · ${LEVELS[millionLevel(room.mn)]}`, q: q.q, img: q.img || null, audio: q.audio || null,
-    options: room.mshared.options, jok: {}, time: room.cfg.time, total: room.cfg.time
-  }));
+  [...watchers(room).map((p) => p.ws), ...tvs(room)].forEach((w) => send(w, mWatch(room))); // les éliminés et la télé suivent la partie en direct
   mBoard(room);
   if (room.cfg.time) room.timer = setTimeout(() => mReveal(room), room.cfg.time * 1000 + 1500);
 }
@@ -568,7 +575,7 @@ async function mJoker(room, p, k) {
   }
 }
 function mCheck(room) {
-  if (room.phase === "mq" && inGame(room).every((p) => p.mpick !== null || p.mstop)) return mReveal(room);
+  if (room.phase === "mq" && inGame(room).every((p) => p.mpick !== null || p.mstop || p.away)) return mReveal(room);
   if (room.phase !== "end" && !players(room).some((p) => !p.left && !p.mout) && room.phase !== "mres") mEnd(room);
 }
 function mReveal(room) {
@@ -629,10 +636,66 @@ function tvNotify(room) {
   tvs(room).forEach((w) => send(w, lobbyMsg(room, { id: null }))); // la télé apprend les noms et photos
 }
 
+/* ---------- coupure de connexion : le joueur a 60 s pour revenir sans perdre sa place ---------- */
+const AWAY_MS = 60000;
+function drop(ws) {
+  const room = ws.room; if (!room) return;
+  const me = room.players.get(ws.pid);
+  if (!me || room.phase === "lobby" || room.phase === "end") return leave(ws); // pas de partie en cours : on sort
+  ws.room = null;
+  me.away = true;
+  clearTimeout(me.awayTimer);
+  me.awayTimer = setTimeout(() => { if (me.away && !me.left) leave({ room, pid: me.id }); }, AWAY_MS);
+  if (room.hostId === me.id) { // l'hôte passe à un joueur encore là
+    const other = players(room).find((p) => !p.left && !p.away);
+    if (other) { room.hostId = other.id; cast(room, { t: "host", host: other.id }); if (room.phase === "level") askLevel(room); }
+  }
+  const k = room.cfg.kind;
+  if ((k === "survie" || k === "equipes") && room.phase === "q" && players(room)[room.i]?.id === me.id && !room.cfg.time) {
+    clearTimeout(room.timer); room.timer = setTimeout(() => resolveTurn(room, false, -1), 30000); // son tour, sans minuteur : on n'attend pas indéfiniment
+  }
+  if (k === "million") mCheck(room); // on n'attend pas sa réponse pour continuer
+}
+function rejoin(ws, m) {
+  const room = rooms.get(String(m.code || "").toUpperCase().trim());
+  const p = room && room.players.get(String(m.pid || ""));
+  if (!room || !p || p.left || !p.tok || p.tok !== m.tok) return send(ws, { t: "rejoinfail" });
+  if (ws.room && !(ws.room === room && ws.pid === p.id)) leave(ws);
+  clearTimeout(p.awayTimer); p.away = false;
+  if (p.ws && p.ws !== ws) { p.ws.room = null; try { p.ws.close(); } catch {} } // ancienne connexion encore ouverte
+  p.ws = ws; ws.room = room; ws.pid = p.id;
+  if (!room.players.get(room.hostId) || room.players.get(room.hostId).left) room.hostId = p.id;
+  send(ws, { ...lobbyMsg(room, p), t: "resume" });
+  if (room.phase === "lobby") return castLobby(room);
+  const k = room.cfg.kind, L = room.last;
+  if (k === "chrono") {
+    send(ws, { t: "cgo", ms: CHRONO_MS }); castBoard(room);
+    if (p.done) return send(ws, { t: "cdone", points: p.points, score: p.score });
+    if (p.cq) {
+      const left = Math.max(0, p.ms - (Date.now() - p.qAt));
+      send(ws, { t: "cq", tag: `${p.cq.t} · ${LEVELS[p.cdiff]}`, q: p.cq.q, img: p.cq.img || null, audio: p.cq.audio || null, options: p.cq.options, ms: left, total: CHRONO_MS, points: p.points, streak: p.streak, diff: p.cdiff });
+    }
+    return;
+  }
+  if (k === "million" && room.phase !== "end") {
+    mBoard(room);
+    if (room.phase === "mq" && !p.mout && p.mq && p.mpick === null && !p.mstop) return mSend(room, p);
+    if (room.phase === "mq" && room.mshared) return send(ws, mWatch(room));
+    if (L && L.t === "load") send(ws, L);
+    return;
+  }
+  if (L) { // Survie, Équipes, fin de partie : on renvoie le dernier écran
+    const o = { ...L };
+    if (o.t === "q" && o.ms) o.ms = Math.max(1000, o.ms - (Date.now() - L.at));
+    send(ws, o);
+  }
+}
+
 function leave(ws) {
   const room = ws.room; if (!room) return;
   ws.room = null;
   const me = room.players.get(ws.pid); if (!me) return;
+  clearTimeout(me.awayTimer); me.away = false;
   const lobbyLike = room.phase === "lobby" || room.phase === "end";
   if (lobbyLike) room.players.delete(me.id);
   else { me.left = true; if (!me.dead) { me.dead = true; me.outAt = ++room.elim; } }
@@ -727,6 +790,7 @@ function handle(ws, m) {
     join(ws, room, m.name, m.photo);
     return castLobby(room);
   }
+  if (m.t === "rejoin") return rejoin(ws, m);
   const room = ws.room, me = room && room.players.get(ws.pid);
   if (!me) return;
   const host = me.id === room.hostId;
@@ -753,6 +817,20 @@ function handle(ws, m) {
   }
   else if (m.t === "next" && room.phase === "result" && (host || players(room)[room.i]?.id === me.id)) afterTurn(room);
   else if (m.t === "leave") leave(ws);
+  else if (m.t === "kick" && host && room.phase === "lobby") { // l'hôte retire un joueur du salon
+    const t = room.players.get(String(m.id));
+    if (t && t.id !== me.id) { send(t.ws, { t: "kicked" }); t.ws.room = null; room.players.delete(t.id); castLobby(room); }
+  }
+  else if (m.t === "sethost" && host) { // l'hôte donne son rôle
+    const t = room.players.get(String(m.id));
+    if (t && !t.left && !t.away && t.id !== me.id) { room.hostId = t.id; cast(room, { t: "host", host: t.id }); if (room.phase === "lobby") castLobby(room); }
+  }
+  else if (m.t === "react") { // réaction envoyée à tout le salon (et à la télé)
+    const now = Date.now(), r = Number(m.r);
+    if (now - (me.lastReact || 0) < 800 || !Number.isInteger(r) || r < 0 || r > 4) return;
+    me.lastReact = now;
+    cast(room, { t: "react", r, id: me.id, name: me.name });
+  }
 }
 
 const port = process.env.PORT || 3000;
@@ -763,6 +841,6 @@ wss.on("connection", (ws, req) => {
   ws.isAlive = true;
   ws.on("pong", () => (ws.isAlive = true));
   ws.on("message", (buf) => { let m; try { m = JSON.parse(buf); } catch { return; } try { handle(ws, m); } catch (e) { console.error(e); } });
-  ws.on("close", () => { if (ws.tvRoom) dropTv(ws); leave(ws); });
+  ws.on("close", () => { if (ws.tvRoom) dropTv(ws); drop(ws); });
 });
 setInterval(() => wss.clients.forEach((ws) => { if (!ws.isAlive) return ws.terminate(); ws.isAlive = false; ws.ping(); }), 30000);
