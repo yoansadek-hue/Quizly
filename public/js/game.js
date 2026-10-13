@@ -5,7 +5,7 @@ import { makeLocal, LOCAL_THEMES, SONG_THEME, euros } from "./local.js";
 import { millionUI, millionLocal, avatarEl, setAudio } from "./million.js";
 import { startScan, stopScan, tvCodeFrom } from "./scan.js";
 
-const VERSION = "2.7.2"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.7.3"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
