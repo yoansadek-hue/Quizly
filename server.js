@@ -26,7 +26,7 @@ const ICONS = {
 app.get("/icons/icon-:n.png", (req, res) => {
   const b = ICONS[req.params.n];
   if (!b) return res.sendStatus(404);
-  res.type("png").set("Cache-Control", "public, max-age=86400").send(Buffer.from(b, "base64"));
+  res.type("png").set("Cache-Control", "public, max-age=3600").send(Buffer.from(b, "base64"));
 });
 app.use(express.static("public"));
 
