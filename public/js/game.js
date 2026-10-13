@@ -5,7 +5,7 @@ import { makeLocal, LOCAL_THEMES, SONG_THEME, euros } from "./local.js";
 import { millionUI, millionLocal, avatarEl, setAudio } from "./million.js";
 import { startScan, stopScan, tvCodeFrom } from "./scan.js";
 
-const VERSION = "2.7.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.7.1"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -31,7 +31,7 @@ const S = {
 };
 const M = () => MODES[S.mode];
 document.querySelectorAll(".ver").forEach((e) => (e.textContent = `Quizly v${VERSION} · par YoskanGame`));
-const online = initOnline({ $, show, flash, confetti, me: () => ({ name: S.firstName || "Joueur", photo: S.photo || "" }), record: chronoRecord, millionUI, avatarEl, setAudio, stat: { answer: (t, ok) => statAnswer(t, ok), game: (k) => statGame(k) } });
+const online = initOnline({ $, show, flash, confetti, me: () => ({ name: S.firstName || "Joueur", photo: S.photo || "" }), record: chronoRecord, millionUI, avatarEl, setAudio, setMode: (kind) => (S.mode = KIND_MODE[kind] || "online"), stat: { answer: (t, ok) => statAnswer(t, ok), game: (k) => statGame(k) } });
 // record personnel du Chrono en ligne (gardé sur l'appareil, par compte)
 function chronoRecord(points) {
   const key = `quizly:${S.uid}:bestChrono`;
@@ -381,6 +381,7 @@ function prepareCard() {
     : `${n} joueur${n > 1 ? "s" : ""} en vie sur ${S.players.length}`;
   $("scene").classList.toggle("compact", m.qcm);
   $("liveBoard").hidden = true; // réservé au Chrono en ligne
+  $("reacts").hidden = true; // réactions : seulement en ligne
   $("whoName").textContent = p.name;
   $("whoAv").replaceChildren(avatarEl(p.name, photoOf(p.name), true));
   $("whoName").classList.toggle("retry", !!S.retry); // nom en rouge quand la question est reposée après une vie utilisée
@@ -816,6 +817,7 @@ function startMillion() {
   S.players = S.slots.map((s) => ({ name: s.name, lives: s.lives, jokers: 0, dead: false, score: 0, points: 0, streak: 0, outAt: 0 }));
   if (S.slots.length > 1) saveRoster(); // en solo, on garde la liste de joueurs habituelle
   S.asked = []; S.inGame = true; S.diff = 1; S.loading = null;
+  $("reactsM").hidden = true; // réactions : seulement en ligne
   const bank = loadBank();
   S.buf = bank.filter((q) => S.active.has(q.t) && !seen(q.q));
   S.rest = bank.filter((q) => !S.active.has(q.t));
@@ -989,6 +991,7 @@ function enter(uid, name, photo) {
   loadRoster();
   renderModes();
   show("s-mode");
+  if (!pendingJoin && online.tryRejoin()) return; // appli rouverte en pleine partie : on y retourne
   if (pendingJoin) {
     const code = pendingJoin.toUpperCase().slice(0, 12); pendingJoin = null;
     try { history.replaceState(null, "", location.pathname); } catch {}
