@@ -18,6 +18,7 @@ const MODES = {
   million: { name: "Qui veut gagner des millions", desc: "Seul ou à plusieurs sur un téléphone : 15 questions, 3 jokers, des paliers sûrs. Visez le million !", qcm: true, time: 0, joker: false, lives: false, million: true },
   // types de salon, choisis depuis « En ligne »
   chrono: { name: "Chrono en ligne", qcm: true, time: 60, joker: false, lives: false, online: true, chrono: true, hidden: true },
+  oteams: { name: "Équipes en ligne", qcm: true, time: 30, joker: false, lives: false, online: true, teams: true, hidden: true },
   omillion: { name: "Millionnaire en ligne", qcm: true, time: 30, joker: false, lives: false, online: true, million: true, hidden: true }
 };
 const TIMES = [10, 15, 20, 30, 45, 60, 0];
@@ -865,9 +866,9 @@ function renderModes() {
   S.menuSec = null;
   const grid = document.createElement("div"); grid.className = "modes three";
   grid.append(
-    modeCard("online", "En ligne", "", () => chooseMode("online"), 0),
-    modeCard("party", "Party", "", () => openSection("party"), 1),
-    modeCard("solosec", "Solo", "", () => openSection("solosec"), 2)
+    modeCard("online", "En ligne", "Chacun sur son téléphone, avec un code ou la télé.", () => chooseMode("online"), 0),
+    modeCard("party", "Party", "Jouer avec tes amis sur un seul téléphone.", () => openSection("party"), 1),
+    modeCard("solosec", "Solo", "Seul face aux questions, pour battre tes records.", () => openSection("solosec"), 2)
   );
   $("modes").replaceChildren(grid);
 }
@@ -886,6 +887,7 @@ function openSection(key) {
 $("btnSubBack").onclick = () => { S.menuSec = null; show("s-mode"); };
 function millionSolo() { // Millionnaire seul : on lance directement, à votre nom
   chooseMode("million");
+  S.mSolo = true; // « Rejouer » relancera la partie seul, sans passer par le nombre de joueurs
   S.count = 1;
   S.slots = [{ name: S.firstName || "Moi", lives: 0, imported: false }];
   startMillion();
@@ -893,6 +895,7 @@ function millionSolo() { // Millionnaire seul : on lance directement, à votre n
 
 function chooseMode(id) {
   S.mode = id;
+  S.mSolo = false;
   S.cfg.time = M().time;
   if (M().online) {
     $("onMsg").textContent = "";
@@ -1073,13 +1076,13 @@ $("btnThemes").onclick = () => {
   renderTime(); show("s-time");
 };
 $("btnTime").onclick = () => {
-  if (M().online && M().million) return submitRoom(); // Millionnaire en ligne : pas de vies
+  if (M().online && (M().million || M().teams)) return submitRoom(); // Millionnaire et Équipes en ligne : pas de vies
   if (M().online) { renderLivesOpt(); show("s-jokers"); }
   else if (M().joker) { renderJokers(); show("s-jokers"); }
   else startGame();
 };
 function submitRoom() {
-  const cfg = { auto: S.cfg.auto, kind: M().chrono ? "chrono" : M().million ? "million" : "survie", themes: [...S.active], time: S.cfg.time, lives: S.cfg.lives };
+  const cfg = { auto: S.cfg.auto, kind: M().chrono ? "chrono" : M().million ? "million" : M().teams ? "equipes" : "survie", themes: [...S.active], time: S.cfg.time, lives: S.cfg.lives };
   if (S.editRoom) { S.editRoom = false; online.setEditing(false); online.config(cfg); } // l'hôte modifie la salle
   else online.create(cfg);
 }
@@ -1100,6 +1103,7 @@ $("btnUp").onclick = () => (M().online ? online.level(true) : chooseLevel(true))
 $("btnStay").onclick = () => (M().online ? online.level(false) : chooseLevel(false));
 $("btnAgain").onclick = () => {
   if (M().online) return online.again();
+  if (M().million && S.mSolo) return millionSolo(); // Millionnaire seul : on relance directement
   if (M().solo) { renderThemes(); show("s-themes"); } else show("s-count"); // même mode, sans lancer la partie
 };
 
@@ -1112,9 +1116,10 @@ document.addEventListener("focusout", () => document.body.classList.remove("typi
 const ROOM_MODES = [
   ["online", "survie", "Survie", "Chacun son tour, avec des vies. Le dernier en vie gagne."],
   ["chrono", "chrono", "Chrono 60 s", "Tout le monde joue en même temps pendant 60 secondes. Le plus de points gagne."],
+  ["oteams", "teams", "Équipes", "Les joueurs sont répartis en équipes qui jouent chacune leur tour. Les points s'additionnent."],
   ["omillion", "million", "Qui veut gagner des millions", "La même échelle de 15 questions pour tous, chacun avec ses jokers. Celui qui repart avec le plus gagne."]
 ];
-const KIND_MODE = { survie: "online", chrono: "chrono", million: "omillion" };
+const KIND_MODE = { survie: "online", chrono: "chrono", million: "omillion", equipes: "oteams" };
 function renderRoomModes(current) {
   const box = $("roomModes");
   box.replaceChildren();
