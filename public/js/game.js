@@ -5,7 +5,7 @@ import { makeLocal, LOCAL_THEMES, SONG_THEME, euros } from "./local.js";
 import { millionUI, millionLocal, avatarEl, setAudio } from "./million.js";
 import { startScan, stopScan, tvCodeFrom } from "./scan.js";
 
-const VERSION = "2.7.4"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.7.5"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -60,7 +60,7 @@ function show(id) {
   curScreen = id;
   // rond des réactions : seulement pendant une partie en ligne
   let onl = false; try { onl = online.active(); online.closeReacts(); } catch {}
-  $("reactBox").hidden = !(onl && ["s-game", "s-million", "s-load"].includes(id));
+  $("reactFab").hidden = !(onl && ["s-game", "s-million", "s-load"].includes(id));
   const au = document.getElementById("qAudio"); if (au && id !== "s-game") au.pause(); // l'extrait s'arrête quand on quitte la question
   document.querySelectorAll(".screen").forEach((s) => (s.hidden = s.id !== id));
   userLabel();
@@ -1185,7 +1185,7 @@ $("btnScan").onclick = () => {
   show("s-scan");
   const onCode = (text) => {
     const code = tvCodeFrom(text);
-    if (!code) { $("scanMsg").textContent = "Ce QR code n'est pas celui d'une télé Quizly."; return setTimeout(() => curScreen === "s-scan" && startScan($("scanVideo"), onCode, onErr), 1500); }
+    if (!code) { $("scanMsg").textContent = "Ce QR code n'est pas un salon Quizly."; return setTimeout(() => curScreen === "s-scan" && startScan($("scanVideo"), onCode, onErr), 1500); }
     stopScan();
     $("scanMsg").textContent = "Connexion à la télé…";
     online.join(code);
