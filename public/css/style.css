@@ -15,6 +15,7 @@
   --mint:#34e3b0;        /* menthe */
   --coral:#ff6b8b;       /* pamplemousse */
   --sky:#62c7ff;         /* ciel */
+  --peach:#ff9f45;       /* abricot : le Chrono */
   --lilac:#c4b8ff;       /* texte secondaire sur le fond */
   --muted:#5b4a8f;       /* texte secondaire sur une carte claire */
   --edge:0 6px 0 var(--ink);
@@ -141,7 +142,8 @@ input[type=text],input[type=email]{
 .mode:active{transform:translateY(4px);box-shadow:0 2px 0 var(--ink)}
 @media (hover:hover){.mode:hover{transform:translateY(-2px);box-shadow:0 8px 0 var(--ink)}}
 .mode[data-m=online],.mode[data-m=survie]{background:var(--mint)}
-.mode[data-m=party],.mode[data-m=teams],.mode[data-m=chrono]{background:var(--coral)}
+.mode[data-m=party],.mode[data-m=teams]{background:var(--coral)}
+.mode[data-m=chrono]{background:var(--peach)}
 .mode[data-m=solosec],.mode[data-m=solo]{background:var(--sun)}
 .mode[data-m=qcm]{background:var(--sky)}
 .mode[data-m=classic]{background:var(--paper)}
@@ -476,3 +478,38 @@ body.tvmode #s-game #mcq .btn::before{width:54px;height:54px;font-size:24px}
 .bubble{position:fixed;bottom:150px;z-index:20;display:flex;gap:6px;align-items:center;padding:7px 14px;border:3px solid var(--ink);border-radius:999px;box-shadow:var(--edge-s);color:var(--ink);font:800 15px var(--display);pointer-events:none;animation:floatup 2.8s ease-out forwards}
 .bubble b{font-family:var(--font);font-weight:800}
 @keyframes floatup{0%{transform:translateY(16px) scale(.6);opacity:0}12%{transform:none;opacity:1}100%{transform:translateY(-280px) rotate(-6deg);opacity:0}}
+
+/* =====================================================================
+   2.7.3 : écran de jeu plus lisible
+   Une seule chose colorée à la fois : la question et les réponses.
+   Le reste (échelle, jokers, réactions) est discret.
+   ===================================================================== */
+.clock{color:var(--sun)}
+/* Millionnaire : en-tête clair */
+#s-million .who{font-size:20px}
+#mWon{background:var(--sun);font:800 14px var(--display)}
+#mInfo{font-size:14px}
+/* l'échelle des gains : une barre de 15 cases, sans texte (la somme en jeu est en haut) */
+.ladder{display:grid;grid-template-columns:repeat(15,1fr);gap:4px;margin:12px 0 16px;padding:0;overflow:visible}
+.ladder li{font-size:0;padding:0;height:10px;border:0;border-radius:99px;background:rgba(196,184,255,.22)}
+.ladder li.safe{background:rgba(255,225,77,.45)}
+.ladder li.done{background:var(--mint)}
+.ladder li.now{background:var(--sun);transform:scaleY(1.5);box-shadow:0 0 0 2px var(--ink)}
+/* jokers : trois boutons sobres, sur une ligne, avec un titre */
+.mjokers{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:18px 0 12px}
+.mjokers::before{content:"Jokers";grid-column:1 / -1;font:700 13px var(--font);color:var(--lilac)}
+.mjokers .chip{justify-content:center;text-align:center;min-height:44px;padding:6px 8px;background:var(--bg-deep);color:var(--paper);border:2px solid rgba(196,184,255,.55);box-shadow:none;font:800 12px var(--display)}
+.mjokers .chip.used{background:transparent;color:rgba(196,184,255,.5);border-color:rgba(196,184,255,.25)}
+#mStop{min-height:50px;font-size:15px}
+/* réactions : une ligne discrète tout en bas, la couleur n'apparaît que dans les bulles */
+.reacts{display:flex;flex-wrap:nowrap;overflow-x:auto;gap:6px;justify-content:flex-start;align-items:center;margin:24px 0 0;padding:14px 0 2px;border-top:2px dashed rgba(196,184,255,.28);scrollbar-width:none}
+.reacts::-webkit-scrollbar{display:none}
+.reacts::before{content:"Réagir";flex:none;font:700 13px var(--font);color:var(--lilac);margin-right:4px}
+.reacts .chip.react{flex:none;min-height:34px;padding:4px 12px;background:transparent;color:var(--paper);border:2px solid rgba(196,184,255,.45);box-shadow:none;font:700 13px var(--font)}
+.reacts .chip.react:active{background:var(--sun);color:var(--ink)}
+@media (min-width:700px){
+  #s-million .who{font-size:28px}
+  #mWon{font-size:17px}
+  .ladder li{height:12px}
+  .mjokers .chip{font-size:14px;min-height:50px}
+}
