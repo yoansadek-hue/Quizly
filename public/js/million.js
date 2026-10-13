@@ -219,7 +219,7 @@ export function setAudio($, url) {
   a.pause();
   if (!url) { b.hidden = true; a.removeAttribute("src"); return; }
   a.src = url; b.hidden = false;
-  const label = () => (b.textContent = a.paused ? "▶ Écouter l'extrait" : "■ Arrêter");
+  const label = () => (b.textContent = a.paused ? "Écouter l'extrait" : "Arrêter l'extrait");
   b.onclick = (e) => { e.stopPropagation(); if (a.paused) { a.currentTime = 0; a.play().then(label).catch(label); } else { a.pause(); label(); } };
   a.onended = a.onpause = label;
   label();
