@@ -30,6 +30,13 @@ addEventListener("error", function (e) {
 </header>
 
 <div id="fx"></div>
+<!-- réactions (en ligne) : un rond sur le côté, qui ouvre les réactions -->
+<div id="reactBox" class="reactbox" hidden>
+  <div id="reactMenu" class="reactmenu" hidden></div>
+  <button id="reactFab" class="reactfab" aria-label="Envoyer une réaction" aria-expanded="false">
+    <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H11l-4.5 4v-4h0A2.5 2.5 0 0 1 4 13.5z" fill="currentColor"/></svg>
+  </button>
+</div>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="glogo" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></symbol></svg>
 <main>
   <!-- Connexion obligatoire -->
@@ -255,7 +262,6 @@ addEventListener("error", function (e) {
     </div></div>
     <p class="swap"><button class="link" id="btnSwap">Changer de question</button></p>
     <div id="mcq" class="grid" hidden></div>
-    <div class="reacts" id="reacts" hidden></div>
     <div class="dock" id="dockGame"><button class="btn white" id="btnJoker">Joker : 4 choix</button></div>
     <div class="dock" id="dockNext" hidden><button class="btn sun" id="btnNext">Continuer</button></div>
     <div class="dock" id="dockJudge" hidden>
@@ -314,7 +320,6 @@ addEventListener("error", function (e) {
       <button class="chip" id="mSwap">Changer</button>
     </div>
     <div class="stack"><button class="btn coral" id="mStop">Je m'arrête</button></div>
-    <div class="reacts" id="reactsM" hidden></div>
   </section>
 
   <section id="s-end" class="screen center" hidden>
