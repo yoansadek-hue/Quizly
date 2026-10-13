@@ -52,7 +52,7 @@ export function millionUI($) {
     document.querySelector(".mjokers").hidden = !!m.watch;
     $("mStep").textContent = m.who || `Question ${m.n + 1} / 15`; // sur un téléphone à plusieurs : le nom du joueur
     $("mAv").replaceChildren(m.avName ? avatarEl(m.avName, m.avPhoto) : "");
-    $("mWon").textContent = euros(PRIZES[m.n]);
+    $("mWon").textContent = `Pour ${euros(PRIZES[m.n])}`; // la somme en jeu sur cette question
     $("mTag").textContent = m.tag;
     $("mText").textContent = m.q;
     const ql = m.q.length;
