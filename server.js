@@ -72,44 +72,172 @@ async function generate(themes, diff, count, avoid) {
 }
 
 const hits = new Map(); // 10 requêtes / minute / IP
-/* ---------- Devine la chanson : extraits de 30 s trouvés sur iTunes ---------- */
-const songCache = new Map(); // titre → adresse de l'extrait
+/* =====================================================================
+   Questions « sans fin » : chansons (iTunes) et logos (Wikidata + icônes Google)
+   ===================================================================== */
 const plain = (x) => String(x).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
-async function itunesPreview(s) {
-  if (songCache.has(s.title)) return songCache.get(s.title);
-  const ctl = new AbortController(), stop = setTimeout(() => ctl.abort(), 5000);
-  try {
-    const url = `https://itunes.apple.com/search?term=${encodeURIComponent(`${s.artist} ${s.title}`)}&entity=song&media=music&limit=15&country=FR`;
-    const r = await fetch(url, { signal: ctl.signal });
-    if (!r.ok) return null;
-    const { results = [] } = await r.json();
-    const words = plain(s.artist).split(" ").filter((w) => w.length >= 3);
-    const hit = results.find((x) => x.previewUrl
-      && plain(x.trackName).startsWith(plain(s.title))
-      && (words.length === 0 || words.some((w) => plain(x.artistName).includes(w)))
-      && !/karaok|tribute|cover|instrumental|reprise/i.test(`${x.trackName} ${x.collectionName} ${x.artistName}`)); // pas de karaoké ni de reprise
-    if (hit) songCache.set(s.title, hit.previewUrl);
-    return hit ? hit.previewUrl : null;
-  } catch { return null; } finally { clearTimeout(stop); }
+async function getJSON(url, opts = {}, ms = 7000) {
+  const ctl = new AbortController(), stop = setTimeout(() => ctl.abort(), ms);
+  try { const r = await fetch(url, { ...opts, signal: ctl.signal }); if (!r.ok) throw new Error(`HTTP ${r.status}`); return await r.json(); }
+  finally { clearTimeout(stop); }
 }
-async function songQuestion(d) {
-  const pool = songPool(d);
-  for (let t = 0; t < 5; t++) {
-    const s = pool[Math.floor(Math.random() * pool.length)];
-    const audio = await itunesPreview(s);
-    if (!audio) continue;
-    const near = shuffle(SONGS.filter((x) => x !== s && Math.abs(x.n - s.n) <= 1)).slice(0, 3);
-    return { t: SONG_THEME, d, q: "Quelle est cette chanson ?", a: songLabel(s), o: [songLabel(s), ...near.map(songLabel)], audio, key: `~song:${s.title}` };
+const pickOne = (a) => a[Math.floor(Math.random() * a.length)];
+
+/* ---------- Devine la chanson : un artiste, tout son répertoire iTunes ---------- */
+// niveau 1 : très connus · 2 : connus · 3 : classiques et plus pointus
+const ARTISTS = {
+  1: ["Michael Jackson", "Stromae", "Daft Punk", "Queen", "Adele", "Ed Sheeran", "Rihanna", "Beyoncé", "Céline Dion", "Aya Nakamura", "Angèle", "The Weeknd", "Dua Lipa", "ABBA", "Bruno Mars", "Coldplay", "Eminem", "Shakira", "Johnny Hallyday", "Indila", "GIMS", "Jul", "Taylor Swift", "Billie Eilish", "Imagine Dragons", "David Guetta"],
+  2: ["Christophe Maé", "Kendji Girac", "Zaz", "Vianney", "Soprano", "Orelsan", "PNL", "Nekfeu", "Damso", "Ninho", "Slimane", "Louane", "Calogero", "Pharrell Williams", "Lady Gaga", "Katy Perry", "Justin Bieber", "Harry Styles", "Arctic Monkeys", "Muse", "Linkin Park", "Avicii", "Black Eyed Peas", "Maroon 5", "Sia"],
+  3: ["Jacques Brel", "Édith Piaf", "Joe Dassin", "Charles Aznavour", "Francis Cabrel", "Indochine", "Téléphone", "Daniel Balavoine", "Mylène Farmer", "Michel Sardou", "The Beatles", "Eagles", "Toto", "a-ha", "Renaud", "Jean-Jacques Goldman", "Serge Gainsbourg", "France Gall", "Claude François", "Elvis Presley", "Bob Marley", "Nirvana", "The Rolling Stones", "Led Zeppelin"]
+};
+const artistCache = new Map(); // artiste → { at, songs: [{ title, audio }] } (gardé 24 h)
+const cleanTitle = (t) => String(t).replace(/\s*[\(\[][^\)\]]*[\)\]]/g, "").replace(/\s+-\s+.*$/, "").trim(); // « Titre (feat. X) - Remastered » → « Titre »
+async function artistSongs(artist) {
+  const c = artistCache.get(artist);
+  if (c && Date.now() - c.at < 86400000) return c.songs;
+  const url = `https://itunes.apple.com/search?term=${encodeURIComponent(artist)}&entity=song&attribute=artistTerm&limit=80&country=FR`;
+  const { results = [] } = await getJSON(url);
+  const words = plain(artist).split(" ").filter((w) => w.length >= 3);
+  const out = [], seenT = new Set();
+  for (const x of results) {
+    if (!x.previewUrl || !x.trackName) continue;
+    const who = plain(x.artistName || "");
+    if (words.length && !words.some((w) => who.includes(w))) continue; // un autre artiste
+    if (/karaok|tribute|cover|instrumental|reprise|live|remix|acoustic|version|edit\b|medley/i.test(`${x.trackName} ${x.collectionName || ""}`)) continue;
+    const title = cleanTitle(x.trackName), k = plain(title);
+    if (!k || seenT.has(k)) continue;
+    seenT.add(k);
+    out.push({ title, audio: x.previewUrl }); // ordre iTunes : les plus connues d'abord
+  }
+  artistCache.set(artist, { at: Date.now(), songs: out });
+  return out;
+}
+async function songQuestion(d, isNew = () => true) {
+  const levels = d <= 2 ? [1] : d === 3 ? [1, 2] : d === 4 ? [2, 3] : [2, 3, 3];
+  const depth = [0, 6, 10, 16, 26, 40][d]; // plus le niveau monte, moins le titre est connu
+  for (let t = 0; t < 8; t++) {
+    const artist = pickOne(ARTISTS[pickOne(levels)]);
+    let songs;
+    try { songs = await artistSongs(artist); } catch { continue; }
+    if (songs.length < 4) continue;
+    const pool = songs.slice(0, Math.max(4, Math.min(depth, songs.length)));
+    for (const s of [...pool].sort(() => Math.random() - 0.5)) {
+      const q = { t: SONG_THEME, d, q: `Quelle est cette chanson de ${artist} ?`, a: s.title, audio: s.audio, key: `~song:${plain(artist)}:${plain(s.title)}` };
+      if (!isNew(q)) continue;
+      // les autres choix : d'autres titres du même artiste, de notoriété voisine
+      const i = songs.indexOf(s);
+      const near = songs.filter((x) => x !== s).sort((x, y) => Math.abs(songs.indexOf(x) - i) - Math.abs(songs.indexOf(y) - i)).slice(0, 8);
+      q.o = [s.title, ...shuffle(near).slice(0, 3).map((x) => x.title)];
+      return q;
+    }
   }
   throw new Error("Extrait musical introuvable.");
 }
-// question « sans IA » : l'extrait musical passe par iTunes, le reste est fabriqué sur place
-async function makeAny(theme, d) {
-  if (theme === SONG_THEME) { try { return await songQuestion(d); } catch { /* on passe à une autre question */ } }
+
+/* ---------- Logos : des centaines de marques par secteur (Wikidata), icône vérifiée ---------- */
+const SECTORS = [
+  { qid: "Q786820", q: "Quel constructeur automobile a ce logo ?" },
+  { qid: "Q46970", q: "Quelle compagnie aérienne a ce logo ?" },
+  { qid: "Q476028", q: "Quel club de football a ce logo ?" },
+  { qid: "Q22687", q: "Quelle banque a ce logo ?" },
+  { qid: "Q2001305", q: "Quelle chaîne de télévision a ce logo ?" },
+  { qid: "Q210167", q: "Quel studio de jeux vidéo a ce logo ?" },
+  { qid: "Q3661311", q: "Quelle maison de mode a ce logo ?" }
+];
+const sectorCache = new Map(); // secteur → { at, list: [{ name, dom }] } triée par notoriété
+async function sectorBrands(sec) {
+  const c = sectorCache.get(sec.qid);
+  if (c && Date.now() - c.at < 86400000) return c.list;
+  const sparql = `SELECT ?item ?itemLabel ?site ?links WHERE {
+    ?item wdt:P31 wd:${sec.qid}; wdt:P856 ?site; wikibase:sitelinks ?links.
+    FILTER(?links >= 12)
+    SERVICE wikibase:label { bd:serviceParam wikibase:language "fr,en". }
+  } ORDER BY DESC(?links) LIMIT 200`;
+  const j = await getJSON(`https://query.wikidata.org/sparql?format=json&query=${encodeURIComponent(sparql)}`,
+    { headers: { Accept: "application/sparql-results+json", "User-Agent": "QuizlyGame/2.7 (jeu de quiz ; https://quizly-np1p.onrender.com)" } }, 12000);
+  const list = [], doms = new Set(), names = new Set();
+  for (const b of j.results.bindings) {
+    const name = b.itemLabel?.value || "";
+    let dom = "";
+    try { dom = new URL(b.site.value).hostname.replace(/^www\./, ""); } catch { continue; }
+    if (!name || /^Q\d+$/.test(name) || doms.has(dom) || names.has(plain(name))) continue;
+    doms.add(dom); names.add(plain(name));
+    list.push({ name, dom });
+  }
+  sectorCache.set(sec.qid, { at: Date.now(), list });
+  return list;
+}
+const iconOk = new Map(); // site → l'icône existe-t-elle vraiment (pas le globe par défaut) ?
+const iconUrl = (dom) => `https://www.google.com/s2/favicons?domain=${dom}&sz=128`;
+async function checkIcon(dom) {
+  if (iconOk.has(dom)) return iconOk.get(dom);
+  let ok = false;
+  try {
+    const ctl = new AbortController(), stop = setTimeout(() => ctl.abort(), 4000);
+    const r = await fetch(iconUrl(dom), { signal: ctl.signal }); clearTimeout(stop);
+    if (r.ok) {
+      const b = Buffer.from(await r.arrayBuffer());
+      const png = b.length > 24 && b.readUInt32BE(0) === 0x89504e47;
+      ok = png && b.readUInt32BE(16) >= 64 && b.length > 1500; // une vraie icône, assez grande
+    }
+  } catch { ok = false; }
+  iconOk.set(dom, ok);
+  return ok;
+}
+async function logoQuestion(d, isNew = () => true) {
+  const window = [0, 15, 30, 55, 90, 200][d]; // les plus connues d'abord, puis de plus en plus pointues
+  for (let t = 0; t < 6; t++) {
+    const sec = pickOne(SECTORS);
+    let list;
+    try { list = await sectorBrands(sec); } catch { continue; }
+    if (list.length < 8) continue;
+    const top = list.slice(0, Math.min(window, list.length));
+    const from = d >= 4 ? Math.floor(top.length / 3) : 0; // aux niveaux durs, on évite les plus célèbres
+    for (const b of shuffle(top.slice(from)).slice(0, 6)) {
+      const q = { t: "Logos", d, q: sec.q, a: b.name, img: iconUrl(b.dom), logo: true, key: `~logo:${b.dom}` };
+      if (!isNew(q) || !(await checkIcon(b.dom))) continue;
+      const i = list.indexOf(b);
+      const near = list.filter((x) => x !== b).sort((x, y) => Math.abs(list.indexOf(x) - i) - Math.abs(list.indexOf(y) - i)).slice(0, 7); // même secteur, notoriété voisine
+      q.o = [b.name, ...shuffle(near).slice(0, 3).map((x) => x.name)];
+      return q;
+    }
+  }
+  throw new Error("Logo introuvable.");
+}
+
+/* ---------- jamais deux fois la même question dans une partie ---------- */
+const sigs = (q) => [q.key, `${plain(q.q)}|${plain(q.a)}`].filter(Boolean);
+const isNewIn = (set) => (q) => q && !sigs(q).some((k) => set.has(k));
+const markIn = (set, q) => sigs(q).forEach((k) => set.add(k));
+// question « sans IA » : les chansons et les logos viennent des API, le reste est fabriqué sur place
+async function makeAny(theme, d, isNew = () => true) {
+  try {
+    if (theme === SONG_THEME) return await songQuestion(d, isNew);
+    if (theme === "Logos") return await logoQuestion(d, isNew);
+  } catch { /* API indisponible : liste intégrée */ }
   return makeLocal(theme, d);
 }
+// tire une question sans IA jamais posée : d'abord les thèmes choisis, puis les niveaux voisins, puis les autres thèmes
+async function pickLocal(themes, d, used) {
+  const ok = isNewIn(used);
+  const others = LOCAL_THEMES.filter((t) => !themes.includes(t));
+  const plan = [[themes, d], [themes, Math.max(1, d - 1)], [themes, Math.min(5, d + 1)], [others.length ? others : themes, d]];
+  for (const [ts, dd] of plan) {
+    for (let i = 0; i < 25; i++) {
+      const q = await makeAny(pickOne(ts), dd, ok);
+      if (ok(q)) { markIn(used, q); return q; }
+    }
+  }
+  return null;
+}
 app.get("/api/song", async (req, res) => {
-  try { res.json(await songQuestion(clamp(+req.query.d || 1, 1, 5))); }
+  const avoid = new Set(String(req.query.avoid || "").split(",").filter(Boolean).slice(0, 300));
+  try { res.json(await songQuestion(clamp(+req.query.d || 1, 1, 5), (q) => !avoid.has(q.key))); }
+  catch (e) { res.status(502).json({ error: e.message }); }
+});
+app.get("/api/logo", async (req, res) => {
+  const avoid = new Set(String(req.query.avoid || "").split(",").filter(Boolean).slice(0, 300));
+  try { res.json(await logoQuestion(clamp(+req.query.d || 1, 1, 5), (q) => !avoid.has(q.key))); }
   catch (e) { res.status(502).json({ error: e.message }); }
 });
 
@@ -205,16 +333,15 @@ async function takeQuestion(room) {
   const locals = room.cfg.themes.filter((t) => LOCAL_THEMES.includes(t));
   const withAI = room.cfg.themes.length > locals.length;
   if (locals.length && (!withAI || Math.random() < locals.length / room.cfg.themes.length)) {
-    for (let i = 0; i < 8; i++) {
-      const lq = await makeAny(locals[Math.floor(Math.random() * locals.length)], room.diff);
-      if (!room.asked.includes(lq.key) || i === 7) { room.asked.push(lq.key); return lq; }
-    }
+    const lq = await pickLocal(locals, room.diff, room.used || (room.used = new Set()));
+    if (lq) { room.asked.push(lq.key); return lq; }
   }
+  const used = room.used || (room.used = new Set());
   for (let t = 0; t < 3; t++) {
-    const pool = room.buf.filter((q) => !q.u && q.d === room.diff);
+    const pool = room.buf.filter((q) => !q.u && q.d === room.diff && isNewIn(used)(q));
     if (pool.length) {
       const q = pool[Math.floor(Math.random() * pool.length)];
-      q.u = true; room.asked.push(q.q);
+      q.u = true; room.asked.push(q.q); markIn(used, q);
       if (room.buf.filter((x) => !x.u && x.d === room.diff).length < 3) fill(room).catch(() => {});
       return q;
     }
@@ -225,7 +352,7 @@ async function takeQuestion(room) {
 
 /* --- déroulement --- */
 function startGame(room) {
-  Object.assign(room, { phase: "load", diff: 1, buf: [], asked: [], played: new Set(), i: -1, elim: 0, loads: new Map() });
+  Object.assign(room, { phase: "load", diff: 1, buf: [], asked: [], used: new Set(), played: new Set(), i: -1, elim: 0, loads: new Map() });
   players(room).forEach((p) => Object.assign(p, { lives: room.cfg.lives, score: 0, points: 0, dead: false, outAt: 0 }));
   if (room.cfg.kind === "equipes") makeTeams(room);
   nextTurn(room);
@@ -384,25 +511,21 @@ async function takeFor(room, p) {
   const d = p.cdiff;
   const locals = room.cfg.themes.filter((t) => LOCAL_THEMES.includes(t));
   const withAI = room.cfg.themes.length > locals.length;
-  const local = async () => {
-    for (let i = 0; i < 8; i++) {
-      const lq = await makeAny(pick(locals), d);
-      if (!p.seen.has(lq.key) || i === 7) { p.seen.add(lq.key); return lq; }
-    }
-  };
-  if (locals.length && (!withAI || Math.random() < locals.length / room.cfg.themes.length)) return local();
+  const local = () => pickLocal(locals, d, p.seen);
+  const fresh = isNewIn(p.seen);
+  if (locals.length && (!withAI || Math.random() < locals.length / room.cfg.themes.length)) { const lq = await local(); if (lq) return lq; }
   for (let t = 0; t < 3; t++) {
-    const pool = room.buf.filter((q) => q.d === d && !p.seen.has(q.q));
+    const pool = room.buf.filter((q) => q.d === d && fresh(q));
     if (pool.length) {
-      const q = pick(pool); p.seen.add(q.q);
+      const q = pick(pool); markIn(p.seen, q);
       if (pool.length < 4) fill(room, d).catch(() => {});
       return q;
     }
     try { await fill(room, d); } catch (e) { if (t === 2 && !locals.length) throw e; }
   }
-  const any = room.buf.filter((q) => !p.seen.has(q.q)); // repli : une question d'un autre niveau
-  if (any.length) { const q = pick(any); p.seen.add(q.q); return q; }
-  if (locals.length) return local();
+  const any = room.buf.filter(fresh); // repli : une question d'un autre niveau
+  if (any.length) { const q = pick(any); markIn(p.seen, q); return q; }
+  if (locals.length) { const lq = await local(); if (lq) return lq; }
   throw new Error("L'IA n'a renvoyé aucune nouvelle question.");
 }
 async function chronoNext(room, p) {
@@ -531,7 +654,7 @@ async function mNext(room, again) {
   room.mEnd = Date.now() + room.cfg.time * 1000;
   room.mshared = { ...q, options: shuffle(q.o) }; // la question que voient les spectateurs
   now.forEach((p) => {
-    p.seen.add(q.q);
+    markIn(p.seen, q);
     Object.assign(p, { mq: { ...q, options: shuffle(q.o) }, mpick: null, mstop: false, mremoved: [] });
     mSend(room, p);
   });
@@ -570,6 +693,7 @@ async function mJoker(room, p, k) {
       const nq = await mQuestion(room, p, millionLevel(n));
       if (room.phase !== "mq" || room.mn !== n || p.mout || p.mpick !== null) return;
       p.mq = { ...nq, options: shuffle(nq.o) }; p.mremoved = [];
+      markIn(room.mseen, nq); // cette question ne reviendra pas pour les autres non plus
       mSend(room, p);
     } catch { p.mjok.swap = 1; send(p.ws, { t: "error", msg: "Impossible de changer de question." }); }
   }
