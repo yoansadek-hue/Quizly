@@ -5,7 +5,7 @@ import { makeLocal, LOCAL_THEMES, SONG_THEME, euros } from "./local.js";
 import { millionUI, millionLocal, avatarEl, setAudio } from "./million.js";
 import { startScan, stopScan, tvCodeFrom } from "./scan.js";
 
-const VERSION = "2.7.1"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.7.2"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -24,6 +24,7 @@ const MODES = {
 const TIMES = [10, 15, 20, 30, 45, 60, 0];
 const JOKERS = [0, 1, 2, 3, 5];
 const S = {
+  used: new Set(), // questions déjà posées dans la partie en cours
   uid: null, firstName: "", count: 4, slots: [], players: [], themes: new Set(), active: new Set(), rand: false, photo: "",
   i: -1, diff: 1, q: null, buf: [], loading: null, joker: false, locked: false, tid: null, left: 30,
   rest: [], qn: 0, editRoom: false, elim: 0, mode: "classic", played: new Set(), asked: [], inGame: false, pending: false, resume: false,
@@ -268,12 +269,31 @@ function fill() {
   S.loading = { d, p };
   return p;
 }
-// « Devine la chanson » : l'extrait est cherché par le serveur ; le reste est fabriqué sur place
+/* ---------- jamais deux fois la même question dans une partie ---------- */
+const plainTxt = (x) => String(x).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+const sigs = (q) => [q.key, `${plainTxt(q.q)}|${plainTxt(q.a)}`].filter(Boolean);
+const isNewQ = (q) => q && !sigs(q).some((k) => S.used.has(k));
+const markQ = (q) => sigs(q).forEach((k) => S.used.add(k));
+// « Devine la chanson » et « Logos » viennent du serveur (iTunes, Wikidata) ; le reste est fabriqué sur place
 async function makeAnyLocal(theme, d) {
-  if (theme === SONG_THEME) {
-    try { const r = await fetch(`/api/song?d=${d}`); if (r.ok) return await r.json(); } catch {}
+  const api = theme === SONG_THEME ? "song" : theme === "Logos" ? "logo" : null;
+  if (api) {
+    const avoid = [...S.used].filter((k) => k.startsWith(`~${api}:`)).slice(-250).join(",");
+    try { const r = await fetch(`/api/${api}?d=${d}&avoid=${encodeURIComponent(avoid)}`); if (r.ok) return await r.json(); } catch {}
   }
   return makeLocal(theme, d);
+}
+// une question sans IA jamais posée : thèmes choisis, puis niveaux voisins, puis les autres thèmes
+async function pickLocalQ(themes, d) {
+  const others = LOCAL_THEMES.filter((t) => !themes.includes(t));
+  const plan = [[themes, d], [themes, Math.max(1, d - 1)], [themes, Math.min(5, d + 1)], [others.length ? others : themes, d]];
+  for (const [ts, dd] of plan) {
+    for (let i = 0; i < 25; i++) {
+      const q = await makeAnyLocal(ts[Math.floor(Math.random() * ts.length)], dd);
+      if (isNewQ(q)) { markQ(q); return q; }
+    }
+  }
+  return null;
 }
 // photo d'un joueur : la vôtre, ou celle d'un compte local du même nom
 function photoOf(name) {
@@ -287,16 +307,14 @@ async function getQuestion() {
   const locals = [...S.active].filter((t) => LOCAL_THEMES.includes(t));
   const withAI = S.active.size > locals.length;
   if (locals.length && (!withAI || Math.random() < locals.length / S.active.size)) {
-    for (let i = 0; i < 8; i++) {
-      const lq = await makeAnyLocal(locals[Math.floor(Math.random() * locals.length)], S.diff);
-      if (!S.asked.includes(lq.key) || i === 7) { S.asked.push(lq.key); return lq; }
-    }
+    const lq = await pickLocalQ(locals, S.diff);
+    if (lq) { S.asked.push(lq.key); return lq; }
   }
   for (let t = 0; t < 3; t++) {
-    const pool = usable(S.diff);
+    const pool = usable(S.diff).filter(isNewQ);
     if (pool.length) {
       const q = pool[Math.floor(Math.random() * pool.length)];
-      q.u = true; remember(q.q); saveBank();
+      q.u = true; remember(q.q); markQ(q); saveBank();
       if (usable(S.diff).length < 3) fill().catch(() => {});
       return q;
     }
@@ -316,7 +334,7 @@ function startGame() {
   S.players = S.slots.map((s) => ({ name: s.name, lives: m.solo ? 3 : s.lives, jokers: m.joker ? S.cfg.jokers : 0, dead: false, score: 0, points: 0, streak: 0, outAt: 0 }));
   if (!m.solo) saveDB();
   saveRoster();
-  S.retry = false; S.qn = 0; S.elim = 0; S.played = new Set(); S.asked = []; S.inGame = true;
+  S.retry = false; S.qn = 0; S.elim = 0; S.played = new Set(); S.asked = []; S.used = new Set(); S.inGame = true;
   S.bet = 0; S.lastBet = undefined; S.betMsg = ""; // question à mise (Solo)
   if (m.teams) { // ordre de passage : A1, B1, A2, B2… (une petite équipe repasse plus souvent)
     S.players.forEach((p, i) => (p.team = S.teamOf[i]));
@@ -776,7 +794,7 @@ const million = millionLocal({
     let q;
     for (let i = 0; i < 6; i++) {
       try { q = await getQuestion(); }
-      catch { q = makeLocal(LOCAL_THEMES.filter((t) => t !== SONG_THEME)[Math.floor(Math.random() * (LOCAL_THEMES.length - 1))], d); } // IA indisponible : question sans IA
+      catch { q = (await pickLocalQ(LOCAL_THEMES.filter((t) => t !== SONG_THEME), d)) || q; } // IA indisponible : question sans IA, jamais déjà posée
       if (new Set(q.o).size >= 4) break;
     }
     return q;
@@ -816,7 +834,7 @@ function startMillion() {
   S.active = new Set(THEMES.filter((t) => t !== SONG_THEME)); // toutes les catégories, sans choix (pas d'extrait musical)
   S.players = S.slots.map((s) => ({ name: s.name, lives: s.lives, jokers: 0, dead: false, score: 0, points: 0, streak: 0, outAt: 0 }));
   if (S.slots.length > 1) saveRoster(); // en solo, on garde la liste de joueurs habituelle
-  S.asked = []; S.inGame = true; S.diff = 1; S.loading = null;
+  S.asked = []; S.used = new Set(); S.inGame = true; S.diff = 1; S.loading = null;
   $("reactsM").hidden = true; // réactions : seulement en ligne
   const bank = loadBank();
   S.buf = bank.filter((q) => S.active.has(q.t) && !seen(q.q));
