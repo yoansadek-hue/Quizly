@@ -185,7 +185,13 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     tvMode(m.tv, m.cfg.kind);
     // salon télé : pas de code à donner, on rejoint seulement en scannant la télé
     $("lobbyCode").hidden = !!m.tvRoom;
-    $("lobbyHint").textContent = m.tvRoom ? "Salon télé : vos amis rejoignent en scannant le QR code de la télé." : "Donnez ce code à vos amis (touchez-le pour le copier).";
+    // QR code du salon : vos amis le scannent avec Quizly (En ligne › Scanner)
+    $("lobbyQr").hidden = !!m.tvRoom;
+    if (!m.tvRoom && $("lobbyQr").dataset.code !== m.code) {
+      $("lobbyQr").dataset.code = m.code;
+      $("lobbyQr").src = `https://api.qrserver.com/v1/create-qr-code/?size=360x360&margin=8&data=${encodeURIComponent(`${location.origin}/?tv=${m.code}`)}`;
+    }
+    $("lobbyHint").textContent = m.tvRoom ? "Salon télé : vos amis rejoignent en scannant le QR code de la télé." : "Vos amis scannent le QR code (En ligne › Scanner) ou tapent le code.";
     O.chrono = false; O.cur = null;
     O.mout = false; O.watch = false; O.mboard = [];
     $("lobbyInfo").textContent = chrono
@@ -363,9 +369,10 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
   function closeReacts() { menu.hidden = true; fab.setAttribute("aria-expanded", "false"); fab.classList.remove("open"); }
   fab.onclick = () => {
     const open = menu.hidden;
+    clearTimeout(O.reactT); if (open) O.reactT = setTimeout(closeReacts, 5000); // se referme seul
     menu.hidden = !open; fab.setAttribute("aria-expanded", String(open)); fab.classList.toggle("open", open);
   };
-  document.addEventListener("pointerdown", (e) => { if (!menu.hidden && !$("reactBox").contains(e.target)) closeReacts(); });
+  document.addEventListener("pointerdown", (e) => { if (!menu.hidden && !menu.contains(e.target) && !fab.contains(e.target)) closeReacts(); });
   function showReact(m) {
     const d = document.createElement("div");
     d.className = `bubble r${m.r}`;
