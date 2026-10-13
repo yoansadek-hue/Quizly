@@ -86,7 +86,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
       case "mboard": O.mboard = m.list; if (O.watch) mu.info(watchInfo()); break;
       case "mspec": // spectateur : résultat de la question pour chaque joueur
         mu.reveal({ answer: m.answer, picked: -1, correct: false });
-        mu.info(m.results.map((r) => `${r.name} : ${r.stopped ? `s'arrête (${euros(r.won)})` : r.correct ? (r.out ? "1 000 000 € !" : `✓ ${euros(r.won)}`) : `✗ repart avec ${euros(r.won)}`}`).join(" · "));
+        mu.info(m.results.map((r) => `${r.name} : ${r.stopped ? `s'arrête (${euros(r.won)})` : r.correct ? (r.out ? "1 000 000 € !" : `juste, ${euros(r.won)}`) : `raté, repart avec ${euros(r.won)}`}`).join(" · "));
         break;
       case "mres":
         if (stat && !m.stopped) stat.answer(theme(O.mtag), m.correct);
@@ -125,16 +125,17 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     });
     const host = m.host === m.you;
     $("lobbyCount").textContent = `${m.players.length} / 20 joueurs`;
-    const chrono = m.cfg.kind === "chrono", mill = m.cfg.kind === "million", need = chrono || mill ? 1 : 2; // Chrono et Millionnaire se jouent aussi seul
+    const chrono = m.cfg.kind === "chrono", mill = m.cfg.kind === "million", teams = m.cfg.kind === "equipes", need = chrono || mill ? 1 : 2; // Chrono et Millionnaire se jouent aussi seul
     tvMode(m.tv, m.cfg.kind);
     // salon télé : pas de code à donner, on rejoint seulement en scannant la télé
     $("lobbyCode").hidden = !!m.tvRoom;
-    $("lobbyHint").textContent = m.tvRoom ? "📺 Salon télé : vos amis rejoignent en scannant le QR code de la télé." : "Donnez ce code à vos amis (touchez-le pour le copier).";
+    $("lobbyHint").textContent = m.tvRoom ? "Salon télé : vos amis rejoignent en scannant le QR code de la télé." : "Donnez ce code à vos amis (touchez-le pour le copier).";
     O.chrono = false; O.cur = null;
     O.mout = false; O.watch = false; O.mboard = [];
     $("lobbyInfo").textContent = chrono
       ? `Chrono 60 s · ${plural(m.cfg.themes.length, "thème")} · le plus de points gagne`
       : mill ? `Qui veut gagner des millions · toutes les catégories · ${m.cfg.time ? m.cfg.time + " s par question" : "sans limite"}`
+      : teams ? `Équipes · ${plural(m.cfg.themes.length, "thème")} · ${m.cfg.time ? m.cfg.time + " s" : "sans limite"} · 3 questions par joueur${m.cfg.auto ? " · difficulté évolutive" : ""}`
       : `${plural(m.cfg.themes.length, "thème")} · ${m.cfg.time ? m.cfg.time + " s" : "sans limite"} · ${plural(m.cfg.lives, "vie")}${m.cfg.auto ? " · difficulté évolutive" : ""}`;
     $("btnLobbyStart").hidden = !host;
     $("btnLobbyStart").disabled = m.players.length < need;
@@ -180,8 +181,9 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     $("whoName").textContent = mine ? `${m.name} (vous)` : m.name;
     $("whoAv").replaceChildren(avatarEl(m.name, photoOf(m.who), true));
     $("whoName").classList.remove("retry");
-    $("whoLives").hidden = false; $("whoLives").textContent = `${HEART} ${m.lives}`;
-    $("alive").hidden = false; $("alive").textContent = mine ? "C'est à vous de jouer" : `${m.alive} joueurs en vie`;
+    $("whoLives").hidden = false; $("whoLives").textContent = m.teams ? `Équipe ${m.team}` : `${HEART} ${m.lives}`;
+    $("alive").hidden = false;
+    $("alive").textContent = m.teams ? `${mine ? "À vous de jouer · " : ""}${teamLine(m.teams)}` : mine ? "C'est à vous de jouer" : `${m.alive} joueurs en vie`;
     $("tag").textContent = m.tag;
     const ql = m.q.length;
     $("qText").textContent = m.q;
@@ -220,8 +222,12 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
       const w = O.cur.options[m.picked];
       btns.forEach((b) => b.textContent === w && b.classList.add("wrong"));
     }
-    $("whoLives").textContent = `${HEART} ${Math.max(m.lives, 0)}`;
-    $("alive").textContent = m.correct ? "Bonne réponse" : m.dead ? `${m.name} est éliminé` : m.picked < 0 ? "Temps écoulé" : "Mauvaise réponse";
+    if (m.teams) { // Équipes : personne n'est éliminé, on montre les scores
+      $("alive").textContent = `${m.correct ? "Bonne réponse" : m.picked < 0 ? "Temps écoulé" : "Mauvaise réponse"} · ${teamLine(m.teams)}`;
+    } else {
+      $("whoLives").textContent = `${HEART} ${Math.max(m.lives, 0)}`;
+      $("alive").textContent = m.correct ? "Bonne réponse" : m.dead ? `${m.name} est éliminé` : m.picked < 0 ? "Temps écoulé" : "Mauvaise réponse";
+    }
     flash(m.correct ? "ok" : "ko");
     $("dockNext").hidden = !(m.who === O.you || O.host === O.you); // le joueur (ou l'hôte) appuie sur Continuer
   }
@@ -240,12 +246,13 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
 
   function renderEnd(m) {
     stopClock();
-    const chrono = m.kind === "chrono", mill = m.kind === "million";
-    if (stat) stat.game(chrono ? "chrono" : mill ? "omillion" : "online");
+    const chrono = m.kind === "chrono", mill = m.kind === "million", teams = m.kind === "equipes";
+    if (stat) stat.game(chrono ? "chrono" : mill ? "omillion" : teams ? "oteams" : "online");
     O.chrono = false; O.cur = null; O.mout = false; O.watch = false; mu.stopClock(); $("liveBoard").hidden = true;
     $("endLead").textContent = m.winner ? "Vainqueur" : "Partie terminée";
     $("winner").textContent = m.winner || "Égalité";
     $("endNote").textContent = "";
+    if (teams && m.mvp) $("endNote").textContent = `Meilleur joueur : ${m.mvp.name} (${m.mvp.points} pts)`;
     if (chrono) {
       const mine = m.ranking.find((p) => p.id === O.you);
       if (mine && record) {
@@ -263,7 +270,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
       const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = p.name;
       const av = avatarEl(p.name, p.photo || photoOf(p.id));
       const st = document.createElement("span"); st.className = "st";
-      st.textContent = mill ? `${euros(p.points)} · ${p.score} bonne${p.score > 1 ? "s" : ""}` : chrono ? `${p.points} pts · ${p.score} bonne${p.score > 1 ? "s" : ""}` : `${p.score} bonne${p.score > 1 ? "s" : ""} · ${HEART} ${p.lives}`;
+      st.textContent = teams ? `${p.points} pts` : mill ? `${euros(p.points)} · ${p.score} bonne${p.score > 1 ? "s" : ""}` : chrono ? `${p.points} pts · ${p.score} bonne${p.score > 1 ? "s" : ""}` : `${p.score} bonne${p.score > 1 ? "s" : ""} · ${HEART} ${p.lives}`;
       li.append(pos, av, nm, st);
       ol.append(li);
     });
@@ -271,8 +278,11 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     confetti();
   }
 
+  /* ----- Équipes en ligne ----- */
+  function teamLine(teams) { return teams.map((t) => `${t.name} ${t.points}`).join(" · ") + " pts"; }
+
   /* ----- Mode TV : en Survie, la question est sur la télé, le téléphone sert de manette ----- */
-  function tvMode(on, kind) { document.body.classList.toggle("tvmode", !!on && (kind || "survie") === "survie"); }
+  function tvMode(on, kind) { document.body.classList.toggle("tvmode", !!on && ["survie", "equipes"].includes(kind || "survie")); }
 
   /* ----- Millionnaire : textes ----- */
   function millInfo() {
