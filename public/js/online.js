@@ -4,12 +4,36 @@ const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
 const PALETTE = ["#ffe14d", "#34e3b0", "#ff6b8b", "#62c7ff", "#c4b8ff", "#ffb36b", "#f6f3ff", "#9df0d4"]; // couleurs des jetons
 const HEART = "\u2665\uFE0E"; // cœur « texte » (jamais l'emoji rouge)
 
-export function initOnline({ $, show, flash, confetti, me, record, millionUI, avatarEl, setAudio, stat }) {
+export function initOnline({ $, show, flash, confetti, me, record, millionUI, avatarEl, setAudio, stat, setMode }) {
   const photoOf = (id) => (O.pl && O.pl[id] ? O.pl[id].photo : "") || ""; // photo d'un joueur du salon
   const theme = (tag) => String(tag || "").split(" · ")[0]; // « Drapeaux · Facile » → « Drapeaux »
   const mu = millionUI($); // écran « Qui veut gagner des millions »
   const O = { cfg: null, editing: false, ws: null, you: null, host: null, active: false, inRoom: false, tid: null, cur: null, answered: false, board: [], chrono: false };
   const plural = (n, w) => `${n} ${w}${n > 1 ? "s" : ""}`;
+
+  /* ----- retour dans la partie après une coupure (60 s) ----- */
+  const RJ = "quizly:rejoin";
+  const getSess = () => { try { return JSON.parse(localStorage.getItem(RJ) || "null"); } catch { return null; } };
+  const saveSess = (m) => { if (m.tok) try { localStorage.setItem(RJ, JSON.stringify({ code: m.code, pid: m.you, tok: m.tok, at: Date.now() })); } catch {} };
+  const clearSess = () => { try { localStorage.removeItem(RJ); } catch {} };
+  function touchSess() { // « je suis encore là » : sert à savoir si on peut revenir en rouvrant l'appli
+    if (Date.now() - (O.touched || 0) < 5000) return;
+    O.touched = Date.now();
+    const s = getSess(); if (s) { s.at = Date.now(); try { localStorage.setItem(RJ, JSON.stringify(s)); } catch {} }
+  }
+  async function reconnect() {
+    const s = getSess();
+    if (!s) { api.leave(); msg("Connexion perdue."); return show("s-online"); }
+    O.reconnecting = true;
+    O.dropAt = O.dropAt || Date.now();
+    stopClock(); mu.stopClock();
+    $("loadText").textContent = "Connexion perdue. Reconnexion…"; $("loadErr").hidden = true; show("s-load");
+    while (O.reconnecting && Date.now() - O.dropAt < 60000) {
+      try { await connect(); O.dropAt = 0; send({ t: "rejoin", code: s.code, pid: s.pid, tok: s.tok }); return; } // la suite arrive avec « resume »
+      catch { await new Promise((r) => setTimeout(r, 2500)); }
+    }
+    if (O.reconnecting) { O.reconnecting = false; api.leave(); msg("Connexion perdue : la partie a continué sans vous."); show("s-online"); }
+  }
   const msg = (t) => { $("onMsg").textContent = t; $("lobbyMsg").textContent = t; };
 
   function connect() {
@@ -22,6 +46,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
       ws.onclose = () => {
         if (O.ws !== ws) return;
         O.ws = null;
+        if (O.active && O.inRoom) return reconnect(); // coupure en salon ou en partie : on revient tout seul
         if (O.active) { api.leave(); msg("Connexion perdue."); show("s-online"); }
       };
     });
@@ -39,6 +64,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     create: (cfg) => open({ t: "create", ...me(), ...cfg }),
     join: (code) => open({ t: "join", ...me(), code: String(code || "").trim() }),
     leave() {
+      clearSess(); O.reconnecting = false; O.dropAt = 0;
       if (O.ws) { send({ t: "leave" }); const w = O.ws; O.ws = null; w.close(); }
       O.active = false; O.inRoom = false; O.you = null; stopClock(); mu.stopClock(); O.mout = false; O.watch = false;
       tvMode(false);
@@ -49,12 +75,35 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     next: () => send({ t: "next" }),
     config: (cfg) => send({ t: "config", ...cfg }),
     cfg: () => O.cfg,
+    // appli rouverte moins de 60 s après l'avoir quittée : on retourne dans la partie
+    tryRejoin() {
+      if (O.active || O.reconnecting) return true; // déjà en route
+      const s = getSess();
+      if (!s || Date.now() - s.at > 60000) { clearSess(); return false; }
+      O.reconnecting = true;
+      $("loadText").textContent = "Retour dans la partie…"; $("loadErr").hidden = true; show("s-load");
+      open({ t: "rejoin", code: s.code, pid: s.pid, tok: s.tok });
+      return true;
+    },
     setEditing: (v) => { O.editing = !!v; }
   };
 
   function onMsg(m) {
+    if (O.inRoom) touchSess();
     switch (m.t) {
-      case "lobby": O.inRoom = true; O.you = m.you; O.host = m.host; O.cfg = m.cfg; renderLobby(m); if (!O.editing) show("s-lobby"); break;
+      case "lobby": O.inRoom = true; O.you = m.you; O.host = m.host; O.cfg = m.cfg; saveSess(m); renderLobby(m); if (!O.editing) show("s-lobby"); break;
+      case "resume": // de retour dans la salle : l'écran de la partie suit
+        O.inRoom = true; O.reconnecting = false; O.you = m.you; O.host = m.host; O.cfg = m.cfg; saveSess(m);
+        if (setMode) setMode(m.cfg.kind);
+        renderLobby(m);
+        if (m.phase === "lobby") show("s-lobby");
+        break;
+      case "rejoinfail":
+        clearSess();
+        if (O.reconnecting) { O.reconnecting = false; api.leave(); msg("Impossible de revenir dans la partie : elle a continué sans vous."); show("s-online"); }
+        break;
+      case "kicked": api.leave(); msg("L'hôte vous a retiré du salon."); show("s-online"); break;
+      case "react": showReact(m); break;
       case "error": msg(m.msg); if (!O.inRoom) { api.leave(); show("s-online"); } break;
       case "load": stopClock(); $("loadText").textContent = m.msg || "L'IA prépare la question…"; $("loadErr").hidden = true; show("s-load"); break;
       case "fail": $("loadText").textContent = m.msg; $("loadErr").hidden = O.you !== O.host; show("s-load"); break;
@@ -78,6 +127,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
           joker: (k) => send({ t: "mjoker", k }),
           stop: () => send({ t: "mstop" })
         });
+        reactsOn("reactsM");
         show("s-million");
         break;
       case "mlock": mu.lock(m.i); mu.info(m.i < 0 ? "Vous vous arrêtez. En attente des autres joueurs…" : "Réponse verrouillée. En attente des autres joueurs…"); break;
@@ -118,6 +168,11 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
       li.style.background = PALETTE[(p.ci || 0) % PALETTE.length];
       li.style.setProperty("--i", i);
       li.append(avatarEl(p.name, p.photo));
+      if (m.host === m.you && p.id !== m.you) { // l'hôte peut agir sur les autres joueurs
+        li.classList.add("tap"); li.tabIndex = 0; li.setAttribute("role", "button");
+        li.onclick = () => pickPlayer(p);
+        li.onkeydown = (e) => (e.key === "Enter" || e.key === " ") && pickPlayer(p);
+      }
       const s = document.createElement("span");
       s.textContent = p.name + (p.id === m.host ? " · hôte" : "");
       li.append(s);
@@ -209,6 +264,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
       box.append(b);
     });
     box.hidden = false;
+    reactsOn("reacts");
     show("s-game");
     startClock(m.ms);
   }
@@ -276,6 +332,43 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     });
     show("s-end");
     confetti();
+  }
+
+  /* ----- l'hôte : retirer un joueur, donner son rôle ----- */
+  function pickPlayer(p) {
+    if (O.sel === p.id && !$("lobbyActions").hidden) { $("lobbyActions").hidden = true; O.sel = null; return; }
+    O.sel = p.id;
+    $("pactName").textContent = p.name;
+    $("lobbyActions").hidden = false;
+  }
+  $("btnSetHost").onclick = () => { if (O.sel) send({ t: "sethost", id: O.sel }); $("lobbyActions").hidden = true; O.sel = null; };
+  $("btnKick").onclick = () => { if (O.sel) send({ t: "kick", id: O.sel }); $("lobbyActions").hidden = true; O.sel = null; };
+
+  /* ----- réactions : des mots qui s'envolent, vus par tout le salon ----- */
+  const REACTS = ["Bravo", "Haha", "Oh non", "Waouh", "Trop fort"];
+  function buildReacts(id) {
+    const box = $(id);
+    if (box.childElementCount) return;
+    REACTS.forEach((t, i) => {
+      const b = document.createElement("button");
+      b.className = `chip react r${i}`; b.textContent = t;
+      b.onclick = () => {
+        if (Date.now() - (O.reacted || 0) < 900) return; // pas de rafale
+        O.reacted = Date.now(); send({ t: "react", r: i });
+      };
+      box.append(b);
+    });
+  }
+  function reactsOn(id) { buildReacts(id); $(id).hidden = false; }
+  function showReact(m) {
+    const d = document.createElement("div");
+    d.className = `bubble r${m.r}`;
+    const n = document.createElement("b"); n.textContent = m.id === O.you ? "Vous" : m.name;
+    d.append(n, document.createTextNode(` ${REACTS[m.r] || ""}`));
+    d.style.left = `${8 + Math.random() * 62}vw`;
+    d.onanimationend = () => d.remove();
+    document.body.append(d);
+    setTimeout(() => d.remove(), 4000);
   }
 
   /* ----- Équipes en ligne ----- */
@@ -372,6 +465,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
       box.append(b);
     });
     box.hidden = false;
+    reactsOn("reacts");
     show("s-game");
     chronoClock(m.ms, m.total);
   }
