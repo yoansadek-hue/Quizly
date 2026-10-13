@@ -116,6 +116,13 @@ addEventListener("error", function (e) {
     <p class="lead small meta" id="lobbyCount"></p>
     <button class="btn ghost sm" id="btnLobbyEdit" hidden style="margin:14px auto 0;display:block">Modifier les paramètres</button>
     <ul id="lobbyList" class="chips"></ul>
+    <div id="lobbyActions" class="pact" hidden>
+      <p class="pactName" id="pactName"></p>
+      <div class="two">
+        <button class="btn white sm" id="btnSetHost">Le nommer hôte</button>
+        <button class="btn coral sm" id="btnKick">Retirer du salon</button>
+      </div>
+    </div>
     <p id="lobbyWait" class="lead small meta" hidden>En attente de l'hôte…</p>
     <p id="lobbyMsg" class="msg" role="alert"></p>
     <div class="dock"><button class="btn sun" id="btnLobbyStart">Lancer la partie</button></div>
@@ -248,6 +255,7 @@ addEventListener("error", function (e) {
     </div></div>
     <p class="swap"><button class="link" id="btnSwap">Changer de question</button></p>
     <div id="mcq" class="grid" hidden></div>
+    <div class="reacts" id="reacts" hidden></div>
     <div class="dock" id="dockGame"><button class="btn white" id="btnJoker">Joker : 4 choix</button></div>
     <div class="dock" id="dockNext" hidden><button class="btn sun" id="btnNext">Continuer</button></div>
     <div class="dock" id="dockJudge" hidden>
@@ -306,6 +314,7 @@ addEventListener("error", function (e) {
       <button class="chip" id="mSwap">Changer</button>
     </div>
     <div class="stack"><button class="btn coral" id="mStop">Je m'arrête</button></div>
+    <div class="reacts" id="reactsM" hidden></div>
   </section>
 
   <section id="s-end" class="screen center" hidden>
