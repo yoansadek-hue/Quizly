@@ -4,8 +4,9 @@ import { initOnline } from "./online.js";
 import { makeLocal, LOCAL_THEMES, SONG_THEME, euros } from "./local.js";
 import { millionUI, millionLocal, avatarEl, setAudio } from "./million.js";
 import { startScan, stopScan, tvCodeFrom } from "./scan.js";
+import { startCloud, cloudState } from "./cloud.js";
 
-const VERSION = "2.7.5"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.8.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -785,6 +786,10 @@ function renderProfile() {
     li.append(nm, bar, v); return li;
   }));
   $("profEmpty").hidden = themes.length > 0;
+  const cs = cloudState();
+  $("profCloud").textContent = cs === "cloud" ? "Sauvegardé dans le cloud avec votre compte Google : vous retrouvez tout sur vos autres appareils."
+    : cs === "error" ? "Sauvegarde dans le cloud indisponible pour le moment : vos données restent sur cet appareil."
+    : "Compte local : vos données restent sur cet appareil. Connectez-vous avec Google pour les sauvegarder dans le cloud.";
 }
 
 /* ---------- Qui veut gagner des millions (sur l'appareil) ---------- */
@@ -1007,6 +1012,8 @@ let pendingJoin = new URLSearchParams(location.search).get("tv");
 function enter(uid, name, photo) {
   S.uid = uid;
   setUser(name, photo);
+  // compte Google : on récupère la sauvegarde du cloud (vies, records, statistiques, joueurs)
+  startCloud(uid).then((st) => { if (st === "cloud" && S.uid === uid) { loadRoster(); if (curScreen === "s-profile") renderProfile(); } });
   loadRoster();
   renderModes();
   show("s-mode");
