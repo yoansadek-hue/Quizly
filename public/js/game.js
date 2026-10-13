@@ -5,7 +5,7 @@ import { makeLocal, LOCAL_THEMES, SONG_THEME, euros } from "./local.js";
 import { millionUI, millionLocal, avatarEl, setAudio } from "./million.js";
 import { startScan, stopScan, tvCodeFrom } from "./scan.js";
 
-const VERSION = "2.7.3"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.7.4"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -58,6 +58,9 @@ function userLabel() {
 function show(id) {
   if (curScreen === "s-scan" && id !== "s-scan") stopScan(); // on coupe la caméra en quittant le scanner
   curScreen = id;
+  // rond des réactions : seulement pendant une partie en ligne
+  let onl = false; try { onl = online.active(); online.closeReacts(); } catch {}
+  $("reactBox").hidden = !(onl && ["s-game", "s-million", "s-load"].includes(id));
   const au = document.getElementById("qAudio"); if (au && id !== "s-game") au.pause(); // l'extrait s'arrête quand on quitte la question
   document.querySelectorAll(".screen").forEach((s) => (s.hidden = s.id !== id));
   userLabel();
@@ -399,7 +402,6 @@ function prepareCard() {
     : `${n} joueur${n > 1 ? "s" : ""} en vie sur ${S.players.length}`;
   $("scene").classList.toggle("compact", m.qcm);
   $("liveBoard").hidden = true; // réservé au Chrono en ligne
-  $("reacts").hidden = true; // réactions : seulement en ligne
   $("whoName").textContent = p.name;
   $("whoAv").replaceChildren(avatarEl(p.name, photoOf(p.name), true));
   $("whoName").classList.toggle("retry", !!S.retry); // nom en rouge quand la question est reposée après une vie utilisée
@@ -835,7 +837,6 @@ function startMillion() {
   S.players = S.slots.map((s) => ({ name: s.name, lives: s.lives, jokers: 0, dead: false, score: 0, points: 0, streak: 0, outAt: 0 }));
   if (S.slots.length > 1) saveRoster(); // en solo, on garde la liste de joueurs habituelle
   S.asked = []; S.used = new Set(); S.inGame = true; S.diff = 1; S.loading = null;
-  $("reactsM").hidden = true; // réactions : seulement en ligne
   const bank = loadBank();
   S.buf = bank.filter((q) => S.active.has(q.t) && !seen(q.q));
   S.rest = bank.filter((q) => !S.active.has(q.t));
