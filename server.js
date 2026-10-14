@@ -344,8 +344,11 @@ async function takeQuestion(room) {
       if (room.buf.filter((x) => !x.u && x.d === room.diff).length < 3) fill(room).catch(() => {});
       return q;
     }
-    await fill(room);
+    try { await fill(room); } catch { break; } // IA indisponible : on passe aux questions sans IA
   }
+  // l'IA ne répond pas : la partie continue avec des questions sans IA plutôt que de s'arrêter
+  const lq = await pickLocal(locals.length ? locals : LOCAL_THEMES.filter((t) => t !== SONG_THEME), room.diff, used);
+  if (lq) { room.asked.push(lq.key); return lq; }
   throw new Error("L'IA n'a renvoyé aucune nouvelle question.");
 }
 
@@ -477,7 +480,7 @@ function endTeams(room) {
   const mvp = [...players(room)].sort((a, b) => b.points - a.points)[0];
   cast(room, {
     t: "end", kind: "equipes", winner: tie ? null : `Équipe ${teams[0].name}`,
-    mvp: mvp ? { name: mvp.name, points: mvp.points } : null,
+    mvp: mvp && mvp.points > 0 ? { name: mvp.name, points: mvp.points } : null, // pas de « meilleur joueur » à 0 point
     ranking: teams.map((t, k) => ({ id: `t${k}`, name: `${t.name} (${t.members.map((p) => p.name).join(", ")})`, score: t.members.length, points: t.points, lives: 0, photo: "" }))
   });
 }
@@ -524,7 +527,7 @@ async function takeFor(room, p) {
   }
   const any = room.buf.filter(fresh); // repli : une question d'un autre niveau
   if (any.length) { const q = pick(any); markIn(p.seen, q); return q; }
-  if (locals.length) { const lq = await local(); if (lq) return lq; }
+  { const lq = await pickLocal(locals.length ? locals : LOCAL_THEMES.filter((t) => t !== SONG_THEME), d, p.seen); if (lq) return lq; } // IA indisponible
   throw new Error("L'IA n'a renvoyé aucune nouvelle question.");
 }
 async function chronoNext(room, p) {
