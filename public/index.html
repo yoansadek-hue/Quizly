@@ -43,10 +43,9 @@ addEventListener("error", function (e) {
   <section id="s-login" class="screen" hidden>
     <h1 class="hero">Quizly</h1>
     <p class="credit">par YoskanGame</p>
-    <p class="lead">Connectez-vous pour jouer. Vos vies gagnées vous suivent partout.</p>
+    <p class="lead">Connectez-vous avec Google pour jouer. Vos vies, records et amis vous suivent sur tous vos appareils.</p>
     <div class="stack">
       <button class="btn white" data-provider="google"><svg class="g"><use href="#glogo"/></svg>Continuer avec Google</button>
-      <button class="btn ghost" id="btnLocalOpen">Compte local</button>
       <p id="loginMsg" class="msg" role="alert"></p>
     </div>
     <div class="rules">
@@ -56,31 +55,12 @@ addEventListener("error", function (e) {
         <li>Bonne réponse : vous restez en jeu. Mauvaise réponse ou temps écoulé : vous perdez une vie, ou vous êtes éliminé si vous n'en avez plus.</li>
         <li>Après chaque tour complet, le groupe peut monter d'un niveau.</li>
         <li>Le dernier joueur en jeu gagne une vie, gardée pour les prochaines parties.</li>
-        <li>Quatre modes : Classique, QCM, Solo et En ligne.</li>
+        <li>Trois façons de jouer : En ligne (chacun sur son téléphone), Party (à plusieurs sur un téléphone) et Solo.</li>
       </ol>
     </div>
     <p class="version ver"></p>
   </section>
 
-  <!-- Compte local -->
-  <section id="s-local" class="screen" hidden>
-    <button class="goback" data-back="s-login">← Retour</button>
-    <h2>Compte local</h2>
-    <p class="lead small">Jouez sans Google : vos joueurs et vos vies restent sur cet appareil.</p>
-    <div id="localList" class="chips"></div>
-    <label class="pick" for="localPhoto">
-      <img id="localPreview" class="avatar big" alt="" hidden>
-      <span id="localPlus" class="avatar big">+</span>
-      <span id="localPickText">Choisir une photo dans la galerie</span>
-    </label>
-    <input id="localPhoto" type="file" accept="image/*" hidden>
-    <div class="stack">
-      <input id="localName" type="text" placeholder="Votre pseudo" maxlength="20" autocomplete="off" enterkeyhint="next">
-      <input id="localEmail" type="email" placeholder="Votre e-mail" autocomplete="email" inputmode="email" enterkeyhint="go">
-      <button class="btn sun" id="btnLocal">Entrer</button>
-      <p id="localMsg" class="msg" role="alert"></p>
-    </div>
-  </section>
 
   <!-- Jeu en ligne -->
   <section id="s-online" class="screen" hidden>
