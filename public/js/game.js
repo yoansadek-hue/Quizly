@@ -6,7 +6,7 @@ import { millionUI, millionLocal, avatarEl, setAudio } from "./million.js";
 import { startScan, stopScan, tvCodeFrom } from "./scan.js";
 import { startCloud, cloudState } from "./cloud.js";
 
-const VERSION = "2.8.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.8.1"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -322,8 +322,11 @@ async function getQuestion() {
       if (usable(S.diff).length < 3) fill().catch(() => {});
       return q;
     }
-    await fill();
+    try { await fill(); } catch { break; } // IA indisponible : on passe aux questions sans IA
   }
+  // l'IA ne répond pas : la partie continue avec des questions sans IA plutôt que de s'arrêter
+  const lq = await pickLocalQ(locals.length ? locals : LOCAL_THEMES.filter((t) => t !== SONG_THEME), S.diff);
+  if (lq) { S.asked.push(lq.key); return lq; }
   throw new Error("L'IA n'a renvoyé aucune nouvelle question.");
 }
 
@@ -710,7 +713,7 @@ function endTeams() {
   const mvp = [...S.players].sort((a, b) => b.points - a.points)[0];
   $("endLead").textContent = tie ? "Partie terminée" : "Équipe gagnante";
   $("winner").textContent = tie ? "Égalité" : teams[0].name;
-  $("endNote").textContent = mvp ? `Meilleur joueur : ${mvp.name} (${mvp.points} pts)` : "";
+  $("endNote").textContent = mvp && mvp.points > 0 ? `Meilleur joueur : ${mvp.name} (${mvp.points} pts)` : "";
   const ol = $("ranking");
   ol.replaceChildren();
   teams.forEach((tm, i) => {
@@ -773,8 +776,11 @@ function renderProfile() {
     d.append(b, s); return d;
   }));
   const ranked = themes.filter((t) => t.n >= 5).sort((a, b) => b.pct - a.pct);
+  // points forts et thèmes à travailler : jamais le même thème dans les deux listes
+  const half = Math.ceil(ranked.length / 2);
+  const strong = ranked.slice(0, Math.min(3, half)), weak = ranked.slice(half).slice(-2).reverse();
   $("profSum").textContent = ranked.length >= 2
-    ? `Points forts : ${ranked.slice(0, 3).map((t) => t.name).join(", ")}. À travailler : ${ranked.slice(-2).reverse().map((t) => t.name).join(", ")}.`
+    ? `Points forts : ${strong.map((t) => t.name).join(", ")}.${weak.length ? ` À travailler : ${weak.map((t) => t.name).join(", ")}.` : ""}`
     : "Jouez encore un peu : vos points forts apparaîtront après 5 questions dans un thème.";
   const fav = Object.entries(st.games).sort((a, b) => b[1] - a[1])[0];
   if (fav) $("profSum").textContent += ` Mode préféré : ${GAME_NAMES[fav[0]] || fav[0]}.`;
