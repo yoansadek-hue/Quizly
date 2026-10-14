@@ -6,7 +6,7 @@ import { millionUI, millionLocal, avatarEl, setAudio } from "./million.js";
 import { startScan, stopScan, tvCodeFrom } from "./scan.js";
 import { startCloud, cloudState } from "./cloud.js";
 
-const VERSION = "2.8.1"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.9.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -795,7 +795,7 @@ function renderProfile() {
   const cs = cloudState();
   $("profCloud").textContent = cs === "cloud" ? "Sauvegardé dans le cloud avec votre compte Google : vous retrouvez tout sur vos autres appareils."
     : cs === "error" ? "Sauvegarde dans le cloud indisponible pour le moment : vos données restent sur cet appareil."
-    : "Compte local : vos données restent sur cet appareil. Connectez-vous avec Google pour les sauvegarder dans le cloud.";
+    : "Connexion au cloud en cours…";
 }
 
 /* ---------- Qui veut gagner des millions (sur l'appareil) ---------- */
@@ -946,73 +946,6 @@ const profKey = "quizly:profiles";
 const getProfiles = () => { try { return JSON.parse(localStorage.getItem(profKey) || "{}"); } catch { return {}; } };
 const saveProfiles = (p) => { try { localStorage.setItem(profKey, JSON.stringify(p)); } catch {} };
 const oldLocals = () => { try { return JSON.parse(localStorage.getItem("quizly:locals") || "[]"); } catch { return []; } };
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-let localPhoto = "";
-
-function setPreview(photo) {
-  localPhoto = photo || "";
-  $("localPreview").hidden = !localPhoto;
-  $("localPlus").hidden = !!localPhoto;
-  if (localPhoto) $("localPreview").src = localPhoto;
-  $("localPickText").textContent = localPhoto ? "Changer la photo" : "Choisir une photo dans la galerie";
-}
-function fillForm(p) { $("localName").value = p.name || ""; $("localEmail").value = p.email || ""; setPreview(p.photo); }
-
-// réduit la photo choisie en carré 96 × 96 (assez léger pour être stocké et envoyé en ligne)
-function shrink(file) {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file), img = new Image();
-    img.onload = () => {
-      const c = document.createElement("canvas"); c.width = c.height = 96;
-      const m = Math.min(img.width, img.height);
-      c.getContext("2d").drawImage(img, (img.width - m) / 2, (img.height - m) / 2, m, m, 0, 0, 96, 96);
-      URL.revokeObjectURL(url);
-      let q = 0.7, d = c.toDataURL("image/jpeg", q);
-      while (d.length > 8500 && q > 0.3) { q -= 0.1; d = c.toDataURL("image/jpeg", q); }
-      resolve(d);
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Image illisible.")); };
-    img.src = url;
-  });
-}
-
-function renderLocals() {
-  const box = $("localList");
-  box.replaceChildren();
-  const names = [...new Set([...Object.values(getProfiles()).map((p) => p.name), ...oldLocals()])];
-  names.forEach((n, i) => {
-    const b = document.createElement("button");
-    b.className = "chip"; b.style.setProperty("--i", i); b.textContent = n;
-    b.onclick = () => {
-      const p = getProfiles()[n.toLowerCase()];
-      if (p && p.email && p.photo) return enterLocal(p);
-      fillForm({ name: n, email: p ? p.email : "", photo: p ? p.photo : "" });
-      $("localMsg").textContent = "Complétez votre profil : photo et e-mail.";
-    };
-    box.append(b);
-  });
-}
-
-function submitLocal() {
-  const name = $("localName").value.trim(), email = $("localEmail").value.trim();
-  const say = (t) => ($("localMsg").textContent = t);
-  if (!name) return say("Entrez un pseudo.");
-  if (!EMAIL.test(email)) return say("Entrez une adresse e-mail valide.");
-  if (!localPhoto) return say("Choisissez une photo de profil dans votre galerie.");
-  const known = getProfiles()[name.toLowerCase()];
-  enterLocal({ name: known ? known.name : name, email, photo: localPhoto });
-}
-async function enterLocal(p) {
-  const profiles = getProfiles();
-  profiles[p.name.toLowerCase()] = { name: p.name, email: p.email, photo: p.photo };
-  saveProfiles(profiles);
-  const uid = `local:${p.name.toLowerCase()}`;
-  try { localStorage.setItem(SESS, JSON.stringify({ uid, name: p.name, photo: p.photo, local: true })); } catch {}
-  try { await logout(); } catch {} // coupe une éventuelle session Google
-  $("localMsg").textContent = "";
-  enter(uid, p.name, p.photo);
-}
-
 // QR code de la télé scanné avec l'appareil photo du téléphone : quizly…/?tv=ABCDEFGH rejoint le salon télé dès la connexion
 let pendingJoin = new URLSearchParams(location.search).get("tv");
 function enter(uid, name, photo) {
@@ -1032,8 +965,10 @@ function enter(uid, name, photo) {
   }
 }
 
+// uniquement des comptes Google : une ancienne session de compte local est oubliée
 const saved = getSess();
-if (saved) enter(saved.uid, saved.name, saved.photo);
+if (saved && (saved.local || String(saved.uid).startsWith("local:"))) { try { localStorage.removeItem(SESS); } catch {} }
+else if (saved) enter(saved.uid, saved.name, saved.photo);
 
 watch((user) => {
   if (user) {
@@ -1041,8 +976,6 @@ watch((user) => {
     try { localStorage.setItem(SESS, JSON.stringify({ uid: user.uid, name, photo: user.photoURL || "" })); } catch {}
     if (S.uid !== user.uid) enter(user.uid, name, user.photoURL); else setUser(name, user.photoURL);
   } else {
-    const cur = getSess();
-    if (cur && cur.local) return; // un compte local reste connecté
     try { localStorage.removeItem(SESS); } catch {}
     S.uid = null; S.inGame = false; stopTimer(); $("confirm").hidden = true; show("s-login");
   }
@@ -1077,16 +1010,6 @@ document.querySelectorAll("[data-back]").forEach((b) => (b.onclick = () => {
 }));
 $("btnLogout").onclick = async () => { try { localStorage.removeItem(SESS); } catch {} online.leave(); await logout(); S.uid = null; show("s-login"); };
 
-$("btnLocalOpen").onclick = () => { renderLocals(); fillForm({}); $("localMsg").textContent = ""; show("s-local"); };
-$("btnLocal").onclick = submitLocal;
-$("localName").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("localEmail").focus(); } });
-$("localEmail").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); submitLocal(); } });
-$("localPhoto").addEventListener("change", async (e) => {
-  const f = e.target.files && e.target.files[0];
-  if (!f) return;
-  try { setPreview(await shrink(f)); $("localMsg").textContent = ""; } catch (err) { $("localMsg").textContent = err.message; }
-  e.target.value = "";
-});
 $("cMinus").onclick = () => setCount(-1);
 $("cPlus").onclick = () => setCount(1);
 $("btnCount").onclick = () => {
