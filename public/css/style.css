@@ -520,3 +520,8 @@ body.tvmode #s-game #mcq .btn::before{width:54px;height:54px;font-size:24px}
 /* 2.7.5 : QR code du salon */
 #lobbyQr{display:block;margin:14px auto 0;width:180px;height:180px}
 #lobbyQr[hidden]{display:none}
+
+/* barre du haut : reste sur une ligne, même avec le rond des réactions */
+#bar .logo small{white-space:nowrap}
+#userName{display:inline-block;max-width:8.5em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle}
+@media (max-width:420px){#bar .logo{font-size:19px} #btnUser{padding-left:10px;padding-right:12px} .barR{gap:8px}}
