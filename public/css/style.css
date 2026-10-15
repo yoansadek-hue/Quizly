@@ -563,3 +563,19 @@ body.tvmode #s-game #mcq .btn::before{width:54px;height:54px;font-size:24px}
 .toast .btn.ghost{color:var(--ink);border-color:var(--muted)}
 @media (min-width:700px){#myQr{width:150px;height:150px} .code.small{font-size:36px}}
 #btnScanFriend{margin-top:12px}
+
+/* ---------- 2.10.2 : bouton Amis en haut, Profil aéré ---------- */
+.iconbtn{position:relative;width:44px;height:44px;flex:none;border-radius:50%;display:grid;place-items:center;color:var(--ink);background:var(--paper);border:3px solid var(--ink);box-shadow:var(--edge-s);cursor:pointer}
+.iconbtn:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ink)}
+.nbadge{position:absolute;top:-7px;right:-7px;min-width:22px;height:22px;padding:0 5px;border-radius:99px;display:grid;place-items:center;background:var(--coral);color:var(--ink);border:2px solid var(--ink);font:800 12px var(--display);line-height:1}
+#s-profile .profgrid{grid-template-columns:repeat(3,1fr);gap:10px;margin:18px 0 10px}
+#s-profile .profgrid .stat{padding:12px 10px}
+#s-profile .profgrid .stat strong{font-size:17px}
+#s-profile .profgrid .stat span{font-size:12px}
+.profstats{margin:6px 0 4px;font:800 15px var(--font);color:var(--paper)}
+#s-profile #profSum{margin:6px 0 26px}
+#s-profile .profh{margin:30px 0 12px}
+#s-profile .profthemes{gap:12px}
+#btnAllThemes{display:block;margin:12px auto 0}
+#s-friends .fcode{margin-top:8px}
+@media (min-width:700px){#s-profile .profgrid .stat strong{font-size:22px} .profstats{font-size:17px}}
