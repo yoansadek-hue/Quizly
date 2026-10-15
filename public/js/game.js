@@ -8,7 +8,7 @@ import { startCloud, cloudState } from "./cloud.js";
 import { initFriends, friendCodeFrom } from "./friends.js";
 import { enablePush, pushState } from "./push.js";
 
-const VERSION = "2.11.1"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.11.2"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -1289,6 +1289,7 @@ function adminUI() {
   $("adminBox").hidden = !key; $("btnDev").hidden = !!key;
   $("adminUid").textContent = S.uid || "";
 }
+$("btnCopyUid").onclick = () => { try { navigator.clipboard.writeText(S.uid); $("adminMsg").textContent = "Identifiant copié : collez-le dans la règle Firestore."; } catch {} };
 $("btnDev").onclick = () => {
   const key = prompt("Clé développeur (ADMIN_KEY réglée sur Render) :");
   if (!key) return;
@@ -1301,9 +1302,11 @@ $("btnAdminSend").onclick = async () => {
   if (text.length < 3) { $("adminMsg").textContent = "Écrivez un message."; return; }
   $("btnAdminSend").disabled = true; $("adminMsg").textContent = "Envoi…";
   try {
-    const n = await friends.announce(text, localStorage.getItem(ADMIN));
-    $("adminMsg").textContent = `Annonce envoyée (${n} appareil${n > 1 ? "s" : ""} prévenu${n > 1 ? "s" : ""} tout de suite).`;
-    $("adminText").value = "";
-  } catch { $("adminMsg").textContent = "Échec : vérifiez la règle « announces » dans Firestore."; }
+    const { saved, sent, ok } = await friends.announce(text, localStorage.getItem(ADMIN));
+    const push = ok ? `Notification envoyée à ${sent} appareil${sent > 1 ? "s" : ""}.` : "Notification non envoyée : clé développeur refusée par le serveur.";
+    const bell = saved ? " Annonce ajoutée dans la cloche de tout le monde." : " Mais pas ajoutée dans la cloche : la règle « announces » de Firestore refuse votre identifiant.";
+    $("adminMsg").textContent = push + bell;
+    if (saved || ok) $("adminText").value = "";
+  } catch { $("adminMsg").textContent = "Échec de l'envoi."; }
   $("btnAdminSend").disabled = false;
 };
