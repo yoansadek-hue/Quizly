@@ -297,10 +297,15 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, joinRoom, ro
     start, stop, ready, render, syncRecords, addByCode, openInvites, renderNotifs,
     // annonce du développeur : gardée dans la cloche de tout le monde (Firestore) puis envoyée en notification
     async announce(text, key) {
-      if (!ready()) throw new Error("cloud");
-      await F.fs.addDoc(F.fs.collection(F.fs.db, "announces"), { text, at: Date.now() });
-      const r = await fetch("/api/push/broadcast", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key, body: text }) });
-      return (await r.json()).sent || 0;
+      // 1) gardée dans la cloche de tout le monde (Firestore) ; 2) envoyée en notification (même si 1 échoue)
+      let saved = false;
+      if (ready()) try { await F.fs.addDoc(F.fs.collection(F.fs.db, "announces"), { text, at: Date.now() }); saved = true; } catch (e) { console.warn("Annonce non gardée :", e.message); }
+      let sent = 0, ok = false;
+      try {
+        const r = await fetch("/api/push/broadcast", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key, body: text }) });
+        ok = r.ok; sent = (await r.json()).sent || 0;
+      } catch {}
+      return { saved, sent, ok };
     },
     hideInvitePanel: () => ($("invitePanel").hidden = true),
     refresh: () => (ready() ? loadFriends() : render())
