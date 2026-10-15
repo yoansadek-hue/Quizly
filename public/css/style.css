@@ -701,3 +701,5 @@ body::before{height:max(0px,calc(env(safe-area-inset-top) - 7px))}
 .admin .msg{margin:0}
 .admin b{word-break:break-all;color:var(--paper)}
 .devlink{display:block;margin:28px auto 0;font-size:12px;color:var(--lilac);opacity:.6}
+#btnCopyUid{display:inline-block;width:auto;min-height:34px;padding:4px 12px;font-size:12px;margin-left:6px;color:var(--paper)}
+#adminUid{font-family:ui-monospace,Menlo,Consolas,monospace}
