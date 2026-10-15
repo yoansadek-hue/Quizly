@@ -1,6 +1,7 @@
 // Amis : code ami, demandes, liste avec records, classement entre amis, invitations à un salon.
 // Tout passe par Firestore (voir les règles dans le message de la 2.10). Il faut être connecté au cloud.
 import { cloudFs } from "./cloud.js";
+import { sendPush } from "./push.js";
 
 const ALPHA = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // sans I, O, 0, 1 : pas de confusion à la lecture
 const INVITE_TTL = 10 * 60 * 1000; // une invitation de plus de 10 minutes est ignorée
@@ -100,7 +101,8 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, joinRoom, ro
       if (F.friends.some((f) => f.uid === to)) return say("Vous êtes déjà amis.");
       const m = me();
       await F.fs.setDoc(ref("requests", to, "from", F.uid), { name: m.name, photo: m.photo || "", at: Date.now() });
-      say("Demande envoyée. Elle apparaîtra dans son Profil.");
+      sendPush(to, `${m.name} veut devenir votre ami.`, "/?amis=1"); // notification sur tous ses appareils
+      say("Demande envoyée.");
       $("friendCode").value = "";
     } catch (e) { say("Impossible d'envoyer la demande pour le moment."); }
   }
@@ -108,6 +110,7 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, joinRoom, ro
     try {
       await F.fs.setDoc(ref("friends", F.uid, "list", r.uid), { since: Date.now() });
       await F.fs.setDoc(ref("friends", r.uid, "list", F.uid), { since: Date.now() });
+      sendPush(r.uid, `${me().name} a accepté votre demande d'ami.`, "/?amis=1");
       await F.fs.deleteDoc(ref("requests", F.uid, "from", r.uid));
       await loadFriends();
     } catch { say("Impossible d'accepter pour le moment."); }
@@ -216,6 +219,7 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, joinRoom, ro
         try {
           const m = me();
           await F.fs.setDoc(ref("invites", f.uid, "list", F.uid), { code: room.code, kind: room.kind, name: m.name, photo: m.photo || "", at: Date.now() });
+          sendPush(f.uid, `${m.name} vous invite à jouer${KIND[room.kind] ? ` (${KIND[room.kind]})` : ""}.`, `/?tv=${room.code}`); // un appui rejoint le salon
           b.textContent = "Invité";
         } catch { b.disabled = false; b.textContent = "Réessayer"; }
       });
