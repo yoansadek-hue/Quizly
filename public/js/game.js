@@ -5,8 +5,9 @@ import { makeLocal, LOCAL_THEMES, SONG_THEME, euros } from "./local.js";
 import { millionUI, millionLocal, avatarEl, setAudio } from "./million.js";
 import { startScan, stopScan, tvCodeFrom } from "./scan.js";
 import { startCloud, cloudState } from "./cloud.js";
+import { initFriends, friendCodeFrom } from "./friends.js";
 
-const VERSION = "2.9.1"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.10.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -59,6 +60,8 @@ function userLabel() {
 function show(id) {
   if (curScreen === "s-scan" && id !== "s-scan") stopScan(); // on coupe la caméra en quittant le scanner
   curScreen = id;
+  if (id === "s-lobby") { $("btnInvite").hidden = !friends.ready(); friends.hideInvitePanel(); } // inviter ses amis dans le salon
+  if (id === "s-end") setTimeout(() => friends.syncRecords(), 800); // nouveaux records visibles par les amis
   // rond des réactions : seulement pendant une partie en ligne
   let onl = false; try { onl = online.active(); online.closeReacts(); } catch {}
   $("reactFab").hidden = !(onl && ["s-game", "s-million", "s-load"].includes(id));
@@ -817,6 +820,7 @@ function renderProfile() {
     li.append(nm, bar, v); return li;
   }));
   $("profEmpty").hidden = themes.length > 0;
+  friends.render(); friends.syncRecords();
   const cs = cloudState();
   $("profCloud").textContent = cs === "cloud" ? "Sauvegardé dans le cloud avec votre compte Google : vous retrouvez tout sur vos autres appareils."
     : cs === "error" ? "Sauvegarde dans le cloud indisponible pour le moment : vos données restent sur cet appareil."
@@ -977,7 +981,7 @@ function enter(uid, name, photo) {
   S.uid = uid;
   setUser(name, photo);
   // compte Google : on récupère la sauvegarde du cloud (vies, records, statistiques, joueurs)
-  startCloud(uid).then((st) => { if (st === "cloud" && S.uid === uid) { loadRoster(); if (curScreen === "s-profile") renderProfile(); } });
+  startCloud(uid).then((st) => { if (st === "cloud" && S.uid === uid) { loadRoster(); afterCloud(); } });
   loadRoster();
   renderModes();
   show("s-mode");
@@ -987,6 +991,25 @@ function enter(uid, name, photo) {
     try { history.replaceState(null, "", location.pathname); } catch {}
     chooseMode("online");
     online.join(code);
+  }
+}
+
+/* ---------- Amis ---------- */
+const friends = initFriends({
+  $, ask, avatarEl, euros,
+  me: () => ({ name: S.firstName || "Joueur", photo: S.photo || "" }),
+  records: () => { const b = (k) => { try { return +localStorage.getItem(`quizly:${S.uid}:${k}`) || 0; } catch { return 0; } }; return { best2: b("best2"), bestChrono: b("bestChrono"), bestMillion: b("bestMillion") }; },
+  joinRoom: (code) => { chooseMode("online"); online.join(code); },
+  roomInfo: () => (online.cfg() ? { code: $("lobbyCode").textContent, kind: online.cfg().kind } : null)
+});
+let pendingAmi = new URLSearchParams(location.search).get("ami"); // QR code ami scanné avec l'appareil photo
+async function afterCloud() {
+  await friends.start();
+  if (curScreen === "s-profile") renderProfile();
+  if (pendingAmi && friends.ready()) { // on ajoute l'ami du lien, puis on montre le Profil
+    const c = pendingAmi; pendingAmi = null;
+    try { history.replaceState(null, "", location.pathname); } catch {}
+    renderProfile(); show("s-profile"); friends.addByCode(c);
   }
 }
 
@@ -1001,7 +1024,7 @@ watch((user) => {
     try { localStorage.setItem(SESS, JSON.stringify({ uid: user.uid, name, photo: user.photoURL || "" })); } catch {}
     if (S.uid !== user.uid) enter(user.uid, name, user.photoURL); else setUser(name, user.photoURL);
     // Google a confirmé la connexion : on branche le cloud (au lancement, la session est reprise avant que Google réponde)
-    startCloud(user.uid).then((st) => { if (st === "cloud" && S.uid === user.uid) { recentCache = null; loadRoster(); if (curScreen === "s-profile") renderProfile(); } });
+    startCloud(user.uid).then((st) => { if (st === "cloud" && S.uid === user.uid) { recentCache = null; loadRoster(); afterCloud(); } });
   } else {
     try { localStorage.removeItem(SESS); } catch {}
     S.uid = null; S.inGame = false; stopTimer(); $("confirm").hidden = true; show("s-login");
@@ -1035,7 +1058,8 @@ document.querySelectorAll("[data-back]").forEach((b) => (b.onclick = () => {
   if (t === "s-mode" && S.menuSec && ["s-count", "s-themes"].includes(curScreen)) t = "s-sub"; // retour à la liste Party / Solo
   show(t);
 }));
-$("btnLogout").onclick = async () => { try { localStorage.removeItem(SESS); } catch {} online.leave(); await logout(); S.uid = null; show("s-login"); };
+$("btnLogout").onclick = async () => {
+  friends.stop(); try { localStorage.removeItem(SESS); } catch {} online.leave(); await logout(); S.uid = null; show("s-login"); };
 
 $("cMinus").onclick = () => setCount(-1);
 $("cPlus").onclick = () => setCount(1);
@@ -1147,8 +1171,10 @@ $("btnScan").onclick = () => {
   $("scanMsg").textContent = "";
   show("s-scan");
   const onCode = (text) => {
+    const ami = friendCodeFrom(text);
+    if (ami) { stopScan(); renderProfile(); show("s-profile"); friends.addByCode(ami); return; } // QR code d'un ami
     const code = tvCodeFrom(text);
-    if (!code) { $("scanMsg").textContent = "Ce QR code n'est pas un salon Quizly."; return setTimeout(() => curScreen === "s-scan" && startScan($("scanVideo"), onCode, onErr), 1500); }
+    if (!code) { $("scanMsg").textContent = "Ce QR code n'est ni un salon ni un ami Quizly."; return setTimeout(() => curScreen === "s-scan" && startScan($("scanVideo"), onCode, onErr), 1500); }
     stopScan();
     $("scanMsg").textContent = "Connexion à la télé…";
     online.join(code);
