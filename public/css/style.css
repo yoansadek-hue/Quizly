@@ -562,3 +562,4 @@ body.tvmode #s-game #mcq .btn::before{width:54px;height:54px;font-size:24px}
 .toastTop{display:flex;align-items:center;gap:10px;margin-bottom:12px;font:800 16px var(--display)}
 .toast .btn.ghost{color:var(--ink);border-color:var(--muted)}
 @media (min-width:700px){#myQr{width:150px;height:150px} .code.small{font-size:36px}}
+#btnScanFriend{margin-top:12px}
