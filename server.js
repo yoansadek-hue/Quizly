@@ -206,6 +206,8 @@ async function logoQuestion(d, isNew = () => true) {
 
 /* ---------- jamais deux fois la même question dans une partie ---------- */
 const sigs = (q) => [q.key, `${plain(q.q)}|${plain(q.a)}`].filter(Boolean);
+const histSig = (q) => `${plain(q.q)}|${q.img || q.audio || ""}`;
+const softOf = (room) => room.soft || (room.soft = new Set(players(room).flatMap((p) => p.hist || []))); // vues par les joueurs lors de parties précédentes
 const isNewIn = (set) => (q) => q && !sigs(q).some((k) => set.has(k));
 const markIn = (set, q) => sigs(q).forEach((k) => set.add(k));
 // question « sans IA » : les chansons et les logos viennent des API, le reste est fabriqué sur place
@@ -217,14 +219,15 @@ async function makeAny(theme, d, isNew = () => true) {
   return makeLocal(theme, d);
 }
 // tire une question sans IA jamais posée : d'abord les thèmes choisis, puis les niveaux voisins, puis les autres thèmes
-async function pickLocal(themes, d, used) {
+async function pickLocal(themes, d, used, soft) {
   const ok = isNewIn(used);
   const others = LOCAL_THEMES.filter((t) => !themes.includes(t));
   const plan = [[themes, d], [themes, Math.max(1, d - 1)], [themes, Math.min(5, d + 1)], [others.length ? others : themes, d]];
   for (const [ts, dd] of plan) {
-    for (let i = 0; i < 25; i++) {
+    for (let i = 0; i < 40; i++) {
       const q = await makeAny(pickOne(ts), dd, ok);
-      if (ok(q)) { markIn(used, q); return q; }
+      // d'abord une question qu'aucun joueur n'a vue récemment ; sinon, jamais vue dans cette partie
+      if (ok(q) && (i >= 25 || !soft || !soft.has(histSig(q)))) { markIn(used, q); return q; }
     }
   }
   return null;
@@ -293,7 +296,7 @@ function okPhoto(s) {
   return /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(s) && s.length <= 9000 ? s : ""; // photo d'un compte local
 }
 
-function join(ws, room, name, photo) {
+function join(ws, room, name, photo, hist) {
   const base = clean(name) || "Joueur";
   let n = base, k = 2;
   while (players(room).some((p) => !p.left && p.name.toLowerCase() === n.toLowerCase())) n = `${base} ${k++}`;
@@ -301,7 +304,8 @@ function join(ws, room, name, photo) {
     id: Math.random().toString(36).slice(2, 9), ws, name: n,
     tok: Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2), // secret pour revenir après une coupure
     photo: okPhoto(photo),
-    lives: 0, score: 0, points: 0, dead: false, outAt: 0, left: false, ci: room.nextCi++
+    lives: 0, score: 0, points: 0, dead: false, outAt: 0, left: false, ci: room.nextCi++,
+    hist: (Array.isArray(hist) ? hist : []).slice(-300).map((x) => String(x).slice(0, 220)) // questions vues récemment par ce joueur
   };
   room.players.set(p.id, p); ws.room = room; ws.pid = p.id;
   if (!room.hostId || !room.players.has(room.hostId)) room.hostId = p.id; // salon télé : le premier qui scanne est l'hôte
@@ -332,12 +336,13 @@ async function takeQuestion(room) {
   const locals = room.cfg.themes.filter((t) => LOCAL_THEMES.includes(t));
   const withAI = room.cfg.themes.length > locals.length;
   if (locals.length && (!withAI || Math.random() < locals.length / room.cfg.themes.length)) {
-    const lq = await pickLocal(locals, room.diff, room.used || (room.used = new Set()));
+    const lq = await pickLocal(locals, room.diff, room.used || (room.used = new Set()), softOf(room));
     if (lq) { room.asked.push(lq.key); return lq; }
   }
   const used = room.used || (room.used = new Set());
   for (let t = 0; t < 3; t++) {
-    const pool = room.buf.filter((q) => !q.u && q.d === room.diff && isNewIn(used)(q));
+    const all = room.buf.filter((q) => !q.u && q.d === room.diff && isNewIn(used)(q));
+    const fresh = all.filter((q) => !softOf(room).has(histSig(q))), pool = fresh.length ? fresh : all; // d'abord les jamais vues
     if (pool.length) {
       const q = pool[Math.floor(Math.random() * pool.length)];
       q.u = true; room.asked.push(q.q); markIn(used, q);
@@ -347,14 +352,14 @@ async function takeQuestion(room) {
     try { await fill(room); } catch { break; } // IA indisponible : on passe aux questions sans IA
   }
   // l'IA ne répond pas : la partie continue avec des questions sans IA plutôt que de s'arrêter
-  const lq = await pickLocal(locals.length ? locals : LOCAL_THEMES.filter((t) => t !== SONG_THEME), room.diff, used);
+  const lq = await pickLocal(locals.length ? locals : LOCAL_THEMES.filter((t) => t !== SONG_THEME), room.diff, used, softOf(room));
   if (lq) { room.asked.push(lq.key); return lq; }
   throw new Error("L'IA n'a renvoyé aucune nouvelle question.");
 }
 
 /* --- déroulement --- */
 function startGame(room) {
-  Object.assign(room, { phase: "load", diff: 1, buf: [], asked: [], used: new Set(), played: new Set(), i: -1, elim: 0, loads: new Map() });
+  Object.assign(room, { phase: "load", diff: 1, buf: [], asked: [], used: new Set(), soft: null, played: new Set(), i: -1, elim: 0, loads: new Map() });
   players(room).forEach((p) => Object.assign(p, { lives: room.cfg.lives, score: 0, points: 0, dead: false, outAt: 0 }));
   if (room.cfg.kind === "equipes") makeTeams(room);
   nextTurn(room);
@@ -493,7 +498,7 @@ const pick = (a) => a[Math.floor(Math.random() * a.length)];
 
 function startChrono(room) {
   clearTimeout(room.timer);
-  Object.assign(room, { phase: "cload", buf: [], asked: [], loads: new Map(), elim: 0 });
+  Object.assign(room, { phase: "cload", buf: [], asked: [], loads: new Map(), elim: 0, soft: null });
   players(room).forEach((p) => {
     clearTimeout(p.ctimer);
     Object.assign(p, { score: 0, points: 0, streak: 0, cdiff: 1, ms: CHRONO_MS, done: false, seen: new Set(), cq: null, qAt: 0, fails: 0, dead: false, outAt: 0, lives: 0 });
@@ -513,11 +518,12 @@ async function takeFor(room, p) {
   const d = p.cdiff;
   const locals = room.cfg.themes.filter((t) => LOCAL_THEMES.includes(t));
   const withAI = room.cfg.themes.length > locals.length;
-  const local = () => pickLocal(locals, d, p.seen);
+  const local = () => pickLocal(locals, d, p.seen, softOf(room));
   const fresh = isNewIn(p.seen);
   if (locals.length && (!withAI || Math.random() < locals.length / room.cfg.themes.length)) { const lq = await local(); if (lq) return lq; }
   for (let t = 0; t < 3; t++) {
-    const pool = room.buf.filter((q) => q.d === d && fresh(q));
+    const pool0 = room.buf.filter((q) => q.d === d && fresh(q)), pool1 = pool0.filter((q) => !softOf(room).has(histSig(q)));
+    const pool = pool1.length ? pool1 : pool0;
     if (pool.length) {
       const q = pick(pool); markIn(p.seen, q);
       if (pool.length < 4) fill(room, d).catch(() => {});
@@ -527,7 +533,7 @@ async function takeFor(room, p) {
   }
   const any = room.buf.filter(fresh); // repli : une question d'un autre niveau
   if (any.length) { const q = pick(any); markIn(p.seen, q); return q; }
-  { const lq = await pickLocal(locals.length ? locals : LOCAL_THEMES.filter((t) => t !== SONG_THEME), d, p.seen); if (lq) return lq; } // IA indisponible
+  { const lq = await pickLocal(locals.length ? locals : LOCAL_THEMES.filter((t) => t !== SONG_THEME), d, p.seen, softOf(room)); if (lq) return lq; } // IA indisponible
   throw new Error("L'IA n'a renvoyé aucune nouvelle question.");
 }
 async function chronoNext(room, p) {
@@ -614,7 +620,7 @@ const watchers = (room) => players(room).filter((p) => !p.left && p.mout);
 
 function startMillion(room) {
   clearTimeout(room.timer);
-  Object.assign(room, { phase: "mload", buf: [], asked: [], loads: new Map(), mn: 0, mseen: new Set() });
+  Object.assign(room, { phase: "mload", buf: [], asked: [], loads: new Map(), mn: 0, mseen: new Set(), soft: null });
   players(room).forEach((p) => {
     clearTimeout(p.ctimer);
     Object.assign(p, { mn: 0, mout: false, mwon: 0, mjok: { fifty: 1, public: 1, swap: 1 }, mq: null, mpick: null, mstop: false, mremoved: [], seen: new Set(), cdiff: 1, dead: false, outAt: 0, lives: 0, score: 0 });
@@ -904,7 +910,7 @@ function handle(ws, m) {
       diff: 1, buf: [], asked: [], played: new Set(), i: -1, elim: 0, q: null, timer: null, loads: new Map(), nextCi: 0
     };
     rooms.set(room.code, room);
-    room.hostId = join(ws, room, m.name, m.photo).id;
+    room.hostId = join(ws, room, m.name, m.photo, m.hist).id;
     return castLobby(room);
   }
   if (m.t === "join") {
@@ -913,7 +919,7 @@ function handle(ws, m) {
     if (room.phase !== "lobby") return send(ws, { t: "error", msg: "La partie a déjà commencé." });
     if (players(room).length >= 20) return send(ws, { t: "error", msg: "Salle pleine (20 joueurs)." });
     if (ws.room) leave(ws);
-    join(ws, room, m.name, m.photo);
+    join(ws, room, m.name, m.photo, m.hist);
     return castLobby(room);
   }
   if (m.t === "rejoin") return rejoin(ws, m);
@@ -953,7 +959,7 @@ function handle(ws, m) {
   }
   else if (m.t === "react") { // réaction envoyée à tout le salon (et à la télé)
     const now = Date.now(), r = Number(m.r);
-    if (now - (me.lastReact || 0) < 800 || !Number.isInteger(r) || r < 0 || r > 4) return;
+    if (now - (me.lastReact || 0) < 800 || !Number.isInteger(r) || r < 0 || r > 5) return;
     me.lastReact = now;
     cast(room, { t: "react", r, id: me.id, name: me.name });
   }
