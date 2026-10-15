@@ -1,10 +1,48 @@
 import "dotenv/config";
 import express from "express";
+import webpush from "web-push";
 import { WebSocketServer } from "ws";
 import { LOCAL_THEMES, makeLocal, PRIZES, millionLevel, wonAt, safeAt, publicVote, SONG_THEME, songPool, songLabel, SONGS } from "./public/js/local.js";
 
 const app = express();
 app.use(express.json({ limit: "60kb" }));
+
+/* ---------- notifications (push) : « Tom vous a ajouté », « Tom vous invite à jouer » ----------
+   Les clés se règlent sur Render (Environment) : VAPID_PUBLIC et VAPID_PRIVATE.
+   Chaque appareil s'enregistre à l'ouverture de l'appli ; la liste est gardée en mémoire. */
+const VAPID_PUBLIC = process.env.VAPID_PUBLIC || "", VAPID_PRIVATE = process.env.VAPID_PRIVATE || "";
+const pushOn = !!(VAPID_PUBLIC && VAPID_PRIVATE);
+if (pushOn) webpush.setVapidDetails("mailto:contact@quizly.app", VAPID_PUBLIC, VAPID_PRIVATE);
+const pushSubs = new Map(); // compte → Map(adresse de l'appareil → abonnement)
+const pushHits = new Map();
+const cleanUid = (u) => String(u || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 128);
+app.get("/api/push/key", (req, res) => res.json({ key: pushOn ? VAPID_PUBLIC : null }));
+app.post("/api/push/subscribe", (req, res) => {
+  const uid = cleanUid(req.body && req.body.uid), sub = req.body && req.body.sub;
+  if (!pushOn || !uid || !sub || typeof sub.endpoint !== "string" || !sub.keys) return res.status(400).json({ ok: false });
+  const m = pushSubs.get(uid) || new Map();
+  m.set(sub.endpoint, { endpoint: sub.endpoint, keys: { p256dh: String(sub.keys.p256dh || ""), auth: String(sub.keys.auth || "") } });
+  if (m.size > 8) m.delete(m.keys().next().value); // 8 appareils par compte au plus
+  pushSubs.set(uid, m);
+  res.json({ ok: true });
+});
+app.post("/api/push/send", async (req, res) => {
+  const ip = req.headers["x-forwarded-for"]?.split(",")[0] || req.socket.remoteAddress, now = Date.now();
+  const recent = (pushHits.get(ip) || []).filter((t) => now - t < 60000);
+  if (recent.length >= 20) return res.status(429).json({ ok: false }); // pas de rafale
+  pushHits.set(ip, [...recent, now]);
+  const to = cleanUid(req.body && req.body.to);
+  const title = String((req.body && req.body.title) || "Quizly").slice(0, 60), body = String((req.body && req.body.body) || "").slice(0, 140);
+  const url = String((req.body && req.body.url) || "/").slice(0, 120);
+  const m = pushSubs.get(to);
+  if (!pushOn || !m) return res.json({ ok: true, sent: 0 });
+  let sent = 0;
+  await Promise.all([...m.values()].map(async (sub) => {
+    try { await webpush.sendNotification(sub, JSON.stringify({ title, body, url: url.startsWith("/") ? url : "/" }), { TTL: 600 }); sent++; }
+    catch (e) { if (e.statusCode === 404 || e.statusCode === 410) m.delete(sub.endpoint); } // appareil désinscrit
+  }));
+  res.json({ ok: true, sent });
+});
 
 // utilisé par la page de réveil et par un éventuel service qui garde le serveur éveillé
 app.get("/health", (req, res) => {
@@ -293,7 +331,7 @@ const castLobby = (room) => {
 function okPhoto(s) {
   s = String(s || "");
   if (s.startsWith("https://lh3.googleusercontent.com/")) return s.slice(0, 300);
-  return /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(s) && s.length <= 9000 ? s : ""; // photo d'un compte local
+  return /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(s) && s.length <= 12000 ? s : ""; // photo personnalisée (réduite)
 }
 
 function join(ws, room, name, photo, hist) {
