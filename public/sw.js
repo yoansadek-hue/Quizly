@@ -4,7 +4,7 @@ self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
 self.addEventListener("push", (e) => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch { d = { body: e.data ? e.data.text() : "" }; }
-  e.waitUntil(self.registration.showNotification(d.title || "Quizly", {
+  e.waitUntil(self.registration.showNotification(d.title || "", {
     body: d.body || "", icon: "/icons/icon-192.png?v=3", badge: "/icons/icon-192.png?v=3", data: { url: d.url || "/" }, tag: d.url || "quizly"
   }));
 });
