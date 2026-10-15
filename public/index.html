@@ -196,6 +196,10 @@ addEventListener("error", function (e) {
         <button class="ftab" data-tab="rank" role="tab">Classement</button>
       </div>
       <div class="fpanel" id="fpMine">
+        <div class="pushbox" id="pushBox" hidden>
+          <span id="pushText">Soyez prévenu quand un ami vous ajoute ou vous invite, même appli fermée.</span>
+          <button class="btn sun sm" id="btnPush">Activer les notifications</button>
+        </div>
         <div id="reqBox" hidden><h4 class="fsub">Demandes reçues</h4><div id="reqList" class="flist"></div></div>
         <div id="friendList" class="flist"></div>
       </div>
@@ -227,8 +231,17 @@ addEventListener("error", function (e) {
   <section id="s-profile" class="screen" hidden>
     <button class="goback" data-back="s-mode">← Retour</button>
     <div class="profhead">
-      <span id="profAv"></span>
-      <div><h2 id="profName">Profil</h2><span class="cloudchip" id="profCloud"></span></div>
+      <label class="avedit" for="mePhoto" aria-label="Changer ma photo"><span id="profAv"></span><span class="pen">+</span></label>
+      <input id="mePhoto" type="file" accept="image/*" hidden>
+      <div class="profwho">
+        <h2 id="profName">Profil</h2>
+        <div class="profline"><span class="cloudchip" id="profCloud"></span><button class="link" id="btnEditName">Modifier le nom</button></div>
+      </div>
+    </div>
+    <div class="meedit" id="meEdit" hidden>
+      <input id="meName" type="text" maxlength="20" placeholder="Votre nom" autocomplete="nickname" enterkeyhint="done">
+      <div class="two"><button class="btn sun sm" id="btnMeSave">Enregistrer</button><button class="btn ghost sm" id="btnMeReset">Reprendre Google</button></div>
+      <p id="meMsg" class="msg" role="alert"></p>
     </div>
     <div class="profgrid" id="profRecords"></div>
     <div class="bubbles" id="profStats"></div>
