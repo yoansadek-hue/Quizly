@@ -6,7 +6,14 @@ const ALPHA = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // sans I, O, 0, 1 : pas de co
 const INVITE_TTL = 10 * 60 * 1000; // une invitation de plus de 10 minutes est ignorée
 
 export function initFriends({ $, ask, avatarEl, euros, me, records, joinRoom, roomInfo, openFriends }) {
-  const F = { uid: null, fs: null, code: "", friends: [], unsub: [], tab: "best2", inv: null };
+  const F = { uid: null, fs: null, code: "", friends: [], unsub: [], tab: "best2", inv: null, panel: null };
+  // onglets de l'écran Amis
+  function setPanel(p) {
+    F.panel = p;
+    [["mine", "fpMine"], ["add", "fpAdd"], ["rank", "fpRank"]].forEach(([k, id]) => ($(id).hidden = k !== p));
+    document.querySelectorAll("#fTabs .ftab").forEach((b) => b.setAttribute("aria-selected", b.dataset.tab === p));
+  }
+  document.querySelectorAll("#fTabs .ftab").forEach((b) => (b.onclick = () => setPanel(b.dataset.tab)));
   const say = (t) => ($("friendMsg").textContent = t);
   const ref = (...p) => F.fs.doc(F.fs.db, ...p);
 
@@ -62,8 +69,8 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, joinRoom, ro
     F.unsub.push(onSnapshot(collection(F.fs.db, "requests", F.uid, "from"), (snap) => {
       F.requests = snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
       // pastille sur le bouton Amis : le nombre de demandes en attente
-      $("friendsBadge").hidden = !F.requests.length;
-      $("friendsBadge").textContent = F.requests.length > 9 ? "9+" : F.requests.length;
+      $("friendsBadge").hidden = $("fTabBadge").hidden = !F.requests.length;
+      $("friendsBadge").textContent = $("fTabBadge").textContent = F.requests.length > 9 ? "9+" : F.requests.length;
       // notification pour une nouvelle demande (une seule fois par personne)
       F.notified ||= new Set();
       const fresh = F.requests.find((r) => !F.notified.has(r.uid));
@@ -149,13 +156,15 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, joinRoom, ro
     const link = `${location.origin}/?ami=${F.code}`;
     if ($("myQr").dataset.code !== F.code) { $("myQr").dataset.code = F.code; $("myQr").src = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=8&data=${encodeURIComponent(link)}`; }
     $("friendList").replaceChildren(...(F.friends.length ? F.friends.map((f) => {
-      const r = row(f, [btn("Retirer", "ghost", () => remove(f))]);
+      const del = document.createElement("button"); del.className = "fx"; del.textContent = "×"; del.setAttribute("aria-label", `Retirer ${f.name}`); del.onclick = () => remove(f);
+      const r = row(f, [del]);
       const rec = document.createElement("span"); rec.className = "frec";
       const x = f.records || {};
       rec.textContent = `Solo ${x.best2 || 0} · Chrono ${x.bestChrono || 0} · ${euros(x.bestMillion || 0)}`;
       r.querySelector(".fname").append(rec);
       return r;
-    }) : [Object.assign(document.createElement("p"), { className: "lead small", textContent: "Pas encore d'amis : partagez votre code ou faites scanner votre QR code." })]));
+    }) : [Object.assign(document.createElement("p"), { className: "lead small", textContent: "Pas encore d'amis." }), btn("Ajouter un ami", "sun", () => setPanel("add"))]));
+    if (!F.panel) setPanel(F.friends.length || (F.requests || []).length ? "mine" : "add"); // premier affichage : le bon onglet
     renderRanking();
     renderRequests();
   }
@@ -179,7 +188,8 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, joinRoom, ro
       li.append(pos, avatarEl(p.name, p.photo), nm, st);
       return li;
     }));
-    $("rankBox").hidden = !F.friends.length;
+    $("rankList").hidden = !F.friends.length; $("rankTabs").hidden = !F.friends.length;
+    $("rankEmpty").hidden = !!F.friends.length;
   }
 
   /* ---------- notification : quelqu'un veut devenir votre ami ---------- */
