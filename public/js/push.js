@@ -25,6 +25,10 @@ export async function enablePush(uid, ask) {
   } catch (e) { console.warn("Notifications :", e.message); return "error"; }
 }
 // envoie une notification à tous les appareils d'un compte
-export function sendPush(to, body, url) {
-  fetch("/api/push/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to, title: "Quizly", body, url }) }).catch(() => {});
+export function sendPush(to, title, body, url) {
+  fetch("/api/push/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to, title, body, url }) }).catch(() => {});
+}
+// l'abonnement de cet appareil (pour l'enregistrer dans Firestore)
+export async function currentSub() {
+  try { const reg = await navigator.serviceWorker.getRegistration("/sw.js"); return reg ? await reg.pushManager.getSubscription() : null; } catch { return null; }
 }
