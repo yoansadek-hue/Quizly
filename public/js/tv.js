@@ -59,7 +59,7 @@ function onMsg(m) {
       const d = document.createElement("div");
       d.className = `bubble r${m.r}`;
       const n = document.createElement("b"); n.textContent = m.name;
-      d.append(n, document.createTextNode(` ${["Bravo", "Haha", "Oh non", "Waouh", "Trop fort"][m.r] || ""}`));
+      d.append(n, document.createTextNode(` ${["Trop facile", "Tu dors ?", "Pleure pas", "Même pas peur", "Je suis trop fort", "Cadeau !"][m.r] || ""}`));
       d.style.left = `${6 + Math.random() * 70}vw`;
       d.onanimationend = () => d.remove();
       document.body.append(d);
