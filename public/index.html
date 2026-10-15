@@ -139,6 +139,11 @@ addEventListener("error", function (e) {
   <!-- Choix du mode -->
   <section id="s-mode" class="screen" hidden>
     <h2>Choisissez un mode</h2>
+    <div class="pushbanner" id="menuPush" hidden>
+      <span>Activez les notifications pour savoir quand un ami vous ajoute ou vous invite.</span>
+      <button class="btn sun sm" id="btnMenuPush">Activer</button>
+      <button class="fx light" id="btnMenuPushNo" aria-label="Plus tard">×</button>
+    </div>
     <div id="modes"></div>
     <p class="center-link"><button class="link" id="btnLogout">Changer de compte</button></p>
     <p class="version ver"></p>
@@ -186,6 +191,14 @@ addEventListener("error", function (e) {
       <button class="btn white" id="btnShuffle">Mélanger au hasard</button>
       <button class="btn sun" id="btnTeams">Choisir les thèmes</button>
     </div>
+  </section>
+
+  <!-- Profil d'un ami -->
+  <section id="s-friend" class="screen" hidden>
+    <button class="goback" data-back="s-friends">← Retour</button>
+    <div class="profhead"><span id="frAv"></span><h2 id="frName"></h2></div>
+    <div class="profgrid" id="frRecords"></div>
+    <button class="btn ghost" id="btnFrRemove">Retirer de mes amis</button>
   </section>
 
   <!-- Notifications -->
