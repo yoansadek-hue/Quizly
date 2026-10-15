@@ -7,7 +7,7 @@ import { startScan, stopScan, tvCodeFrom } from "./scan.js";
 import { startCloud, cloudState } from "./cloud.js";
 import { initFriends, friendCodeFrom } from "./friends.js";
 
-const VERSION = "2.10.2"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.10.3"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -789,46 +789,42 @@ const GAME_NAMES = { classic: "Classique", qcm: "QCM", solo: "Solo", teams: "Éq
 function renderProfile() {
   const st = getStats();
   const best = (k) => { try { return +localStorage.getItem(`quizly:${S.uid}:${k}`) || 0; } catch { return 0; } };
-  $("profName").textContent = `Profil de ${S.firstName || "vous"}`;
+  $("profName").textContent = S.firstName || "Profil";
+  $("profAv").replaceChildren(avatarEl(S.firstName, S.photo, true));
   const themes = Object.entries(st.themes).map(([name, t]) => ({ name, ...t, pct: Math.round((100 * t.ok) / t.n) }));
   const tot = themes.reduce((a, t) => a + t.n, 0), good = themes.reduce((a, t) => a + t.ok, 0);
   const games = Object.values(st.games).reduce((a, b) => a + b, 0);
   // Profil allégé : les 3 records, puis une ligne de chiffres
-  const cards = [["Record Solo", `${best("best2")} pts`], ["Record Chrono", `${best("bestChrono")} pts`], ["Record Millionnaire", euros(best("bestMillion"))]];
+  const short = (v) => (v >= 1000000 ? "1 M€" : v >= 1000 ? `${Math.round(v / 1000)} k€` : `${v} €`); // 100 000 € → 100 k€
+  const cards = [["Solo", `${best("best2")}`], ["Chrono", `${best("bestChrono")}`], ["Millionnaire", short(best("bestMillion"))]];
   $("profRecords").replaceChildren(...cards.map(([k, v]) => {
     const d = document.createElement("div"); d.className = "stat";
     const b = document.createElement("strong"); b.textContent = v;
     const s = document.createElement("span"); s.textContent = k;
     d.append(b, s); return d;
   }));
-  $("profStats").textContent = tot
-    ? `${games} partie${games > 1 ? "s" : ""} · ${tot} question${tot > 1 ? "s" : ""} · ${Math.round((100 * good) / tot)} % de bonnes réponses`
-    : `${games} partie${games > 1 ? "s" : ""} jouée${games > 1 ? "s" : ""}`;
+  // trois pastilles : parties, questions, réussite
+  $("profStats").replaceChildren(...[[games, "parties"], [tot, "questions"], [tot ? `${Math.round((100 * good) / tot)}%` : "—", "réussite"]].map(([v, k]) => {
+    const d = document.createElement("div"); d.className = "bub";
+    const b = document.createElement("strong"); b.textContent = v;
+    const s = document.createElement("span"); s.textContent = k;
+    d.append(b, s); return d;
+  }));
   const ranked = themes.filter((t) => t.n >= 5).sort((a, b) => b.pct - a.pct);
   // points forts et thèmes à travailler : jamais le même thème dans les deux listes
   const half = Math.ceil(ranked.length / 2);
   const strong = ranked.slice(0, Math.min(3, half)), weak = ranked.slice(half).slice(-2).reverse();
-  $("profSum").textContent = ranked.length >= 2
-    ? `Points forts : ${strong.map((t) => t.name).join(", ")}.${weak.length ? ` À travailler : ${weak.map((t) => t.name).join(", ")}.` : ""}`
-    : "Jouez encore un peu : vos points forts apparaîtront après 5 questions dans un thème.";
-  const fav = Object.entries(st.games).sort((a, b) => b[1] - a[1])[0];
-  if (fav) $("profSum").textContent += ` Mode préféré : ${GAME_NAMES[fav[0]] || fav[0]}.`;
-  const shown = themes.sort((a, b) => b.n - a.n).slice(0, S.allThemes ? 999 : 6); // les 6 thèmes les plus joués, le reste sur demande
-  $("btnAllThemes").hidden = themes.length <= 6;
-  $("btnAllThemes").textContent = S.allThemes ? "Voir moins" : `Voir tous les thèmes (${themes.length})`;
-  $("profThemes").replaceChildren(...shown.map((t) => {
-    const li = document.createElement("li");
-    const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = t.name;
-    const bar = document.createElement("span"); bar.className = "bar"; const i = document.createElement("i"); i.style.width = `${t.pct}%`; bar.append(i);
-    const v = document.createElement("span"); v.className = "v"; v.textContent = `${t.pct} % · ${t.ok}/${t.n}`;
-    li.append(nm, bar, v); return li;
-  }));
-  $("profEmpty").hidden = themes.length > 0;
-  friends.syncRecords();
+  // point fort et thème à travailler : deux tuiles colorées, sans phrase
+  const tile = (look, label, name) => {
+    const d = document.createElement("div"); d.className = `tile ${look}`;
+    const s = document.createElement("span"); s.textContent = label;
+    const b = document.createElement("strong"); b.textContent = name;
+    d.append(s, b); return d;
+  };
+  $("profSum").replaceChildren(...(ranked.length >= 2 ? [tile("up", "Point fort", strong[0].name), ...(weak.length ? [tile("down", "À travailler", weak[0].name)] : [])] : []));
   const cs = cloudState();
-  $("profCloud").textContent = cs === "cloud" ? "Sauvegardé dans le cloud avec votre compte Google : vous retrouvez tout sur vos autres appareils."
-    : cs === "error" ? "Sauvegarde dans le cloud indisponible pour le moment : vos données restent sur cet appareil."
-    : "Connexion au cloud en cours…";
+  $("profCloud").textContent = cs === "cloud" ? "Sauvegardé" : cs === "error" ? "Hors ligne" : "Connexion…"; // petite pastille d'état
+  $("profCloud").className = `cloudchip ${cs}`;
 }
 
 /* ---------- Qui veut gagner des millions (sur l'appareil) ---------- */
