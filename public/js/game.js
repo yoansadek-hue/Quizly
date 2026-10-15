@@ -6,7 +6,7 @@ import { millionUI, millionLocal, avatarEl, setAudio } from "./million.js";
 import { startScan, stopScan, tvCodeFrom } from "./scan.js";
 import { startCloud, cloudState } from "./cloud.js";
 
-const VERSION = "2.9.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.9.1"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -33,7 +33,7 @@ const S = {
 };
 const M = () => MODES[S.mode];
 document.querySelectorAll(".ver").forEach((e) => (e.textContent = `Quizly v${VERSION} · par YoskanGame`));
-const online = initOnline({ $, show, flash, confetti, me: () => ({ name: S.firstName || "Joueur", photo: S.photo || "" }), record: chronoRecord, millionUI, avatarEl, setAudio, setMode: (kind) => (S.mode = KIND_MODE[kind] || "online"), stat: { answer: (t, ok) => statAnswer(t, ok), game: (k) => statGame(k) } });
+const online = initOnline({ $, show, flash, confetti, me: () => ({ name: S.firstName || "Joueur", photo: S.photo || "" }), record: chronoRecord, millionUI, avatarEl, setAudio, noteQ: noteRecent, recent: () => getRecent().arr.slice(-300), setMode: (kind) => (S.mode = KIND_MODE[kind] || "online"), stat: { answer: (t, ok) => statAnswer(t, ok), game: (k) => statGame(k) } });
 // record personnel du Chrono en ligne (gardé sur l'appareil, par compte)
 function chronoRecord(points) {
   const key = `quizly:${S.uid}:bestChrono`;
@@ -184,13 +184,16 @@ function renderThemes() {
   const r = document.createElement("button");
   r.className = "chip rand"; r.textContent = "Aléatoire";
   r.setAttribute("aria-pressed", S.rand);
-  r.onclick = () => { S.rand = !S.rand; r.setAttribute("aria-pressed", S.rand); box.classList.toggle("dim", S.rand); };
+  // Aléatoire : les autres thèmes sont verrouillés tant qu'il est actif
+  const lock = () => { box.classList.toggle("dim", S.rand); box.querySelectorAll(".chip:not(.rand)").forEach((c) => (c.disabled = S.rand)); };
+  r.onclick = () => { S.rand = !S.rand; r.setAttribute("aria-pressed", S.rand); lock(); };
   box.append(r);
   THEMES.forEach((t, i) => {
     const b = document.createElement("button");
     b.className = "chip"; b.style.setProperty("--i", i + 1); b.textContent = t;
     b.setAttribute("aria-pressed", S.themes.has(t));
-    b.onclick = () => { S.themes.has(t) ? S.themes.delete(t) : S.themes.add(t); b.setAttribute("aria-pressed", S.themes.has(t)); };
+    b.disabled = S.rand;
+    b.onclick = () => { if (S.rand) return; S.themes.has(t) ? S.themes.delete(t) : S.themes.add(t); b.setAttribute("aria-pressed", S.themes.has(t)); };
     box.append(b);
   });
 }
@@ -235,7 +238,7 @@ const histKey = () => `quizly:${S.uid}:history`;
 function getHist() { try { return JSON.parse(localStorage.getItem(histKey()) || "[]"); } catch { return []; } }
 function remember(q) {
   S.asked.push(q);
-  try { localStorage.setItem(histKey(), JSON.stringify([...getHist(), q].slice(-250))); } catch {}
+  try { localStorage.setItem(histKey(), JSON.stringify([...getHist(), q].slice(-600))); } catch {}
 }
 const seen = (q) => S.asked.some((x) => similar(x, q)) || getHist().some((x) => similar(x, q));
 const usable = (d) => S.buf.filter((q) => !q.u && q.d === d && !seen(q.q));
@@ -277,7 +280,27 @@ function fill() {
 const plainTxt = (x) => String(x).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
 const sigs = (q) => [q.key, `${plainTxt(q.q)}|${plainTxt(q.a)}`].filter(Boolean);
 const isNewQ = (q) => q && !sigs(q).some((k) => S.used.has(k));
-const markQ = (q) => sigs(q).forEach((k) => S.used.add(k));
+const markQ = (q) => { sigs(q).forEach((k) => S.used.add(k)); noteRecent(q); };
+// questions vues lors des parties précédentes (sur tous vos appareils, via le cloud) : on évite de les reposer
+const recentKey = () => `quizly:${S.uid}:recent`;
+const histSig = (q) => `${plainTxt(q.q)}|${q.img || q.audio || ""}`;
+let recentCache = null;
+function getRecent() {
+  if (!recentCache || recentCache.uid !== S.uid) {
+    let arr = []; try { arr = JSON.parse(localStorage.getItem(recentKey()) || "[]"); } catch {}
+    recentCache = { uid: S.uid, arr, set: new Set(arr) };
+  }
+  return recentCache;
+}
+function noteRecent(q) {
+  if (!q || !q.q || !S.uid) return;
+  const r = getRecent(), k = histSig(q);
+  if (r.set.has(k)) return;
+  r.arr.push(k); r.set.add(k);
+  if (r.arr.length > 900) { r.set.delete(r.arr.shift()); }
+  try { localStorage.setItem(recentKey(), JSON.stringify(r.arr)); } catch {}
+}
+const isFresh = (q) => !getRecent().set.has(histSig(q)); // pas vue récemment
 // « Devine la chanson » et « Logos » viennent du serveur (iTunes, Wikidata) ; le reste est fabriqué sur place
 async function makeAnyLocal(theme, d) {
   const api = theme === SONG_THEME ? "song" : theme === "Logos" ? "logo" : null;
@@ -292,9 +315,10 @@ async function pickLocalQ(themes, d) {
   const others = LOCAL_THEMES.filter((t) => !themes.includes(t));
   const plan = [[themes, d], [themes, Math.max(1, d - 1)], [themes, Math.min(5, d + 1)], [others.length ? others : themes, d]];
   for (const [ts, dd] of plan) {
-    for (let i = 0; i < 25; i++) {
+    for (let i = 0; i < 40; i++) {
       const q = await makeAnyLocal(ts[Math.floor(Math.random() * ts.length)], dd);
-      if (isNewQ(q)) { markQ(q); return q; }
+      // les 25 premiers essais : seulement des questions jamais vues récemment ; ensuite, jamais vues dans cette partie
+      if (isNewQ(q) && (i >= 25 || isFresh(q))) { markQ(q); return q; }
     }
   }
   return null;
@@ -315,7 +339,8 @@ async function getQuestion() {
     if (lq) { S.asked.push(lq.key); return lq; }
   }
   for (let t = 0; t < 3; t++) {
-    const pool = usable(S.diff).filter(isNewQ);
+    const all = usable(S.diff).filter(isNewQ), fresh = all.filter(isFresh);
+    const pool = fresh.length ? fresh : all; // d'abord les questions jamais vues
     if (pool.length) {
       const q = pool[Math.floor(Math.random() * pool.length)];
       q.u = true; remember(q.q); markQ(q); saveBank();
@@ -975,6 +1000,8 @@ watch((user) => {
     const name = user.displayName || user.email || "Compte";
     try { localStorage.setItem(SESS, JSON.stringify({ uid: user.uid, name, photo: user.photoURL || "" })); } catch {}
     if (S.uid !== user.uid) enter(user.uid, name, user.photoURL); else setUser(name, user.photoURL);
+    // Google a confirmé la connexion : on branche le cloud (au lancement, la session est reprise avant que Google réponde)
+    startCloud(user.uid).then((st) => { if (st === "cloud" && S.uid === user.uid) { recentCache = null; loadRoster(); if (curScreen === "s-profile") renderProfile(); } });
   } else {
     try { localStorage.removeItem(SESS); } catch {}
     S.uid = null; S.inGame = false; stopTimer(); $("confirm").hidden = true; show("s-login");
