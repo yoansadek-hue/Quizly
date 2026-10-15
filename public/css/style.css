@@ -620,3 +620,12 @@ body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area
 .fcode{gap:12px}
 #myQr{width:104px;height:104px}
 @media (min-width:700px){#myQr{width:150px;height:150px} .code.small{font-size:34px}}
+
+/* ---------- 2.10.4 ---------- */
+/* barre du haut fixe et opaque : rien ne passe à moitié dessous en faisant défiler */
+body{padding-top:0}
+#bar{position:sticky;top:0;z-index:50;background:var(--bg);padding-top:calc(12px + env(safe-area-inset-top));padding-bottom:10px;box-shadow:0 10px 12px -10px rgba(30,15,69,.6)}
+body::before{display:none}
+/* records : le chiffre tient toujours dans sa tuile */
+#s-profile .profgrid .stat{min-width:0;overflow:hidden}
+#s-profile .profgrid .stat strong{font-size:clamp(17px,5.6vw,30px);white-space:nowrap}
