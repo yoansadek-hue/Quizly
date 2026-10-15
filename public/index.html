@@ -132,7 +132,8 @@ addEventListener("error", function (e) {
   </section>
 
   <!-- Nombre de joueurs -->
-  <section id="s-count" class="screen center" hidden>
+  <section id="s-count" class="screen" hidden>
+    <button class="goback" data-back="s-mode">← Retour</button>
     <h2>Combien de joueurs ?</h2>
     <p class="lead small" id="modeLabel"></p>
     <div class="stepper">
@@ -140,7 +141,7 @@ addEventListener("error", function (e) {
       <span class="num" id="cNum">4</span>
       <button class="btn white" id="cPlus" aria-label="Plus">+</button>
     </div>
-    <div class="dock"><button class="btn sun" id="btnCount">Continuer</button><button class="link goback" data-back="s-mode">Retour</button></div>
+    <div class="dock"><button class="btn sun" id="btnCount">Continuer</button></div>
   </section>
 
   <!-- Noms -->
