@@ -44,6 +44,23 @@ app.post("/api/push/send", async (req, res) => {
   res.json({ ok: true, sent });
 });
 
+// mode développeur : la clé ADMIN_KEY (réglée sur Render) permet d'envoyer une annonce à tous les appareils inscrits
+const ADMIN_KEY = process.env.ADMIN_KEY || "";
+const isAdmin = (k) => ADMIN_KEY.length >= 8 && String(k || "") === ADMIN_KEY;
+app.post("/api/admin/check", (req, res) => res.json({ ok: isAdmin(req.body && req.body.key) }));
+app.post("/api/push/broadcast", async (req, res) => {
+  if (!isAdmin(req.body && req.body.key)) return res.status(403).json({ ok: false });
+  const body = String((req.body && req.body.body) || "").slice(0, 140);
+  if (!pushOn || !body) return res.json({ ok: true, sent: 0 });
+  let sent = 0;
+  const all = [...pushSubs.values()].flatMap((m) => [...m.values()].map((sub) => [m, sub]));
+  await Promise.all(all.map(async ([m, sub]) => {
+    try { await webpush.sendNotification(sub, JSON.stringify({ title: "Quizly", body, url: "/?notifs=1" }), { TTL: 3600 }); sent++; }
+    catch (e) { if (e.statusCode === 404 || e.statusCode === 410) m.delete(sub.endpoint); }
+  }));
+  res.json({ ok: true, sent });
+});
+
 // utilisé par la page de réveil et par un éventuel service qui garde le serveur éveillé
 app.get("/health", (req, res) => {
   res.set({ "Access-Control-Allow-Origin": "*", "Cache-Control": "no-store" }).json({ ok: true });
