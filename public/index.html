@@ -144,6 +144,7 @@ addEventListener("error", function (e) {
       <button class="btn sun sm" id="btnMenuPush">Activer</button>
       <button class="fx light" id="btnMenuPushNo" aria-label="Plus tard">×</button>
     </div>
+    <button class="daily" id="btnDaily"><span class="dk">Défi du jour</span><strong id="dailyTitle">10 questions, une seule tentative</strong><span class="dsub" id="dailySub">Les mêmes pour tout le monde. Battez vos amis.</span></button>
     <div id="modes"></div>
     <p class="center-link"><button class="link" id="btnLogout">Changer de compte</button></p>
     <p class="version ver"></p>
@@ -193,11 +194,34 @@ addEventListener("error", function (e) {
     </div>
   </section>
 
+  <!-- Défi du jour -->
+  <section id="s-daily" class="screen" hidden>
+    <div id="dPlay">
+      <p class="who"><span id="dStep"></span><span class="chip small" id="dScore"></span></p>
+      <div class="clockrow"><div class="timer"><i id="dBar"></i></div><span class="clock" id="dClock"></span></div>
+      <div class="mcard">
+        <span class="chip small" id="dTag"></span>
+        <img id="dImg" class="qimg" alt="" hidden>
+        <p class="q" id="dText"></p>
+      </div>
+      <div id="dOpts" class="grid"></div>
+    </div>
+    <div id="dEnd" hidden>
+      <p class="lead">Défi du jour</p>
+      <p class="dbig"><strong id="dFinal"></strong><span>/ 10</span></p>
+      <p class="lead small" id="dNote"></p>
+      <h3 class="fsub">Classement du jour entre amis</h3>
+      <ol class="rank" id="dRank"></ol>
+      <div class="stack"><button class="btn sun" id="btnDailyBack">Retour au menu</button></div>
+    </div>
+  </section>
+
   <!-- Profil d'un ami -->
   <section id="s-friend" class="screen" hidden>
     <button class="goback" data-back="s-friends">← Retour</button>
     <div class="profhead"><span id="frAv"></span><h2 id="frName"></h2></div>
     <div class="profgrid" id="frRecords"></div>
+    <div class="bubbles" id="frStats"></div>
     <button class="btn ghost" id="btnFrRemove">Retirer de mes amis</button>
   </section>
 
@@ -209,7 +233,8 @@ addEventListener("error", function (e) {
     <p class="lead small" id="notifEmpty">Rien de nouveau pour l'instant.</p>
     <div class="admin" id="adminBox" hidden>
       <h3 class="fsub">Annonce à tous les joueurs</h3>
-      <textarea id="adminText" maxlength="140" rows="3" placeholder="Votre message (140 caractères)"></textarea>
+      <input id="adminTitle" type="text" maxlength="60" placeholder="Titre (ex. : Nouvelle mise à jour)">
+      <textarea id="adminText" maxlength="160" rows="3" placeholder="Description (160 caractères)"></textarea>
       <button class="btn sun" id="btnAdminSend">Envoyer à tout le monde</button>
       <p class="msg" id="adminMsg" role="alert"></p>
       <p class="fhint">Votre identifiant : <b id="adminUid"></b> <button class="btn ghost sm" id="btnCopyUid">Copier</button></p>
