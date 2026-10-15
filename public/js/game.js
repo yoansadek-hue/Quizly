@@ -7,7 +7,7 @@ import { startScan, stopScan, tvCodeFrom } from "./scan.js";
 import { startCloud, cloudState } from "./cloud.js";
 import { initFriends, friendCodeFrom } from "./friends.js";
 
-const VERSION = "2.10.3"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.10.4"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -822,6 +822,22 @@ function renderProfile() {
     d.append(s, b); return d;
   };
   $("profSum").replaceChildren(...(ranked.length >= 2 ? [tile("up", "Point fort", strong[0].name), ...(weak.length ? [tile("down", "À travailler", weak[0].name)] : [])] : []));
+  // par thème : les 6 plus joués (le reste sur demande), une barre colorée selon la réussite
+  const shown = themes.sort((a, b) => b.n - a.n).slice(0, S.allThemes ? 999 : 6);
+  $("btnAllThemes").hidden = themes.length <= 6;
+  $("btnAllThemes").textContent = S.allThemes ? "Voir moins" : `Voir tous les thèmes (${themes.length})`;
+  $("profThemes").replaceChildren(...shown.map((t) => {
+    const li = document.createElement("li");
+    const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = t.name;
+    const bar = document.createElement("span"); bar.className = "bar";
+    const i = document.createElement("i"); i.style.width = `${t.pct}%`;
+    i.style.background = t.pct >= 70 ? "var(--mint)" : t.pct >= 40 ? "var(--sun)" : "var(--coral)";
+    bar.append(i);
+    const v = document.createElement("span"); v.className = "v"; v.textContent = `${t.pct}%`;
+    li.append(nm, bar, v); return li;
+  }));
+  $("profEmpty").hidden = themes.length > 0;
+  friends.syncRecords();
   const cs = cloudState();
   $("profCloud").textContent = cs === "cloud" ? "Sauvegardé" : cs === "error" ? "Hors ligne" : "Connexion…"; // petite pastille d'état
   $("profCloud").className = `cloudchip ${cs}`;
