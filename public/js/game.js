@@ -7,7 +7,7 @@ import { startScan, stopScan, tvCodeFrom } from "./scan.js";
 import { startCloud, cloudState } from "./cloud.js";
 import { initFriends, friendCodeFrom } from "./friends.js";
 
-const VERSION = "2.10.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.10.1"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -1056,6 +1056,7 @@ document.querySelectorAll("[data-back]").forEach((b) => (b.onclick = () => {
   if (t === "s-themes" && M().million) t = "s-roomtype"; // le Millionnaire n'a pas d'écran de thèmes
   if (t === "s-lobby") { S.editRoom = false; online.setEditing(false); }
   if (t === "s-mode" && S.menuSec && ["s-count", "s-themes"].includes(curScreen)) t = "s-sub"; // retour à la liste Party / Solo
+  if (curScreen === "s-scan" && S.scanFrom) { t = S.scanFrom; if (t === "s-profile") renderProfile(); } // le scanner ramène d'où l'on vient
   show(t);
 }));
 $("btnLogout").onclick = async () => {
@@ -1167,7 +1168,9 @@ $("btnRoomJoin").onclick = () => online.join($("roomCode").value);
 // ordinateur branché sur la télé : ouvre le mode télé (salon caché + QR code) sur cet écran
 $("btnTvHere").onclick = () => { location.href = "tv.html"; };
 // scanner le QR code de la télé depuis l'appli : connexion directe au salon télé
-$("btnScan").onclick = () => {
+// le même scanner sert depuis « En ligne » et depuis le Profil (on revient là d'où l'on vient)
+function openScanner(from) {
+  S.scanFrom = from;
   $("scanMsg").textContent = "";
   show("s-scan");
   const onCode = (text) => {
@@ -1181,6 +1184,8 @@ $("btnScan").onclick = () => {
   };
   const onErr = (msg) => ($("scanMsg").textContent = msg);
   startScan($("scanVideo"), onCode, onErr);
-};
+}
+$("btnScan").onclick = () => openScanner("s-online");
+$("btnScanFriend").onclick = () => openScanner("s-profile");
 $("roomCode").addEventListener("input", (e) => (e.target.value = e.target.value.toUpperCase()));
 $("roomCode").addEventListener("keydown", (e) => e.key === "Enter" && online.join($("roomCode").value));
