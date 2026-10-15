@@ -6,7 +6,7 @@ import { sendPush } from "./push.js";
 const ALPHA = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // sans I, O, 0, 1 : pas de confusion à la lecture
 const INVITE_TTL = 10 * 60 * 1000; // une invitation de plus de 10 minutes est ignorée
 
-export function initFriends({ $, ask, avatarEl, euros, me, records, joinRoom, roomInfo, openFriends, openNotifs, showScreen }) {
+export function initFriends({ $, ask, avatarEl, euros, me, records, summary, daily, joinRoom, roomInfo, openFriends, openNotifs, showScreen }) {
   const F = { uid: null, fs: null, code: "", friends: [], unsub: [], tab: "best2", inv: null, panel: null };
   // onglets de l'écran Amis
   function setPanel(p) {
@@ -47,7 +47,7 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, joinRoom, ro
     if (!code) code = await newCode();
     F.code = code;
     const m = me();
-    await F.fs.setDoc(pref, { name: m.name, photo: m.photo || "", code, records: records(), at: Date.now() }, { merge: true });
+    await F.fs.setDoc(pref, { name: m.name, photo: m.photo || "", code, records: records(), summary: summary(), daily: daily() || null, at: Date.now() }, { merge: true });
   }
   async function newCode() {
     for (let t = 0; t < 8; t++) {
@@ -62,7 +62,7 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, joinRoom, ro
   // les records changent : on met à jour le profil public (appelé à l'ouverture du profil et en fin de partie)
   async function syncRecords() {
     if (!ready()) return;
-    try { await F.fs.setDoc(ref("profiles", F.uid), { records: records(), name: me().name, photo: me().photo || "", at: Date.now() }, { merge: true }); } catch {}
+    try { await F.fs.setDoc(ref("profiles", F.uid), { records: records(), summary: summary(), daily: daily() || null, name: me().name, photo: me().photo || "", at: Date.now() }, { merge: true }); } catch {}
   }
 
   /* ---------- en direct : demandes reçues et invitations ---------- */
@@ -137,6 +137,13 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, joinRoom, ro
     const short = (v) => (v >= 1000000 ? "1 M€" : v >= 1000 ? `${Math.round(v / 1000)} k€` : `${v} €`);
     $("frRecords").replaceChildren(...[["Solo", x.best2 || 0], ["Chrono", x.bestChrono || 0], ["Millionnaire", short(x.bestMillion || 0)]].map(([k, v]) => {
       const d = document.createElement("div"); d.className = "stat";
+      const b = document.createElement("strong"); b.textContent = v;
+      const s = document.createElement("span"); s.textContent = k;
+      d.append(b, s); return d;
+    }));
+    const sm = f.summary || {};
+    $("frStats").replaceChildren(...[[sm.games || 0, "parties"], [sm.questions || 0, "questions"], [sm.questions ? `${sm.pct || 0}%` : "—", "réussite"]].map(([v, k]) => {
+      const d = document.createElement("div"); d.className = "bub";
       const b = document.createElement("strong"); b.textContent = v;
       const s = document.createElement("span"); s.textContent = k;
       d.append(b, s); return d;
@@ -218,8 +225,9 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, joinRoom, ro
 
   /* ---------- la cloche : vos notifications (amis, invitations, annonces) ---------- */
   // envoie une notification : sur tous les appareils de l'ami (push) et dans sa cloche
+  const TITLES = { demande: "Demande d'ami", accepte: "Nouvel ami", invite: "Invitation à jouer" };
   async function notify(to, type, text, url) {
-    sendPush(to, text, url);
+    sendPush(to, TITLES[type] || "", text, url);
     try { const m = me(); await F.fs.addDoc(F.fs.collection(F.fs.db, "notifs", to, "list"), { from: F.uid, name: m.name, photo: m.photo || "", type, text, url, at: Date.now() }); } catch {}
   }
   const seenKey = () => `quizly:${F.uid}:notifSeen`;
@@ -264,7 +272,8 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, joinRoom, ro
     $("notifList").replaceChildren(...items.map((n) => {
       const r = document.createElement("div"); r.className = "frow notif" + (n.type === "annonce" ? " ann" : "");
       const t = document.createElement("span"); t.className = "fname";
-      t.textContent = n.text;
+      if (n.title) { const h = document.createElement("b"); h.className = "ntitle"; h.textContent = n.title; t.append(h); }
+      t.append(document.createTextNode(n.text || ""));
       const w = document.createElement("span"); w.className = "frec"; w.textContent = ago(n.at); t.append(w);
       const act = n.type === "invite" ? btn("Rejoindre", "sun", () => { const c = (String(n.url).match(/tv=([A-Z0-9]+)/) || [])[1]; if (c) joinRoom(c); })
         : n.type === "demande" || n.type === "accepte" ? btn("Voir", "ghost", () => openFriends()) : null;
@@ -330,14 +339,26 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, joinRoom, ro
 
   return {
     start, stop, ready, render, syncRecords, addByCode, openInvites, renderNotifs,
+    // cet appareil, enregistré dans Firestore : le serveur le retrouve même après s'être endormi
+    async saveSub(sub) {
+      if (!ready() || !sub || !sub.endpoint || !sub.keys) return;
+      const h = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(sub.endpoint));
+      const id = [...new Uint8Array(h)].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 40);
+      try { await F.fs.setDoc(ref("pushsubs", id), { uid: F.uid, endpoint: sub.endpoint, p256dh: sub.keys.p256dh, auth: sub.keys.auth, at: Date.now() }); } catch {}
+    },
+    // classement du défi du jour : vous et vos amis qui l'ont fait aujourd'hui
+    dailyBoard(day) {
+      const all = [{ ...me(), you: true, daily: daily() }, ...F.friends];
+      return all.filter((p) => p.daily && p.daily.day === day).sort((a, b) => b.daily.score - a.daily.score || a.daily.ms - b.daily.ms);
+    },
     // annonce du développeur : gardée dans la cloche de tout le monde (Firestore) puis envoyée en notification
-    async announce(text, key) {
-      // 1) gardée dans la cloche de tout le monde (Firestore) ; 2) envoyée en notification (même si 1 échoue)
+    async announce(title, text, key) {
+      // 1) gardée dans la cloche de tout le monde (Firestore) ; 2) envoyée en notification à tous, sauf à vous (même si 1 échoue)
       let saved = false;
-      if (ready()) try { await F.fs.addDoc(F.fs.collection(F.fs.db, "announces"), { text, at: Date.now() }); saved = true; } catch (e) { console.warn("Annonce non gardée :", e.message); }
+      if (ready()) try { await F.fs.addDoc(F.fs.collection(F.fs.db, "announces"), { title, text, by: F.uid, at: Date.now() }); saved = true; } catch (e) { console.warn("Annonce non gardée :", e.message); }
       let sent = 0, ok = false;
       try {
-        const r = await fetch("/api/push/broadcast", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key, body: text }) });
+        const r = await fetch("/api/push/broadcast", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key, title, body: text, from: F.uid }) });
         ok = r.ok; sent = (await r.json()).sent || 0;
       } catch {}
       return { saved, sent, ok };
