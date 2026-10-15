@@ -115,7 +115,7 @@ input[type=text],input[type=email]{
 #themes .chip,.opts .chip{background:transparent;color:var(--paper);border-color:rgba(196,184,255,.6)}
 #themes .chip[aria-pressed=true],.opts .chip[aria-pressed=true]{background:var(--sun);color:var(--ink);border-color:var(--ink);box-shadow:var(--edge-s)}
 #themes .chip.rand{border-style:dashed}
-#themes.dim .chip:not(.rand){opacity:.35}
+#themes.dim .chip:not(.rand){opacity:.3;pointer-events:none;cursor:default} /* Aléatoire actif : les thèmes sont verrouillés */
 .bigopts{gap:12px}
 .bigopts .chip{min-height:58px;min-width:84px;justify-content:center;padding:10px 22px;font:800 18px var(--display)}
 #playerList .chip,#lobbyList .chip{color:var(--ink);cursor:default;box-shadow:var(--edge-s)}
@@ -474,7 +474,7 @@ body.tvmode #s-game #mcq .btn::before{width:54px;height:54px;font-size:24px}
 .reacts{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:18px 0 0}
 .reacts .chip{min-height:38px;padding:6px 14px;font:800 13px var(--display);box-shadow:var(--edge-s)}
 .react.r0,.bubble.r0{background:var(--sun)} .react.r1,.bubble.r1{background:var(--mint)} .react.r2,.bubble.r2{background:var(--coral)}
-.react.r3,.bubble.r3{background:var(--sky)} .react.r4,.bubble.r4{background:var(--paper)}
+.react.r3,.bubble.r3{background:var(--sky)} .react.r4,.bubble.r4{background:var(--paper)} .react.r5,.bubble.r5{background:var(--peach)}
 .bubble{position:fixed;bottom:150px;z-index:20;display:flex;gap:6px;align-items:center;padding:7px 14px;border:3px solid var(--ink);border-radius:999px;box-shadow:var(--edge-s);color:var(--ink);font:800 15px var(--display);pointer-events:none;animation:floatup 2.8s ease-out forwards}
 .bubble b{font-family:var(--font);font-weight:800}
 @keyframes floatup{0%{transform:translateY(16px) scale(.6);opacity:0}12%{transform:none;opacity:1}100%{transform:translateY(-280px) rotate(-6deg);opacity:0}}
@@ -525,3 +525,14 @@ body.tvmode #s-game #mcq .btn::before{width:54px;height:54px;font-size:24px}
 #bar .logo small{white-space:nowrap}
 #userName{display:inline-block;max-width:8.5em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle}
 @media (max-width:420px){#bar .logo{font-size:19px} #btnUser{padding-left:10px;padding-right:12px} .barR{gap:8px}}
+
+/* ---------- 2.8.2 : connexion sans Google, en un appui ---------- */
+.quick{margin-top:26px}
+.quick h3{margin:0 0 10px;font-size:18px;color:var(--sun)}
+.quicklist{display:flex;flex-direction:column;gap:10px;margin:6px 0 4px}
+.qrow{display:flex;align-items:center;gap:10px;animation:pop .35s backwards;animation-delay:calc(var(--i,0)*40ms)}
+.qbtn{display:flex;align-items:center;gap:12px;text-align:left;min-height:58px;padding:8px 16px}
+.qbtn .avatar{width:38px;height:38px;font-size:16px}
+.qdel{flex:none;width:44px;height:44px;border-radius:50%;border:2px solid rgba(196,184,255,.5);background:transparent;color:var(--lilac);font:800 22px var(--font);cursor:pointer}
+.qdel:active{background:var(--coral);color:var(--ink);border-color:var(--ink)}
+@media (min-width:700px){.quicklist{display:grid;grid-template-columns:repeat(2,1fr)} .qbtn{min-height:64px}}
