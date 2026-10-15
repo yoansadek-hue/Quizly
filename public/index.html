@@ -189,26 +189,35 @@ addEventListener("error", function (e) {
     <button class="goback" data-back="s-mode">← Retour</button>
     <h2>Amis</h2>
     <div id="friendsBox" class="friends" hidden>
-            <div class="fcode">
-        <div class="fcodeTxt">
-          <span class="fsub">Mon code ami</span>
-          <button class="code small" id="myCode" aria-label="Copier mon code ami"></button>
-          <span class="fhint">À taper ou à scanner.</span>
+      <!-- trois onglets : Mes amis · Ajouter · Classement -->
+      <div class="ftabs" id="fTabs" role="tablist">
+        <button class="ftab" data-tab="mine" role="tab">Mes amis<span class="nbadge small" id="fTabBadge" hidden></span></button>
+        <button class="ftab" data-tab="add" role="tab">Ajouter</button>
+        <button class="ftab" data-tab="rank" role="tab">Classement</button>
+      </div>
+      <div class="fpanel" id="fpMine">
+        <div id="reqBox" hidden><h4 class="fsub">Demandes reçues</h4><div id="reqList" class="flist"></div></div>
+        <div id="friendList" class="flist"></div>
+      </div>
+      <div class="fpanel" id="fpAdd" hidden>
+        <button class="btn mint" id="btnScanFriend">Scanner le QR code d'un ami</button>
+        <div class="row">
+          <input id="friendCode" type="text" placeholder="Ou tapez son code" maxlength="6" autocomplete="off" autocapitalize="characters" enterkeyhint="send">
+          <button class="btn sun sm" id="btnAddFriend">Ajouter</button>
         </div>
-        <img id="myQr" class="qr" alt="Mon QR code ami" width="140" height="140">
+        <p id="friendMsg" class="msg" role="alert"></p>
+        <div class="fcode">
+          <div class="fcodeTxt">
+            <span class="fsub">Mon code</span>
+            <button class="code small" id="myCode" aria-label="Copier mon code ami"></button>
+          </div>
+          <img id="myQr" class="qr" alt="Mon QR code ami" width="140" height="140">
+        </div>
       </div>
-      <div class="row">
-        <input id="friendCode" type="text" placeholder="Code de votre ami" maxlength="6" autocomplete="off" autocapitalize="characters" enterkeyhint="send">
-        <button class="btn sun sm" id="btnAddFriend">Ajouter</button>
-      </div>
-      <button class="btn mint" id="btnScanFriend">Scanner le QR code d'un ami</button>
-      <p id="friendMsg" class="msg" role="alert"></p>
-      <div id="reqBox" hidden><h4 class="fsub">Demandes reçues</h4><div id="reqList" class="flist"></div></div>
-      <div id="friendList" class="flist"></div>
-      <div id="rankBox" hidden>
-        <h4 class="fsub">Classement entre amis</h4>
+      <div class="fpanel" id="fpRank" hidden>
         <div class="chips opts" id="rankTabs"></div>
         <ol id="rankList" class="rank"></ol>
+        <p class="lead small" id="rankEmpty" hidden>Ajoutez des amis pour voir le classement.</p>
       </div>
     </div>
     <p class="lead small" id="friendsOff">Les amis seront disponibles dès que votre compte sera connecté au cloud.</p>
