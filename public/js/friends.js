@@ -6,7 +6,7 @@ import { sendPush } from "./push.js";
 const ALPHA = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // sans I, O, 0, 1 : pas de confusion à la lecture
 const INVITE_TTL = 10 * 60 * 1000; // une invitation de plus de 10 minutes est ignorée
 
-export function initFriends({ $, ask, avatarEl, euros, me, records, joinRoom, roomInfo, openFriends, openNotifs }) {
+export function initFriends({ $, ask, avatarEl, euros, me, records, joinRoom, roomInfo, openFriends, openNotifs, showScreen }) {
   const F = { uid: null, fs: null, code: "", friends: [], unsub: [], tab: "best2", inv: null, panel: null };
   // onglets de l'écran Amis
   function setPanel(p) {
@@ -117,15 +117,33 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, joinRoom, ro
     } catch { say("Impossible d'accepter pour le moment."); }
   }
   async function refuse(r) { try { await F.fs.deleteDoc(ref("requests", F.uid, "from", r.uid)); } catch {} }
-  function remove(f) {
+  function remove(f, then) {
     ask(`Retirer ${f.name} de vos amis ?`, "Vous ne verrez plus ses records et ne pourrez plus l'inviter.", "Retirer", async () => {
       try {
         await F.fs.deleteDoc(ref("friends", F.uid, "list", f.uid));
         await F.fs.deleteDoc(ref("friends", f.uid, "list", F.uid));
       } catch {}
       await loadFriends();
+      if (then) then();
     });
   }
+
+  /* ---------- profil d'un ami ---------- */
+  function openFriend(f) {
+    F.cur = f;
+    $("frName").textContent = f.name;
+    $("frAv").replaceChildren(avatarEl(f.name, f.photo, true));
+    const x = f.records || {};
+    const short = (v) => (v >= 1000000 ? "1 M€" : v >= 1000 ? `${Math.round(v / 1000)} k€` : `${v} €`);
+    $("frRecords").replaceChildren(...[["Solo", x.best2 || 0], ["Chrono", x.bestChrono || 0], ["Millionnaire", short(x.bestMillion || 0)]].map(([k, v]) => {
+      const d = document.createElement("div"); d.className = "stat";
+      const b = document.createElement("strong"); b.textContent = v;
+      const s = document.createElement("span"); s.textContent = k;
+      d.append(b, s); return d;
+    }));
+    showScreen("s-friend");
+  }
+  $("btnFrRemove").onclick = () => F.cur && remove(F.cur, () => showScreen("s-friends"));
 
   /* ---------- liste d'amis ---------- */
   async function loadFriends() {
@@ -160,8 +178,10 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, joinRoom, ro
     const link = `${location.origin}/?ami=${F.code}`;
     if ($("myQr").dataset.code !== F.code) { $("myQr").dataset.code = F.code; $("myQr").src = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=8&data=${encodeURIComponent(link)}`; }
     $("friendList").replaceChildren(...(F.friends.length ? F.friends.map((f) => {
-      const del = document.createElement("button"); del.className = "fx"; del.textContent = "×"; del.setAttribute("aria-label", `Retirer ${f.name}`); del.onclick = () => remove(f);
-      const r = row(f, [del]);
+      const go = document.createElement("span"); go.className = "chev"; go.textContent = "›";
+      const r = row(f, [go]);
+      r.classList.add("tap"); r.tabIndex = 0; r.setAttribute("role", "button");
+      r.onclick = () => openFriend(f);
       const rec = document.createElement("span"); rec.className = "frec";
       const x = f.records || {};
       rec.textContent = `Solo ${x.best2 || 0} · Chrono ${x.bestChrono || 0} · ${euros(x.bestMillion || 0)}`;
@@ -219,9 +239,23 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, joinRoom, ro
       merge();
     }, () => {}));
     F.unsub.push(onSnapshot(query(collection(F.fs.db, "announces"), orderBy("at", "desc"), limit(10)), (snap) => {
-      F.ann = snap.docs.map((d) => ({ id: d.id, type: "annonce", name: "Quizly", ...d.data() }));
+      const hid = hiddenAnn();
+      F.ann = snap.docs.map((d) => ({ id: d.id, type: "annonce", name: "Quizly", ...d.data() })).filter((a) => !hid.includes(a.id)); // annonces masquées sur cet appareil
       merge();
     }, () => {}));
+  }
+  const hidKey = () => `quizly:${F.uid}:annHidden`;
+  const hiddenAnn = () => { try { return JSON.parse(localStorage.getItem(hidKey()) || "[]"); } catch { return []; } };
+  async function dismiss(n) {
+    if (n.type === "annonce") { // une annonce est commune à tous : on la masque seulement chez vous
+      try { localStorage.setItem(hidKey(), JSON.stringify([...hiddenAnn(), n.id].slice(-100))); } catch {}
+      F.ann = (F.ann || []).filter((a) => a.id !== n.id);
+    } else {
+      F.mine = (F.mine || []).filter((a) => a.id !== n.id);
+      try { await F.fs.deleteDoc(ref("notifs", F.uid, "list", n.id)); } catch {}
+    }
+    F.notifs = (F.notifs || []).filter((a) => a !== n);
+    renderNotifs();
   }
   const ago = (t) => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? "à l'instant" : m < 60 ? `il y a ${m} min` : m < 1440 ? `il y a ${Math.round(m / 60)} h` : `il y a ${Math.round(m / 1440)} j`; };
   function renderNotifs() {
@@ -234,7 +268,8 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, joinRoom, ro
       const w = document.createElement("span"); w.className = "frec"; w.textContent = ago(n.at); t.append(w);
       const act = n.type === "invite" ? btn("Rejoindre", "sun", () => { const c = (String(n.url).match(/tv=([A-Z0-9]+)/) || [])[1]; if (c) joinRoom(c); })
         : n.type === "demande" || n.type === "accepte" ? btn("Voir", "ghost", () => openFriends()) : null;
-      r.append(avatarEl(n.name || "Quizly", n.photo), t, ...(act ? [act] : []));
+      const x = document.createElement("button"); x.className = "fx"; x.textContent = "×"; x.setAttribute("aria-label", "Supprimer cette notification"); x.onclick = () => dismiss(n);
+      r.append(avatarEl(n.name || "Quizly", n.photo), t, ...(act ? [act] : []), x);
       return r;
     }));
     try { localStorage.setItem(seenKey(), String(Date.now())); } catch {}
