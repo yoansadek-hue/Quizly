@@ -8,7 +8,7 @@ import { startCloud, cloudState } from "./cloud.js";
 import { initFriends, friendCodeFrom } from "./friends.js";
 import { enablePush, pushState } from "./push.js";
 
-const VERSION = "2.11.2"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.11.3"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -62,6 +62,7 @@ function show(id) {
   if (curScreen === "s-scan" && id !== "s-scan") stopScan(); // on coupe la caméra en quittant le scanner
   curScreen = id;
   if (id === "s-lobby") { $("btnInvite").hidden = !friends.ready(); friends.hideInvitePanel(); } // inviter ses amis dans le salon
+  if (id === "s-mode") try { menuPushUI(); } catch {}
   $("btnFriends").hidden = $("btnNotifs").hidden = id === "s-login" || PLAYING.includes(id) || id === "s-lobby"; // Amis et cloche, hors partie
   if (id === "s-end") setTimeout(() => friends.syncRecords(), 800); // nouveaux records visibles par les amis
   // rond des réactions : seulement pendant une partie en ligne
@@ -1026,12 +1027,19 @@ const friends = initFriends({
   joinRoom: (code) => { chooseMode("online"); online.join(code); },
   roomInfo: () => (online.cfg() ? { code: $("lobbyCode").textContent, kind: online.cfg().kind } : null),
   openFriends: () => openFriends(),
-  openNotifs: () => openNotifs()
+  openNotifs: () => openNotifs(),
+  showScreen: (id) => { if (id === "s-friends") friends.render(); show(id); }
 });
 function openNotifs() { friends.renderNotifs(); adminUI(); show("s-notifs"); }
 $("btnNotifs").onclick = openNotifs;
 function openFriends() { friends.render(); friends.syncRecords(); pushUI(); show("s-friends"); }
 // bandeau des notifications dans l'onglet Amis
+function menuPushUI() { // bandeau du menu : tant que les notifications ne sont ni acceptées ni refusées
+  let later = false; try { later = Date.now() - (+localStorage.getItem("quizly:pushLater") || 0) < 3 * 86400000; } catch {}
+  $("menuPush").hidden = pushState() !== "default" || later;
+}
+$("btnMenuPush").onclick = async () => { $("btnMenuPush").disabled = true; pushUI(await enablePush(S.uid, true)); $("btnMenuPush").disabled = false; menuPushUI(); };
+$("btnMenuPushNo").onclick = () => { try { localStorage.setItem("quizly:pushLater", String(Date.now())); } catch {} menuPushUI(); }; // redemandé dans 3 jours
 function pushUI(st) {
   st = st || pushState();
   const ios = /iphone|ipad/i.test(navigator.userAgent), installed = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
@@ -1284,9 +1292,10 @@ $("btnMeReset").onclick = () => saveMe({}); // revient au nom et à la photo de 
 
 /* ---------- mode développeur : envoyer une annonce à tout le monde ---------- */
 const ADMIN = "quizly:adminKey";
+const DEV_UID = "uIBgcwCCESgPLZdqC2wG14enXJk2"; // le compte du développeur : le seul à voir le mode développeur
 function adminUI() {
-  const key = localStorage.getItem(ADMIN);
-  $("adminBox").hidden = !key; $("btnDev").hidden = !!key;
+  const dev = S.uid === DEV_UID, key = dev && localStorage.getItem(ADMIN);
+  $("adminBox").hidden = !key; $("btnDev").hidden = !dev || !!key;
   $("adminUid").textContent = S.uid || "";
 }
 $("btnCopyUid").onclick = () => { try { navigator.clipboard.writeText(S.uid); $("adminMsg").textContent = "Identifiant copié : collez-le dans la règle Firestore."; } catch {} };
