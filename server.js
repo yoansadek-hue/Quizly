@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import webpush from "web-push";
+import { firebaseConfig } from "./public/js/config.js";
 import { WebSocketServer } from "ws";
 import { LOCAL_THEMES, makeLocal, PRIZES, millionLevel, wonAt, safeAt, publicVote, SONG_THEME, songPool, songLabel, SONGS } from "./public/js/local.js";
 
@@ -26,21 +27,54 @@ app.post("/api/push/subscribe", (req, res) => {
   pushSubs.set(uid, m);
   res.json({ ok: true });
 });
+// les appareils inscrits sont aussi enregistrés dans Firestore (collection « pushsubs », lisible par le serveur)
+let fsSubs = { at: 0, list: [] };
+const deadSubs = new Set(); // appareils désinscrits (le téléphone a retiré l'autorisation)
+async function loadFsSubs() {
+  if (Date.now() - fsSubs.at < 120000) return fsSubs.list;
+  const out = [];
+  try {
+    let page = "";
+    for (let i = 0; i < 20; i++) {
+      const url = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/pushsubs?pageSize=300&key=${firebaseConfig.apiKey}${page ? `&pageToken=${page}` : ""}`;
+      const j = await getJSON(url, {}, 8000);
+      for (const d of j.documents || []) {
+        const f = d.fields || {}, v = (k) => (f[k] && f[k].stringValue) || "";
+        if (v("endpoint")) out.push({ uid: v("uid"), sub: { endpoint: v("endpoint"), keys: { p256dh: v("p256dh"), auth: v("auth") } } });
+      }
+      if (!j.nextPageToken) break;
+      page = j.nextPageToken;
+    }
+    fsSubs = { at: Date.now(), list: out };
+  } catch (e) { console.warn("Appareils (Firestore) :", e.message); }
+  return fsSubs.list;
+}
+// tous les appareils d'un compte (ou de tout le monde si uid vide), sans doublon
+async function devicesOf(uid, except) {
+  const map = new Map();
+  for (const [u, m] of pushSubs) if ((!uid || u === uid) && u !== except) for (const sub of m.values()) map.set(sub.endpoint, sub);
+  for (const d of await loadFsSubs()) if ((!uid || d.uid === uid) && d.uid !== except) map.set(d.sub.endpoint, d.sub);
+  return [...map.values()].filter((x) => !deadSubs.has(x.endpoint));
+}
+async function pushTo(subs, payload) {
+  let sent = 0;
+  await Promise.all(subs.map(async (sub) => {
+    try { await webpush.sendNotification(sub, JSON.stringify(payload), { TTL: 3600 }); sent++; }
+    catch (e) { if (e.statusCode === 404 || e.statusCode === 410) { deadSubs.add(sub.endpoint); for (const m of pushSubs.values()) m.delete(sub.endpoint); } }
+  }));
+  return sent;
+}
+
 app.post("/api/push/send", async (req, res) => {
   const ip = req.headers["x-forwarded-for"]?.split(",")[0] || req.socket.remoteAddress, now = Date.now();
   const recent = (pushHits.get(ip) || []).filter((t) => now - t < 60000);
   if (recent.length >= 20) return res.status(429).json({ ok: false }); // pas de rafale
   pushHits.set(ip, [...recent, now]);
   const to = cleanUid(req.body && req.body.to);
-  const title = String((req.body && req.body.title) || "Quizly").slice(0, 60), body = String((req.body && req.body.body) || "").slice(0, 140);
+  const title = String((req.body && req.body.title) || "").slice(0, 60), body = String((req.body && req.body.body) || "").slice(0, 140);
   const url = String((req.body && req.body.url) || "/").slice(0, 120);
-  const m = pushSubs.get(to);
-  if (!pushOn || !m) return res.json({ ok: true, sent: 0 });
-  let sent = 0;
-  await Promise.all([...m.values()].map(async (sub) => {
-    try { await webpush.sendNotification(sub, JSON.stringify({ title, body, url: url.startsWith("/") ? url : "/" }), { TTL: 600 }); sent++; }
-    catch (e) { if (e.statusCode === 404 || e.statusCode === 410) m.delete(sub.endpoint); } // appareil désinscrit
-  }));
+  if (!pushOn || !to) return res.json({ ok: true, sent: 0 });
+  const sent = await pushTo(await devicesOf(to), { title, body, url: url.startsWith("/") ? url : "/" });
   res.json({ ok: true, sent });
 });
 
@@ -50,15 +84,61 @@ const isAdmin = (k) => ADMIN_KEY.length >= 8 && String(k || "") === ADMIN_KEY;
 app.post("/api/admin/check", (req, res) => res.json({ ok: isAdmin(req.body && req.body.key) }));
 app.post("/api/push/broadcast", async (req, res) => {
   if (!isAdmin(req.body && req.body.key)) return res.status(403).json({ ok: false });
-  const body = String((req.body && req.body.body) || "").slice(0, 140);
-  if (!pushOn || !body) return res.json({ ok: true, sent: 0 });
-  let sent = 0;
-  const all = [...pushSubs.values()].flatMap((m) => [...m.values()].map((sub) => [m, sub]));
-  await Promise.all(all.map(async ([m, sub]) => {
-    try { await webpush.sendNotification(sub, JSON.stringify({ title: "Quizly", body, url: "/?notifs=1" }), { TTL: 3600 }); sent++; }
-    catch (e) { if (e.statusCode === 404 || e.statusCode === 410) m.delete(sub.endpoint); }
-  }));
+  const title = String((req.body && req.body.title) || "").slice(0, 60), body = String((req.body && req.body.body) || "").slice(0, 160);
+  if (!pushOn || !(title || body)) return res.json({ ok: true, sent: 0 });
+  const sent = await pushTo(await devicesOf("", cleanUid(req.body && req.body.from)), { title, body, url: "/?notifs=1" }); // pas à vous-même
   res.json({ ok: true, sent });
+});
+
+/* ---------- Défi du jour : les mêmes 10 questions pour tout le monde, chaque jour ---------- */
+const parisDay = (t = Date.now()) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(t); // « 2026-10-15 »
+function seeded(seed) { let a = seed >>> 0; return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+const dailyCache = new Map();
+function dailySet(day) {
+  if (dailyCache.has(day)) return dailyCache.get(day);
+  let seed = 0; for (const c of `quizly-${day}`) seed = (seed * 31 + c.charCodeAt(0)) >>> 0;
+  const rnd = seeded(seed), real = Math.random;
+  Math.random = rnd; // même tirage pour tout le monde ce jour-là (questions sans IA, sans chanson ni logo)
+  const pool = LOCAL_THEMES.filter((t) => t !== SONG_THEME && t !== "Logos"), qs = [], used = new Set();
+  try {
+    for (let i = 0; i < 10; i++) {
+      const d = Math.min(5, 1 + Math.floor(i / 2)); // 2 questions par niveau, de Facile à Légende
+      for (let t = 0; t < 30; t++) {
+        const q = makeLocal(pool[Math.floor(rnd() * pool.length)], d);
+        if (!q || used.has(q.key) || new Set(q.o).size < 2) continue;
+        used.add(q.key);
+        const o = [...q.o]; for (let k = o.length - 1; k > 0; k--) { const j = Math.floor(rnd() * (k + 1)); [o[k], o[j]] = [o[j], o[k]]; }
+        qs.push({ t: q.t, d, q: q.q, img: q.img || null, o, a: q.a });
+        break;
+      }
+    }
+  } finally { Math.random = real; }
+  const set = { day, questions: qs };
+  dailyCache.set(day, set);
+  if (dailyCache.size > 4) dailyCache.delete(dailyCache.keys().next().value);
+  return set;
+}
+app.get("/api/daily", (req, res) => res.json(dailySet(parisDay())));
+// chaque jour à 10 h (heure de Paris), le serveur prévient tout le monde que le défi est prêt.
+// Il ne s'endort pas grâce à UptimeRobot ; une seule fois par jour, même s'il redémarre ensuite.
+let dailyPushedOn = "";
+async function dailyPush() {
+  const day = parisDay();
+  if (!pushOn || dailyPushedOn === day) return 0;
+  dailyPushedOn = day;
+  return pushTo(await devicesOf(""), { title: "Défi du jour", body: "Les 10 questions du jour sont prêtes. Battez vos amis !", url: "/?defi=1" });
+}
+setInterval(() => {
+  const [h, m] = new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit", hour12: false }).format(Date.now()).split(":").map(Number);
+  if (h === 10 && m < 10) dailyPush().catch((e) => console.warn("Défi de 10 h :", e.message)); // entre 10 h 00 et 10 h 09
+}, 60000);
+// envoi manuel possible (mode développeur ou service externe)
+app.get("/api/daily/notify", async (req, res) => {
+  if (!isAdmin(req.query.key)) return res.status(403).json({ ok: false });
+  if (!pushOn) return res.json({ ok: true, sent: 0 });
+  dailyPushedOn = ""; // envoi manuel : on force
+  const sent = await dailyPush();
+  res.json({ ok: true, sent, day: parisDay() });
 });
 
 // utilisé par la page de réveil et par un éventuel service qui garde le serveur éveillé
