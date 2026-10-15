@@ -4,7 +4,7 @@ const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
 const PALETTE = ["#ffe14d", "#34e3b0", "#ff6b8b", "#62c7ff", "#c4b8ff", "#ffb36b", "#f6f3ff", "#9df0d4"]; // couleurs des jetons
 const HEART = "\u2665\uFE0E"; // cœur « texte » (jamais l'emoji rouge)
 
-export function initOnline({ $, show, flash, confetti, me, record, millionUI, avatarEl, setAudio, stat, setMode }) {
+export function initOnline({ $, show, flash, confetti, me, record, millionUI, avatarEl, setAudio, stat, setMode, noteQ, recent }) {
   const photoOf = (id) => (O.pl && O.pl[id] ? O.pl[id].photo : "") || ""; // photo d'un joueur du salon
   const theme = (tag) => String(tag || "").split(" · ")[0]; // « Drapeaux · Facile » → « Drapeaux »
   const mu = millionUI($); // écran « Qui veut gagner des millions »
@@ -61,8 +61,9 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
 
   const api = {
     active: () => O.active,
-    create: (cfg) => open({ t: "create", ...me(), ...cfg }),
-    join: (code) => open({ t: "join", ...me(), code: String(code || "").trim() }),
+    // on envoie les questions vues récemment : le serveur évite de les reposer
+    create: (cfg) => open({ t: "create", ...me(), hist: recent ? recent() : [], ...cfg }),
+    join: (code) => open({ t: "join", ...me(), hist: recent ? recent() : [], code: String(code || "").trim() }),
     leave() {
       clearSess(); O.reconnecting = false; O.dropAt = 0;
       if (O.ws) { send({ t: "leave" }); const w = O.ws; O.ws = null; w.close(); }
@@ -91,6 +92,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
 
   function onMsg(m) {
     if (O.inRoom) touchSess();
+    if (noteQ && (m.t === "q" || m.t === "cq" || (m.t === "mq" && !m.watch))) noteQ({ q: m.q, img: m.img, audio: m.audio }); // mémorisée pour les prochaines parties
     switch (m.t) {
       case "lobby": O.inRoom = true; O.you = m.you; O.host = m.host; O.cfg = m.cfg; saveSess(m); renderLobby(m); if (!O.editing) show("s-lobby"); break;
       case "resume": // de retour dans la salle : l'écran de la partie suit
@@ -352,7 +354,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
   $("btnKick").onclick = () => { if (O.sel) send({ t: "kick", id: O.sel }); $("lobbyActions").hidden = true; O.sel = null; };
 
   /* ----- réactions : des mots qui s'envolent, vus par tout le salon ----- */
-  const REACTS = ["Bravo", "Haha", "Oh non", "Waouh", "Trop fort"];
+  const REACTS = ["Trop facile", "Tu dors ?", "Pleure pas", "Même pas peur", "Je suis trop fort", "Cadeau !"]; // des piques pour chambrer les autres
   // le rond des réactions : un appui ouvre le menu, un appui sur une réaction l'envoie et referme
   const menu = $("reactMenu"), fab = $("reactFab");
   REACTS.forEach((t, i) => {
