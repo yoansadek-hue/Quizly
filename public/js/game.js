@@ -6,9 +6,9 @@ import { millionUI, millionLocal, avatarEl, setAudio } from "./million.js";
 import { startScan, stopScan, tvCodeFrom } from "./scan.js";
 import { startCloud, cloudState } from "./cloud.js";
 import { initFriends, friendCodeFrom } from "./friends.js";
-import { enablePush, pushState } from "./push.js";
+import { enablePush, pushState, currentSub } from "./push.js";
 
-const VERSION = "2.11.3"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.12.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -50,7 +50,7 @@ function chronoRecord(points) {
 
 /* ---------- Écrans & effets ---------- */
 // pendant une partie, le bouton du haut affiche « Quitter » au lieu de « Menu »
-const PLAYING = ["s-game", "s-million", "s-level", "s-revive", "s-load", "s-bet"];
+const PLAYING = ["s-game", "s-million", "s-level", "s-revive", "s-load", "s-bet", "s-daily"];
 let curScreen = "";
 function userLabel() {
   let on = false; try { on = online.active(); } catch {}
@@ -62,7 +62,7 @@ function show(id) {
   if (curScreen === "s-scan" && id !== "s-scan") stopScan(); // on coupe la caméra en quittant le scanner
   curScreen = id;
   if (id === "s-lobby") { $("btnInvite").hidden = !friends.ready(); friends.hideInvitePanel(); } // inviter ses amis dans le salon
-  if (id === "s-mode") try { menuPushUI(); } catch {}
+  if (id === "s-mode") try { menuPushUI(); dailyCard(); } catch {}
   $("btnFriends").hidden = $("btnNotifs").hidden = id === "s-login" || PLAYING.includes(id) || id === "s-lobby"; // Amis et cloche, hors partie
   if (id === "s-end") setTimeout(() => friends.syncRecords(), 800); // nouveaux records visibles par les amis
   // rond des réactions : seulement pendant une partie en ligne
@@ -1028,6 +1028,9 @@ const friends = initFriends({
   roomInfo: () => (online.cfg() ? { code: $("lobbyCode").textContent, kind: online.cfg().kind } : null),
   openFriends: () => openFriends(),
   openNotifs: () => openNotifs(),
+  summary: () => { const st = getStats(), t = Object.values(st.themes || {}); const n = t.reduce((a, x) => a + x.n, 0), ok = t.reduce((a, x) => a + x.ok, 0);
+    return { games: Object.values(st.games || {}).reduce((a, b) => a + b, 0), questions: n, pct: n ? Math.round((100 * ok) / n) : 0 }; },
+  daily: () => getDaily(),
   showScreen: (id) => { if (id === "s-friends") friends.render(); show(id); }
 });
 function openNotifs() { friends.renderNotifs(); adminUI(); show("s-notifs"); }
@@ -1038,7 +1041,7 @@ function menuPushUI() { // bandeau du menu : tant que les notifications ne sont 
   let later = false; try { later = Date.now() - (+localStorage.getItem("quizly:pushLater") || 0) < 3 * 86400000; } catch {}
   $("menuPush").hidden = pushState() !== "default" || later;
 }
-$("btnMenuPush").onclick = async () => { $("btnMenuPush").disabled = true; pushUI(await enablePush(S.uid, true)); $("btnMenuPush").disabled = false; menuPushUI(); };
+$("btnMenuPush").onclick = async () => { $("btnMenuPush").disabled = true; await askPush(); $("btnMenuPush").disabled = false; menuPushUI(); };
 $("btnMenuPushNo").onclick = () => { try { localStorage.setItem("quizly:pushLater", String(Date.now())); } catch {} menuPushUI(); }; // redemandé dans 3 jours
 function pushUI(st) {
   st = st || pushState();
@@ -1052,7 +1055,9 @@ function pushUI(st) {
     : st === "off" ? "Les notifications ne sont pas encore prêtes sur le serveur."
     : "Soyez prévenu quand un ami vous ajoute ou vous invite, même appli fermée.";
 }
-$("btnPush").onclick = async () => { $("btnPush").disabled = true; pushUI(await enablePush(S.uid, true)); $("btnPush").disabled = false; };
+async function askPush() { const st = await enablePush(S.uid, true); pushUI(st); if (st === "granted") saveDevice(); return st; }
+async function saveDevice() { const sub = await currentSub(); if (sub) friends.saveSub(sub.toJSON()); } // le serveur le retrouve même après s'être endormi
+$("btnPush").onclick = async () => { $("btnPush").disabled = true; await askPush(); $("btnPush").disabled = false; };
 $("btnFriends").onclick = openFriends;
 // petite animation d'appui sur les boutons du haut (et :active fonctionne aussi sur iPhone)
 document.addEventListener("touchstart", () => {}, { passive: true });
@@ -1064,7 +1069,8 @@ let pendingAmi = new URLSearchParams(location.search).get("ami"); // QR code ami
 async function afterCloud() {
   setUser(S.gName, S.gPhoto); // nom et photo personnalisés récupérés du cloud
   await friends.start();
-  enablePush(S.uid, false).then(pushUI); // réinscrit cet appareil aux notifications (sans rien demander)
+  enablePush(S.uid, false).then((st) => { pushUI(st); if (st === "granted") saveDevice(); }); // réinscrit cet appareil (sans rien demander)
+  if (new URLSearchParams(location.search).get("defi")) { try { history.replaceState(null, "", location.pathname); } catch {} openDaily(); } // notification de 10 h touchée
   if (new URLSearchParams(location.search).get("notifs")) { try { history.replaceState(null, "", location.pathname); } catch {} openNotifs(); } // annonce touchée
   if (new URLSearchParams(location.search).get("amis")) { try { history.replaceState(null, "", location.pathname); } catch {} openFriends(); } // ouvert depuis une notification
   if (curScreen === "s-friends") friends.render();
@@ -1307,15 +1313,94 @@ $("btnDev").onclick = () => {
     .catch(() => alert("Serveur injoignable."));
 };
 $("btnAdminSend").onclick = async () => {
-  const text = $("adminText").value.trim();
-  if (text.length < 3) { $("adminMsg").textContent = "Écrivez un message."; return; }
+  const title = $("adminTitle").value.trim(), text = $("adminText").value.trim();
+  if (title.length < 2 && text.length < 3) { $("adminMsg").textContent = "Écrivez un titre et une description."; return; }
   $("btnAdminSend").disabled = true; $("adminMsg").textContent = "Envoi…";
   try {
-    const { saved, sent, ok } = await friends.announce(text, localStorage.getItem(ADMIN));
+    const { saved, sent, ok } = await friends.announce(title, text, localStorage.getItem(ADMIN));
     const push = ok ? `Notification envoyée à ${sent} appareil${sent > 1 ? "s" : ""}.` : "Notification non envoyée : clé développeur refusée par le serveur.";
     const bell = saved ? " Annonce ajoutée dans la cloche de tout le monde." : " Mais pas ajoutée dans la cloche : la règle « announces » de Firestore refuse votre identifiant.";
     $("adminMsg").textContent = push + bell;
-    if (saved || ok) $("adminText").value = "";
+    if (saved || ok) { $("adminText").value = ""; $("adminTitle").value = ""; }
   } catch { $("adminMsg").textContent = "Échec de l'envoi."; }
   $("btnAdminSend").disabled = false;
 };
+
+/* ---------- Défi du jour : 10 questions, les mêmes pour tout le monde, une seule tentative ---------- */
+const dayKey = () => `quizly:${S.uid}:daily`;
+const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(Date.now());
+function getDaily() { try { const d = JSON.parse(localStorage.getItem(dayKey()) || "null"); return d && d.day === today() ? d : null; } catch { return null; } }
+function setDaily(d) { try { localStorage.setItem(dayKey(), JSON.stringify(d)); } catch {} }
+function dailyCard() {
+  const d = getDaily();
+  $("btnDaily").classList.toggle("done", !!d);
+  $("dailyTitle").textContent = d ? `Fait : ${d.score} / 10` : "10 questions, une seule tentative";
+  $("dailySub").textContent = d ? "Voir le classement du jour" : "Les mêmes pour tout le monde. Battez vos amis.";
+}
+const D = { set: null, i: 0, score: 0, ms: 0, t0: 0, tid: null, lock: false };
+const DAILY_SEC = 20;
+async function openDaily() {
+  if (getDaily()) return dailyEnd(); // déjà commencé aujourd'hui (même abandonné) : le résultat et le classement
+  $("loadText").textContent = "Préparation du défi…"; $("loadErr").hidden = true; show("s-load");
+  try { D.set = await (await fetch("/api/daily")).json(); }
+  catch { $("loadText").textContent = "Impossible de charger le défi du jour."; $("loadErr").hidden = false; return; }
+  if (!D.set.questions || D.set.questions.length < 10) { $("loadText").textContent = "Le défi du jour n'est pas prêt."; return; }
+  Object.assign(D, { i: 0, score: 0, ms: 0 });
+  setDaily({ day: D.set.day, score: 0, ms: 0, done: false }); // une seule tentative : quitter compte comme terminé
+  S.inGame = true; statGame("daily");
+  $("dPlay").hidden = false; $("dEnd").hidden = true;
+  dailyQ();
+}
+function dailyQ() {
+  const q = D.set.questions[D.i];
+  D.lock = false;
+  $("dStep").textContent = `Question ${D.i + 1} / 10`;
+  $("dScore").textContent = `${D.score} bonne${D.score > 1 ? "s" : ""}`;
+  $("dTag").textContent = `${q.t} · ${LEVELS[q.d]}`;
+  $("dText").textContent = q.q;
+  const im = $("dImg");
+  if (q.img) { im.hidden = false; im.onerror = () => (im.hidden = true); im.src = q.img; } else { im.hidden = true; im.removeAttribute("src"); }
+  const box = $("dOpts");
+  box.replaceChildren(...q.o.map((o) => { const b = document.createElement("button"); b.className = "btn white"; b.textContent = o; b.onclick = () => dailyPick(b, o); return b; }));
+  box.classList.toggle("long", q.o.some((o) => o.length > 24));
+  show("s-daily");
+  // minuteur de 20 s
+  const bar = $("dBar"); bar.style.setProperty("--dur", `${DAILY_SEC}s`); bar.style.animation = "none"; void bar.offsetWidth; bar.style.animation = "";
+  D.t0 = Date.now(); clearInterval(D.tid);
+  const tick = () => { const s = Math.max(0, DAILY_SEC - Math.floor((Date.now() - D.t0) / 1000)); $("dClock").textContent = s; if (s <= 0) dailyPick(null, null); };
+  tick(); D.tid = setInterval(tick, 250);
+}
+function dailyPick(btn, o) {
+  if (!S.inGame) { clearInterval(D.tid); return; } // défi quitté
+  if (D.lock) return;
+  D.lock = true; clearInterval(D.tid); $("dBar").style.animationPlayState = "paused";
+  const q = D.set.questions[D.i], ok = o === q.a;
+  D.ms += Math.min(DAILY_SEC * 1000, Date.now() - D.t0);
+  if (ok) D.score++;
+  statAnswer(q.t, ok);
+  [...$("dOpts").children].forEach((b) => { b.disabled = true; if (b.textContent === q.a) b.classList.add("right"); else if (b === btn) b.classList.add("wrong"); });
+  flash(ok ? "ok" : "ko");
+  setDaily({ day: D.set.day, score: D.score, ms: D.ms, done: D.i === 9 });
+  setTimeout(() => { if (!S.inGame) return; D.i++; if (D.i < 10) dailyQ(); else dailyEnd(true); }, 1200);
+}
+function dailyEnd(fresh) {
+  S.inGame = false; clearInterval(D.tid);
+  const d = getDaily() || { score: 0, ms: 0 };
+  if (d.done === false) setDaily({ ...d, done: true });
+  $("dPlay").hidden = true; $("dEnd").hidden = false;
+  $("dFinal").textContent = d.score;
+  $("dNote").textContent = `Temps total : ${Math.round(d.ms / 1000)} s · revenez demain pour un nouveau défi.`;
+  friends.syncRecords(); // votre résultat devient visible par vos amis
+  const board = friends.ready() ? friends.dailyBoard(today()) : [];
+  $("dRank").replaceChildren(...(board.length ? board : [{ ...{ name: S.firstName, photo: S.photo }, you: true, daily: d }]).map((p, i) => {
+    const li = document.createElement("li"); li.className = "rk" + (i === 0 ? " first" : "");
+    const pos = document.createElement("span"); pos.className = "pos"; pos.textContent = i + 1;
+    const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = p.you ? `${p.name} (vous)` : p.name;
+    const st = document.createElement("span"); st.className = "st"; st.textContent = `${p.daily.score} / 10 · ${Math.round(p.daily.ms / 1000)} s`;
+    li.append(pos, avatarEl(p.name, p.photo), nm, st); return li;
+  }));
+  show("s-daily");
+  if (fresh && d.score >= 7) confetti();
+}
+$("btnDaily").onclick = openDaily;
+$("btnDailyBack").onclick = () => show("s-mode");
