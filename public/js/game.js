@@ -6,8 +6,9 @@ import { millionUI, millionLocal, avatarEl, setAudio } from "./million.js";
 import { startScan, stopScan, tvCodeFrom } from "./scan.js";
 import { startCloud, cloudState } from "./cloud.js";
 import { initFriends, friendCodeFrom } from "./friends.js";
+import { enablePush, pushState } from "./push.js";
 
-const VERSION = "2.10.8"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.11.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -790,6 +791,7 @@ function renderProfile() {
   const st = getStats();
   const best = (k) => { try { return +localStorage.getItem(`quizly:${S.uid}:${k}`) || 0; } catch { return 0; } };
   $("profName").textContent = S.firstName || "Profil";
+  $("meEdit").hidden = true;
   $("profAv").replaceChildren(avatarEl(S.firstName, S.photo, true));
   const themes = Object.entries(st.themes).map(([name, t]) => ({ name, ...t, pct: Math.round((100 * t.ok) / t.n) }));
   const tot = themes.reduce((a, t) => a + t.n, 0), good = themes.reduce((a, t) => a + t.ok, 0);
@@ -908,10 +910,16 @@ async function login(kind) {
 const SESS = "quizly:session";
 const getSess = () => { try { return JSON.parse(localStorage.getItem(SESS) || "null"); } catch { return null; } };
 
+// nom et photo : ceux de Google, sauf si vous les avez personnalisés dans le Profil (gardés dans le cloud)
+const meKey = () => `quizly:${S.uid}:me`;
+function getMe() { try { return JSON.parse(localStorage.getItem(meKey()) || "{}"); } catch { return {}; } }
 function setUser(name, photo) {
-  const first = (name || "Compte").split(" ")[0];
+  S.gName = name; S.gPhoto = photo; // ce que dit Google
+  const o = S.uid ? getMe() : {};
+  const first = o.name || (name || "Compte").split(" ")[0];
+  photo = o.photo || photo || "";
   S.firstName = first;
-  S.photo = photo || "";
+  S.photo = photo;
   userLabel();
   const img = $("userPhoto"), ini = $("userInit");
   ini.textContent = first.charAt(0).toUpperCase();
@@ -1019,7 +1027,21 @@ const friends = initFriends({
   roomInfo: () => (online.cfg() ? { code: $("lobbyCode").textContent, kind: online.cfg().kind } : null),
   openFriends: () => openFriends()
 });
-function openFriends() { friends.render(); friends.syncRecords(); show("s-friends"); }
+function openFriends() { friends.render(); friends.syncRecords(); pushUI(); show("s-friends"); }
+// bandeau des notifications dans l'onglet Amis
+function pushUI(st) {
+  st = st || pushState();
+  const ios = /iphone|ipad/i.test(navigator.userAgent), installed = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+  const box = $("pushBox");
+  if (st === "granted") { box.hidden = true; return; }
+  box.hidden = false;
+  $("btnPush").hidden = st === "denied" || (st === "unsupported");
+  $("pushText").textContent = st === "denied" ? "Les notifications sont bloquées : autorisez-les dans les réglages du téléphone, pour Quizly."
+    : st === "unsupported" ? (ios && !installed ? "Pour recevoir les notifications sur iPhone, installez Quizly : Partager › Sur l'écran d'accueil." : "Ce navigateur ne permet pas les notifications.")
+    : st === "off" ? "Les notifications ne sont pas encore prêtes sur le serveur."
+    : "Soyez prévenu quand un ami vous ajoute ou vous invite, même appli fermée.";
+}
+$("btnPush").onclick = async () => { $("btnPush").disabled = true; pushUI(await enablePush(S.uid, true)); $("btnPush").disabled = false; };
 $("btnFriends").onclick = openFriends;
 // petite animation d'appui sur les boutons du haut (et :active fonctionne aussi sur iPhone)
 document.addEventListener("touchstart", () => {}, { passive: true });
@@ -1029,7 +1051,10 @@ document.addEventListener("touchstart", () => {}, { passive: true });
 }));
 let pendingAmi = new URLSearchParams(location.search).get("ami"); // QR code ami scanné avec l'appareil photo
 async function afterCloud() {
+  setUser(S.gName, S.gPhoto); // nom et photo personnalisés récupérés du cloud
   await friends.start();
+  enablePush(S.uid, false).then(pushUI); // réinscrit cet appareil aux notifications (sans rien demander)
+  if (new URLSearchParams(location.search).get("amis")) { try { history.replaceState(null, "", location.pathname); } catch {} openFriends(); } // ouvert depuis une notification
   if (curScreen === "s-friends") friends.render();
   if (pendingAmi && friends.ready()) { // on ajoute l'ami du lien, puis on montre l'onglet Amis
     const c = pendingAmi; pendingAmi = null;
@@ -1216,3 +1241,39 @@ $("roomCode").addEventListener("input", (e) => (e.target.value = e.target.value.
 $("roomCode").addEventListener("keydown", (e) => e.key === "Enter" && online.join($("roomCode").value));
 
 $("btnAllThemes").onclick = () => { S.allThemes = !S.allThemes; renderProfile(); };
+
+/* ---------- personnaliser son nom et sa photo ---------- */
+function saveMe(o) {
+  try { localStorage.setItem(meKey(), JSON.stringify(o)); } catch {}
+  setUser(S.gName, S.gPhoto); renderProfile(); friends.syncRecords(); // vos amis voient le nouveau nom et la nouvelle photo
+}
+// réduit la photo choisie : petit carré JPEG (assez léger pour le cloud et le jeu en ligne)
+function shrinkPhoto(file) {
+  return new Promise((ok, ko) => {
+    const im = new Image(), url = URL.createObjectURL(file);
+    im.onload = () => {
+      const c = document.createElement("canvas"), n = 128, s = Math.min(im.width, im.height);
+      c.width = c.height = n;
+      c.getContext("2d").drawImage(im, (im.width - s) / 2, (im.height - s) / 2, s, s, 0, 0, n, n);
+      URL.revokeObjectURL(url);
+      let q = 0.8, out = c.toDataURL("image/jpeg", q);
+      while (out.length > 11500 && q > 0.3) { q -= 0.1; out = c.toDataURL("image/jpeg", q); }
+      ok(out);
+    };
+    im.onerror = () => { URL.revokeObjectURL(url); ko(new Error("image")); };
+    im.src = url;
+  });
+}
+$("mePhoto").onchange = async (e) => {
+  const f = e.target.files && e.target.files[0]; e.target.value = "";
+  if (!f) return;
+  try { saveMe({ ...getMe(), photo: await shrinkPhoto(f) }); } catch { $("meMsg").textContent = "Cette image ne peut pas être utilisée."; }
+};
+$("btnEditName").onclick = () => { $("meEdit").hidden = !$("meEdit").hidden; $("meName").value = S.firstName || ""; $("meMsg").textContent = ""; if (!$("meEdit").hidden) $("meName").focus(); };
+$("btnMeSave").onclick = () => {
+  const n = $("meName").value.trim().replace(/\s+/g, " ");
+  if (n.length < 2) { $("meMsg").textContent = "Au moins 2 caractères."; return; }
+  saveMe({ ...getMe(), name: n });
+};
+$("meName").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("btnMeSave").click(); } });
+$("btnMeReset").onclick = () => saveMe({}); // revient au nom et à la photo de Google
