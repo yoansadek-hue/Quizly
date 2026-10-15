@@ -687,3 +687,17 @@ body::before{height:max(0px,calc(env(safe-area-inset-top) - 7px))}
 /* notifications */
 .pushbox{display:flex;flex-direction:column;gap:10px;padding:14px;border:3px dashed rgba(196,184,255,.5);border-radius:22px;font-size:14px;color:var(--lilac)}
 .pushbox .btn{width:auto;align-self:flex-start}
+
+/* ---------- 2.11.1 ---------- */
+.avedit .pen{width:28px;height:28px}
+.profline{display:flex;align-items:center;gap:8px}
+.profline h2{margin:0}
+.penbtn{width:30px;height:30px;flex:none;border-radius:50%;display:grid;place-items:center;background:var(--sun);color:var(--ink);border:2px solid var(--ink);cursor:pointer}
+.profwho .cloudchip{margin-top:8px}
+.notif .fname{font:700 14px var(--font);white-space:normal}
+.notif.ann{background:var(--sun)}
+.admin{display:flex;flex-direction:column;gap:10px;margin-top:26px;padding:14px;background:var(--bg-deep);border-radius:22px}
+.admin textarea{font:600 16px var(--font);padding:12px;border-radius:16px;border:3px solid var(--ink);resize:vertical;color:var(--ink);background:var(--paper)}
+.admin .msg{margin:0}
+.admin b{word-break:break-all;color:var(--paper)}
+.devlink{display:block;margin:28px auto 0;font-size:12px;color:var(--lilac);opacity:.6}
