@@ -2,7 +2,7 @@
 // Les comptes locaux restent sur l'appareil. Si Firestore n'est pas activé, rien ne casse : tout reste sur l'appareil.
 import { firebaseApp, googleUid } from "./auth.js";
 
-const KEYS = ["profiles", "roster", "history", "stats", "best2", "bestChrono", "bestMillion"]; // ce qui est sauvegardé
+const KEYS = ["profiles", "roster", "history", "recent", "stats", "best2", "bestChrono", "bestMillion"]; // ce qui est sauvegardé
 const RECORDS = ["best2", "bestChrono", "bestMillion"]; // pour un record, on garde toujours le plus grand
 let fs = null, ref = null, uid = null, dirty = new Set(), timer = null, state = "local";
 const k = (name) => `quizly:${uid}:${name}`;
@@ -45,9 +45,17 @@ async function push() {
 }
 
 // à la connexion : on récupère le cloud et on fusionne avec ce qu'il y a sur l'appareil
-export async function startCloud(id) {
+let pending = null;
+export function startCloud(id) {
+  if (state === "cloud" && uid === id) return Promise.resolve("cloud"); // déjà branché
+  if (!id || id !== googleUid()) return Promise.resolve(state === "cloud" ? "cloud" : "local"); // Google pas encore prêt : on réessaiera
+  if (pending && pending.id === id) return pending.p; // déjà en cours
+  const p = connect(id).finally(() => { if (pending && pending.p === p) pending = null; });
+  pending = { id, p };
+  return p;
+}
+async function connect(id) {
   uid = null; ref = null; state = "local";
-  if (!id || id !== googleUid()) return "local"; // compte local : pas de cloud
   try {
     await load();
     uid = id;
