@@ -536,3 +536,29 @@ body.tvmode #s-game #mcq .btn::before{width:54px;height:54px;font-size:24px}
 .qdel{flex:none;width:44px;height:44px;border-radius:50%;border:2px solid rgba(196,184,255,.5);background:transparent;color:var(--lilac);font:800 22px var(--font);cursor:pointer}
 .qdel:active{background:var(--coral);color:var(--ink);border-color:var(--ink)}
 @media (min-width:700px){.quicklist{display:grid;grid-template-columns:repeat(2,1fr)} .qbtn{min-height:64px}}
+
+/* ---------- 2.10 : Amis ---------- */
+.friends{margin:6px 0 10px}
+.fcode{display:flex;align-items:center;gap:14px;margin:6px 0 14px;padding:14px;background:var(--bg-deep);border-radius:22px}
+.fcodeTxt{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+.fsub{display:block;margin:14px 0 8px;font:800 15px var(--display);color:var(--sun)}
+.fcodeTxt .fsub{margin:0}
+.code.small{font-size:30px;padding:6px 0 6px .3em;letter-spacing:.25em;margin:0}
+.fhint{font-size:13px;color:var(--lilac)}
+#myQr{width:118px;height:118px;flex:none}
+.flist{display:flex;flex-direction:column;gap:8px}
+.frow{display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--paper);color:var(--ink);border:3px solid var(--ink);border-radius:18px;box-shadow:var(--edge-s)}
+.frow .avatar{width:36px;height:36px;font-size:15px}
+.fname{flex:1;min-width:0;font:800 15px var(--display);overflow:hidden;text-overflow:ellipsis}
+.frec{display:block;font:700 12px var(--font);color:var(--muted);margin-top:2px}
+.frow .btn.sm{min-height:40px;padding:6px 12px;font-size:13px;width:auto}
+.frow .btn.ghost{color:var(--ink);border-color:var(--muted)}
+#rankTabs{margin:0 0 10px}
+#btnInvite{margin:12px auto 0}
+#invitePanel{margin-top:10px}
+#btnUser.badge{position:relative}
+#btnUser.badge::after{content:"";position:absolute;top:-3px;right:-3px;width:14px;height:14px;border-radius:50%;background:var(--coral);border:3px solid var(--ink)}
+.toast{position:fixed;left:12px;right:12px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:40;max-width:460px;margin:0 auto;padding:14px;background:var(--paper);color:var(--ink);border:3px solid var(--ink);border-radius:24px;box-shadow:0 8px 0 var(--ink);animation:pop .3s}
+.toastTop{display:flex;align-items:center;gap:10px;margin-bottom:12px;font:800 16px var(--display)}
+.toast .btn.ghost{color:var(--ink);border-color:var(--muted)}
+@media (min-width:700px){#myQr{width:150px;height:150px} .code.small{font-size:36px}}
