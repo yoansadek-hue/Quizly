@@ -7,7 +7,7 @@ import { startScan, stopScan, tvCodeFrom } from "./scan.js";
 import { startCloud, cloudState } from "./cloud.js";
 import { initFriends, friendCodeFrom } from "./friends.js";
 
-const VERSION = "2.10.1"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.10.2"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -61,6 +61,7 @@ function show(id) {
   if (curScreen === "s-scan" && id !== "s-scan") stopScan(); // on coupe la caméra en quittant le scanner
   curScreen = id;
   if (id === "s-lobby") { $("btnInvite").hidden = !friends.ready(); friends.hideInvitePanel(); } // inviter ses amis dans le salon
+  $("btnFriends").hidden = id === "s-login" || PLAYING.includes(id) || id === "s-lobby"; // l'onglet Amis, hors partie
   if (id === "s-end") setTimeout(() => friends.syncRecords(), 800); // nouveaux records visibles par les amis
   // rond des réactions : seulement pendant une partie en ligne
   let onl = false; try { onl = online.active(); online.closeReacts(); } catch {}
@@ -792,17 +793,17 @@ function renderProfile() {
   const themes = Object.entries(st.themes).map(([name, t]) => ({ name, ...t, pct: Math.round((100 * t.ok) / t.n) }));
   const tot = themes.reduce((a, t) => a + t.n, 0), good = themes.reduce((a, t) => a + t.ok, 0);
   const games = Object.values(st.games).reduce((a, b) => a + b, 0);
-  const cards = [
-    ["Record Solo", `${best("best2")} pts`], ["Record Chrono", `${best("bestChrono")} pts`],
-    ["Record Millionnaire", euros(best("bestMillion"))], ["Parties jouées", games],
-    ["Bonnes réponses", tot ? `${Math.round((100 * good) / tot)} %` : "—"], ["Questions", tot]
-  ];
+  // Profil allégé : les 3 records, puis une ligne de chiffres
+  const cards = [["Record Solo", `${best("best2")} pts`], ["Record Chrono", `${best("bestChrono")} pts`], ["Record Millionnaire", euros(best("bestMillion"))]];
   $("profRecords").replaceChildren(...cards.map(([k, v]) => {
     const d = document.createElement("div"); d.className = "stat";
     const b = document.createElement("strong"); b.textContent = v;
     const s = document.createElement("span"); s.textContent = k;
     d.append(b, s); return d;
   }));
+  $("profStats").textContent = tot
+    ? `${games} partie${games > 1 ? "s" : ""} · ${tot} question${tot > 1 ? "s" : ""} · ${Math.round((100 * good) / tot)} % de bonnes réponses`
+    : `${games} partie${games > 1 ? "s" : ""} jouée${games > 1 ? "s" : ""}`;
   const ranked = themes.filter((t) => t.n >= 5).sort((a, b) => b.pct - a.pct);
   // points forts et thèmes à travailler : jamais le même thème dans les deux listes
   const half = Math.ceil(ranked.length / 2);
@@ -812,7 +813,10 @@ function renderProfile() {
     : "Jouez encore un peu : vos points forts apparaîtront après 5 questions dans un thème.";
   const fav = Object.entries(st.games).sort((a, b) => b[1] - a[1])[0];
   if (fav) $("profSum").textContent += ` Mode préféré : ${GAME_NAMES[fav[0]] || fav[0]}.`;
-  $("profThemes").replaceChildren(...themes.sort((a, b) => b.n - a.n).map((t) => {
+  const shown = themes.sort((a, b) => b.n - a.n).slice(0, S.allThemes ? 999 : 6); // les 6 thèmes les plus joués, le reste sur demande
+  $("btnAllThemes").hidden = themes.length <= 6;
+  $("btnAllThemes").textContent = S.allThemes ? "Voir moins" : `Voir tous les thèmes (${themes.length})`;
+  $("profThemes").replaceChildren(...shown.map((t) => {
     const li = document.createElement("li");
     const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = t.name;
     const bar = document.createElement("span"); bar.className = "bar"; const i = document.createElement("i"); i.style.width = `${t.pct}%`; bar.append(i);
@@ -820,7 +824,7 @@ function renderProfile() {
     li.append(nm, bar, v); return li;
   }));
   $("profEmpty").hidden = themes.length > 0;
-  friends.render(); friends.syncRecords();
+  friends.syncRecords();
   const cs = cloudState();
   $("profCloud").textContent = cs === "cloud" ? "Sauvegardé dans le cloud avec votre compte Google : vous retrouvez tout sur vos autres appareils."
     : cs === "error" ? "Sauvegarde dans le cloud indisponible pour le moment : vos données restent sur cet appareil."
@@ -1000,16 +1004,19 @@ const friends = initFriends({
   me: () => ({ name: S.firstName || "Joueur", photo: S.photo || "" }),
   records: () => { const b = (k) => { try { return +localStorage.getItem(`quizly:${S.uid}:${k}`) || 0; } catch { return 0; } }; return { best2: b("best2"), bestChrono: b("bestChrono"), bestMillion: b("bestMillion") }; },
   joinRoom: (code) => { chooseMode("online"); online.join(code); },
-  roomInfo: () => (online.cfg() ? { code: $("lobbyCode").textContent, kind: online.cfg().kind } : null)
+  roomInfo: () => (online.cfg() ? { code: $("lobbyCode").textContent, kind: online.cfg().kind } : null),
+  openFriends: () => openFriends()
 });
+function openFriends() { friends.render(); friends.syncRecords(); show("s-friends"); }
+$("btnFriends").onclick = openFriends;
 let pendingAmi = new URLSearchParams(location.search).get("ami"); // QR code ami scanné avec l'appareil photo
 async function afterCloud() {
   await friends.start();
-  if (curScreen === "s-profile") renderProfile();
-  if (pendingAmi && friends.ready()) { // on ajoute l'ami du lien, puis on montre le Profil
+  if (curScreen === "s-friends") friends.render();
+  if (pendingAmi && friends.ready()) { // on ajoute l'ami du lien, puis on montre l'onglet Amis
     const c = pendingAmi; pendingAmi = null;
     try { history.replaceState(null, "", location.pathname); } catch {}
-    renderProfile(); show("s-profile"); friends.addByCode(c);
+    openFriends(); friends.addByCode(c);
   }
 }
 
@@ -1056,7 +1063,7 @@ document.querySelectorAll("[data-back]").forEach((b) => (b.onclick = () => {
   if (t === "s-themes" && M().million) t = "s-roomtype"; // le Millionnaire n'a pas d'écran de thèmes
   if (t === "s-lobby") { S.editRoom = false; online.setEditing(false); }
   if (t === "s-mode" && S.menuSec && ["s-count", "s-themes"].includes(curScreen)) t = "s-sub"; // retour à la liste Party / Solo
-  if (curScreen === "s-scan" && S.scanFrom) { t = S.scanFrom; if (t === "s-profile") renderProfile(); } // le scanner ramène d'où l'on vient
+  if (curScreen === "s-scan" && S.scanFrom) { t = S.scanFrom; if (t === "s-friends") friends.render(); } // le scanner ramène d'où l'on vient
   show(t);
 }));
 $("btnLogout").onclick = async () => {
@@ -1175,7 +1182,7 @@ function openScanner(from) {
   show("s-scan");
   const onCode = (text) => {
     const ami = friendCodeFrom(text);
-    if (ami) { stopScan(); renderProfile(); show("s-profile"); friends.addByCode(ami); return; } // QR code d'un ami
+    if (ami) { stopScan(); openFriends(); friends.addByCode(ami); return; } // QR code d'un ami
     const code = tvCodeFrom(text);
     if (!code) { $("scanMsg").textContent = "Ce QR code n'est ni un salon ni un ami Quizly."; return setTimeout(() => curScreen === "s-scan" && startScan($("scanVideo"), onCode, onErr), 1500); }
     stopScan();
@@ -1186,6 +1193,8 @@ function openScanner(from) {
   startScan($("scanVideo"), onCode, onErr);
 }
 $("btnScan").onclick = () => openScanner("s-online");
-$("btnScanFriend").onclick = () => openScanner("s-profile");
+$("btnScanFriend").onclick = () => openScanner("s-friends");
 $("roomCode").addEventListener("input", (e) => (e.target.value = e.target.value.toUpperCase()));
 $("roomCode").addEventListener("keydown", (e) => e.key === "Enter" && online.join($("roomCode").value));
+
+$("btnAllThemes").onclick = () => { S.allThemes = !S.allThemes; renderProfile(); };
