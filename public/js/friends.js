@@ -5,7 +5,7 @@ import { cloudFs } from "./cloud.js";
 const ALPHA = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // sans I, O, 0, 1 : pas de confusion à la lecture
 const INVITE_TTL = 10 * 60 * 1000; // une invitation de plus de 10 minutes est ignorée
 
-export function initFriends({ $, ask, avatarEl, euros, me, records, joinRoom, roomInfo }) {
+export function initFriends({ $, ask, avatarEl, euros, me, records, joinRoom, roomInfo, openFriends }) {
   const F = { uid: null, fs: null, code: "", friends: [], unsub: [], tab: "best2", inv: null };
   const say = (t) => ($("friendMsg").textContent = t);
   const ref = (...p) => F.fs.doc(F.fs.db, ...p);
@@ -24,7 +24,10 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, joinRoom, ro
       return true;
     } catch (e) { console.warn("Amis indisponibles :", e.message); stop(); return false; }
   }
-  function stop() { F.unsub.forEach((u) => { try { u(); } catch {} }); F.unsub = []; F.uid = null; F.fs = null; F.friends = []; }
+  function stop() {
+    F.unsub.forEach((u) => { try { u(); } catch {} }); F.unsub = []; F.uid = null; F.fs = null; F.friends = []; F.first = false;
+    $("friendsBadge").hidden = true; $("reqToast").hidden = true; $("inviteToast").hidden = true;
+  }
   const ready = () => !!F.uid;
 
   // profil public : nom, photo, code ami, records (rien d'autre n'est visible par les amis)
@@ -58,7 +61,16 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, joinRoom, ro
     const { onSnapshot, collection } = F.fs;
     F.unsub.push(onSnapshot(collection(F.fs.db, "requests", F.uid, "from"), (snap) => {
       F.requests = snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
-      $("btnUser").classList.toggle("badge", F.requests.length > 0); // pastille sur le bouton Profil
+      // pastille sur le bouton Amis : le nombre de demandes en attente
+      $("friendsBadge").hidden = !F.requests.length;
+      $("friendsBadge").textContent = F.requests.length > 9 ? "9+" : F.requests.length;
+      // notification pour une nouvelle demande (une seule fois par personne)
+      F.notified ||= new Set();
+      const fresh = F.requests.find((r) => !F.notified.has(r.uid));
+      F.requests.forEach((r) => F.notified.add(r.uid));
+      if (fresh && F.first) showRequest(fresh);
+      F.first = true; // au démarrage, les demandes déjà là ne déclenchent pas de notification (la pastille suffit)
+      if (F.shownReq && !F.requests.some((r) => r.uid === F.shownReq.uid)) $("reqToast").hidden = true;
       renderRequests();
     }, () => {}));
     F.unsub.push(onSnapshot(collection(F.fs.db, "invites", F.uid, "list"), (snap) => {
@@ -169,6 +181,17 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, joinRoom, ro
     }));
     $("rankBox").hidden = !F.friends.length;
   }
+
+  /* ---------- notification : quelqu'un veut devenir votre ami ---------- */
+  function showRequest(r) {
+    F.shownReq = r;
+    $("reqText").textContent = `${r.name} veut devenir votre ami.`;
+    $("reqAv").replaceChildren(avatarEl(r.name, r.photo));
+    $("reqToast").hidden = false;
+    clearTimeout(F.reqT); F.reqT = setTimeout(() => ($("reqToast").hidden = true), 12000);
+  }
+  $("btnReqYes").onclick = () => { const r = F.shownReq; $("reqToast").hidden = true; if (r) accept(r); };
+  $("btnReqSee").onclick = () => { $("reqToast").hidden = true; openFriends(); };
 
   /* ---------- inviter des amis dans un salon ---------- */
   function openInvites() {
