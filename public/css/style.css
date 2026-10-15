@@ -629,3 +629,13 @@ body::before{display:none}
 /* records : le chiffre tient toujours dans sa tuile */
 #s-profile .profgrid .stat{min-width:0;overflow:hidden}
 #s-profile .profgrid .stat strong{font-size:clamp(17px,5.6vw,30px);white-space:nowrap}
+
+/* ---------- 2.10.5 ---------- */
+/* l'écran ne « flotte » plus : pas de défilement si tout tient, pas d'effet élastique */
+html,body{overscroll-behavior:none}
+main{min-height:0}
+/* boutons du haut : ils s'enfoncent et rebondissent quand on appuie */
+#btnUser,.iconbtn,.reactfab{transition:transform .12s cubic-bezier(.2,.8,.2,1),box-shadow .12s}
+#btnUser:active,.iconbtn:active,.reactfab:active{transform:translateY(3px) scale(.95);box-shadow:0 1px 0 var(--ink)}
+#btnUser.tap,.iconbtn.tap{animation:tapbounce .35s cubic-bezier(.2,1.4,.4,1)}
+@keyframes tapbounce{0%{transform:translateY(3px) scale(.93)}60%{transform:translateY(-2px) scale(1.04)}100%{transform:none}}
