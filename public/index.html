@@ -31,6 +31,10 @@ addEventListener("error", function (e) {
       <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-3.3 0-7 1.7-7 4.5V20h14v-2.5C16 14.7 12.3 13 9 13zm8-2a3.5 3.5 0 1 0-2.1-6.3 5.9 5.9 0 0 1 0 5.6A3.5 3.5 0 0 0 17 11zm1.2 2.1c1.6 1 2.8 2.5 2.8 4.4V20h3v-2.5c0-2.1-2.6-3.8-5.8-4.4z"/></svg>
       <span class="nbadge" id="friendsBadge" hidden></span>
     </button>
+    <button id="btnNotifs" class="iconbtn" aria-label="Notifications" hidden>
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22zm7-6V11a7 7 0 0 0-5.5-6.84V3.5a1.5 1.5 0 0 0-3 0v.66A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2z"/></svg>
+      <span class="nbadge" id="notifBadge" hidden></span>
+    </button>
     <button id="reactFab" class="reactfab" aria-label="Envoyer une réaction" aria-expanded="false" hidden>
       <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H11l-4.5 4v-4h0A2.5 2.5 0 0 1 4 13.5z" fill="currentColor"/></svg>
     </button>
@@ -184,6 +188,22 @@ addEventListener("error", function (e) {
     </div>
   </section>
 
+  <!-- Notifications -->
+  <section id="s-notifs" class="screen" hidden>
+    <button class="goback" data-back="s-mode">← Retour</button>
+    <h2>Notifications</h2>
+    <div id="notifList" class="flist"></div>
+    <p class="lead small" id="notifEmpty">Rien de nouveau pour l'instant.</p>
+    <div class="admin" id="adminBox" hidden>
+      <h3 class="fsub">Annonce à tous les joueurs</h3>
+      <textarea id="adminText" maxlength="140" rows="3" placeholder="Votre message (140 caractères)"></textarea>
+      <button class="btn sun" id="btnAdminSend">Envoyer à tout le monde</button>
+      <p class="msg" id="adminMsg" role="alert"></p>
+      <p class="fhint">Votre identifiant : <b id="adminUid"></b></p>
+    </div>
+    <button class="link devlink" id="btnDev">Mode développeur</button>
+  </section>
+
   <!-- Amis -->
   <section id="s-friends" class="screen" hidden>
     <button class="goback" data-back="s-mode">← Retour</button>
@@ -231,11 +251,11 @@ addEventListener("error", function (e) {
   <section id="s-profile" class="screen" hidden>
     <button class="goback" data-back="s-mode">← Retour</button>
     <div class="profhead">
-      <label class="avedit" for="mePhoto" aria-label="Changer ma photo"><span id="profAv"></span><span class="pen">+</span></label>
+      <label class="avedit" for="mePhoto" aria-label="Changer ma photo"><span id="profAv"></span><span class="pen"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm17.7-10.2a1 1 0 0 0 0-1.42l-2.33-2.33a1 1 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></span></label>
       <input id="mePhoto" type="file" accept="image/*" hidden>
       <div class="profwho">
-        <h2 id="profName">Profil</h2>
-        <div class="profline"><span class="cloudchip" id="profCloud"></span><button class="link" id="btnEditName">Modifier le nom</button></div>
+        <div class="profline"><h2 id="profName">Profil</h2><button class="penbtn" id="btnEditName" aria-label="Modifier mon nom"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm17.7-10.2a1 1 0 0 0 0-1.42l-2.33-2.33a1 1 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button></div>
+        <span class="cloudchip" id="profCloud"></span>
       </div>
     </div>
     <div class="meedit" id="meEdit" hidden>
