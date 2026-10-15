@@ -7,7 +7,7 @@ import { startScan, stopScan, tvCodeFrom } from "./scan.js";
 import { startCloud, cloudState } from "./cloud.js";
 import { initFriends, friendCodeFrom } from "./friends.js";
 
-const VERSION = "2.10.5"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.10.6"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
