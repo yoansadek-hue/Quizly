@@ -7,7 +7,7 @@ import { startScan, stopScan, tvCodeFrom } from "./scan.js";
 import { startCloud, cloudState } from "./cloud.js";
 import { initFriends, friendCodeFrom } from "./friends.js";
 
-const VERSION = "2.10.4"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.10.5"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -1021,6 +1021,12 @@ const friends = initFriends({
 });
 function openFriends() { friends.render(); friends.syncRecords(); show("s-friends"); }
 $("btnFriends").onclick = openFriends;
+// petite animation d'appui sur les boutons du haut (et :active fonctionne aussi sur iPhone)
+document.addEventListener("touchstart", () => {}, { passive: true });
+["btnUser", "btnFriends"].forEach((id) => $(id).addEventListener("pointerdown", (e) => {
+  const b = e.currentTarget; b.classList.remove("tap"); void b.offsetWidth; b.classList.add("tap");
+  setTimeout(() => b.classList.remove("tap"), 400);
+}));
 let pendingAmi = new URLSearchParams(location.search).get("ami"); // QR code ami scanné avec l'appareil photo
 async function afterCloud() {
   await friends.start();
