@@ -703,3 +703,18 @@ body::before{height:max(0px,calc(env(safe-area-inset-top) - 7px))}
 .devlink{display:block;margin:28px auto 0;font-size:12px;color:var(--lilac);opacity:.6}
 #btnCopyUid{display:inline-block;width:auto;min-height:34px;padding:4px 12px;font-size:12px;margin-left:6px;color:var(--paper)}
 #adminUid{font-family:ui-monospace,Menlo,Consolas,monospace}
+
+/* ---------- 2.11.3 ---------- */
+.pushbanner{display:flex;align-items:center;gap:10px;margin:0 0 16px;padding:12px 12px 12px 16px;background:var(--sun);color:var(--ink);border:3px solid var(--ink);border-radius:22px;box-shadow:var(--edge-s);font:700 14px var(--font)}
+.pushbanner span{flex:1}
+.pushbanner .btn.sm{width:auto;background:var(--paper)}
+.fx.light{border-color:var(--ink);color:var(--ink)}
+.frow.tap{cursor:pointer}
+.frow.tap:active{transform:translateY(2px);box-shadow:0 1px 0 var(--ink)}
+.chev{flex:none;font:800 26px var(--display);color:var(--muted);padding:0 6px}
+#s-friend .profgrid{grid-template-columns:repeat(3,1fr);gap:10px;margin:8px 0 26px}
+#s-friend .profgrid .stat{min-height:96px;display:flex;flex-direction:column;justify-content:flex-end;padding:12px;min-width:0;overflow:hidden}
+#s-friend .profgrid .stat strong{font-size:clamp(17px,5.6vw,30px);white-space:nowrap}
+#s-friend .avatar.big{width:72px;height:72px;font-size:30px}
+#btnFrRemove{color:var(--coral);border-color:var(--coral)}
+.notif .fx{margin-left:2px}
