@@ -27,6 +27,10 @@ addEventListener("error", function (e) {
 <header id="bar" hidden>
   <span class="logo">Quizly<small>par YoskanGame</small></span>
   <div class="barR">
+    <button id="btnFriends" class="iconbtn" aria-label="Amis" hidden>
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-3.3 0-7 1.7-7 4.5V20h14v-2.5C16 14.7 12.3 13 9 13zm8-2a3.5 3.5 0 1 0-2.1-6.3 5.9 5.9 0 0 1 0 5.6A3.5 3.5 0 0 0 17 11zm1.2 2.1c1.6 1 2.8 2.5 2.8 4.4V20h3v-2.5c0-2.1-2.6-3.8-5.8-4.4z"/></svg>
+      <span class="nbadge" id="friendsBadge" hidden></span>
+    </button>
     <button id="reactFab" class="reactfab" aria-label="Envoyer une réaction" aria-expanded="false" hidden>
       <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H11l-4.5 4v-4h0A2.5 2.5 0 0 1 4 13.5z" fill="currentColor"/></svg>
     </button>
@@ -37,6 +41,11 @@ addEventListener("error", function (e) {
 <div id="reactMenu" class="reactmenu" hidden></div>
 
 <div id="fx"></div>
+<!-- demande d'ami reçue -->
+<div id="reqToast" class="toast" role="alert" hidden>
+  <div class="toastTop"><span id="reqAv"></span><span id="reqText"></span></div>
+  <div class="two"><button class="btn sun sm" id="btnReqYes">Accepter</button><button class="btn ghost sm" id="btnReqSee">Voir</button></div>
+</div>
 <!-- invitation d'un ami à rejoindre son salon -->
 <div id="inviteToast" class="toast" role="alert" hidden>
   <div class="toastTop"><span id="inviteAv"></span><span id="inviteText"></span></div>
@@ -175,21 +184,16 @@ addEventListener("error", function (e) {
     </div>
   </section>
 
-  <!-- Profil -->
-  <section id="s-profile" class="screen" hidden>
+  <!-- Amis -->
+  <section id="s-friends" class="screen" hidden>
     <button class="goback" data-back="s-mode">← Retour</button>
-    <h2 id="profName">Profil</h2>
-    <p class="lead small" id="profCloud"></p>
-    <div class="profgrid" id="profRecords"></div>
-    <p class="lead small" id="profSum"></p>
-    <!-- Amis -->
+    <h2>Amis</h2>
     <div id="friendsBox" class="friends" hidden>
-      <h3 class="profh">Mes amis</h3>
-      <div class="fcode">
+            <div class="fcode">
         <div class="fcodeTxt">
           <span class="fsub">Mon code ami</span>
           <button class="code small" id="myCode" aria-label="Copier mon code ami"></button>
-          <span class="fhint">Vos amis le tapent, ou scannent votre QR code avec Quizly (En ligne › Scanner).</span>
+          <span class="fhint">Vos amis le tapent, ou scannent votre QR code avec Quizly (Amis › Scanner).</span>
         </div>
         <img id="myQr" class="qr" alt="Mon QR code ami" width="140" height="140">
       </div>
@@ -208,9 +212,20 @@ addEventListener("error", function (e) {
       </div>
     </div>
     <p class="lead small" id="friendsOff">Les amis seront disponibles dès que votre compte sera connecté au cloud.</p>
+  </section>
+
+  <!-- Profil -->
+  <section id="s-profile" class="screen" hidden>
+    <button class="goback" data-back="s-mode">← Retour</button>
+    <h2 id="profName">Profil</h2>
+    <p class="lead small" id="profCloud"></p>
+    <div class="profgrid" id="profRecords"></div>
+    <p class="profstats" id="profStats"></p>
+    <p class="lead small" id="profSum"></p>
     <h3 class="profh">Par thème</h3>
     <p class="lead small" id="profEmpty">Aucune question jouée pour l'instant.</p>
     <ol class="profthemes" id="profThemes"></ol>
+    <button class="link" id="btnAllThemes" hidden>Voir tous les thèmes</button>
   </section>
 
   <!-- Thèmes -->
