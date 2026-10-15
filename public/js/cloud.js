@@ -97,5 +97,6 @@ async function connect(id) {
     return "error";
   }
 }
-export const cloudState = () => state; // « cloud », « local » (compte local) ou « error »
+export const cloudState = () => state;
+export const cloudFs = () => (state === "cloud" && fs && uid ? { fs, uid } : null); // pour les amis // « cloud », « local » (compte local) ou « error »
 addEventListener("pagehide", () => { if (dirty.size) push(); }); // on envoie ce qui reste avant de fermer
