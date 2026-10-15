@@ -6,7 +6,7 @@ import { sendPush } from "./push.js";
 const ALPHA = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // sans I, O, 0, 1 : pas de confusion à la lecture
 const INVITE_TTL = 10 * 60 * 1000; // une invitation de plus de 10 minutes est ignorée
 
-export function initFriends({ $, ask, avatarEl, euros, me, records, joinRoom, roomInfo, openFriends }) {
+export function initFriends({ $, ask, avatarEl, euros, me, records, joinRoom, roomInfo, openFriends, openNotifs }) {
   const F = { uid: null, fs: null, code: "", friends: [], unsub: [], tab: "best2", inv: null, panel: null };
   // onglets de l'écran Amis
   function setPanel(p) {
@@ -28,13 +28,14 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, joinRoom, ro
     try {
       await publish(); // profil public + code ami
       listen();
+      listenNotifs();
       await loadFriends();
       return true;
     } catch (e) { console.warn("Amis indisponibles :", e.message); stop(); return false; }
   }
   function stop() {
     F.unsub.forEach((u) => { try { u(); } catch {} }); F.unsub = []; F.uid = null; F.fs = null; F.friends = []; F.first = false;
-    $("friendsBadge").hidden = true; $("reqToast").hidden = true; $("inviteToast").hidden = true;
+    $("friendsBadge").hidden = true; $("notifBadge").hidden = true; $("reqToast").hidden = true; $("inviteToast").hidden = true;
   }
   const ready = () => !!F.uid;
 
@@ -101,7 +102,7 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, joinRoom, ro
       if (F.friends.some((f) => f.uid === to)) return say("Vous êtes déjà amis.");
       const m = me();
       await F.fs.setDoc(ref("requests", to, "from", F.uid), { name: m.name, photo: m.photo || "", at: Date.now() });
-      sendPush(to, `${m.name} veut devenir votre ami.`, "/?amis=1"); // notification sur tous ses appareils
+      notify(to, "demande", `${m.name} veut devenir votre ami.`, "/?amis=1"); // sur tous ses appareils et dans sa cloche
       say("Demande envoyée.");
       $("friendCode").value = "";
     } catch (e) { say("Impossible d'envoyer la demande pour le moment."); }
@@ -110,7 +111,7 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, joinRoom, ro
     try {
       await F.fs.setDoc(ref("friends", F.uid, "list", r.uid), { since: Date.now() });
       await F.fs.setDoc(ref("friends", r.uid, "list", F.uid), { since: Date.now() });
-      sendPush(r.uid, `${me().name} a accepté votre demande d'ami.`, "/?amis=1");
+      notify(r.uid, "accepte", `${me().name} a accepté votre demande d'ami.`, "/?amis=1");
       await F.fs.deleteDoc(ref("requests", F.uid, "from", r.uid));
       await loadFriends();
     } catch { say("Impossible d'accepter pour le moment."); }
@@ -195,6 +196,51 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, joinRoom, ro
     $("rankEmpty").hidden = !!F.friends.length;
   }
 
+  /* ---------- la cloche : vos notifications (amis, invitations, annonces) ---------- */
+  // envoie une notification : sur tous les appareils de l'ami (push) et dans sa cloche
+  async function notify(to, type, text, url) {
+    sendPush(to, text, url);
+    try { const m = me(); await F.fs.addDoc(F.fs.collection(F.fs.db, "notifs", to, "list"), { from: F.uid, name: m.name, photo: m.photo || "", type, text, url, at: Date.now() }); } catch {}
+  }
+  const seenKey = () => `quizly:${F.uid}:notifSeen`;
+  function listenNotifs() {
+    const { onSnapshot, collection, query, orderBy, limit } = F.fs;
+    const merge = () => {
+      const items = [...(F.mine || []), ...(F.ann || [])].sort((a, b) => b.at - a.at).slice(0, 40);
+      F.notifs = items;
+      const seen = +localStorage.getItem(seenKey()) || 0, unread = items.filter((n) => n.at > seen).length;
+      $("notifBadge").hidden = !unread; $("notifBadge").textContent = unread > 9 ? "9+" : unread;
+      if (!$("s-notifs").hidden) renderNotifs();
+    };
+    F.unsub.push(onSnapshot(query(collection(F.fs.db, "notifs", F.uid, "list"), orderBy("at", "desc"), limit(30)), (snap) => {
+      F.mine = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      // ménage : au-delà de 7 jours, on efface
+      snap.docs.filter((d) => Date.now() - (d.data().at || 0) > 7 * 86400000).forEach((d) => F.fs.deleteDoc(d.ref).catch(() => {}));
+      merge();
+    }, () => {}));
+    F.unsub.push(onSnapshot(query(collection(F.fs.db, "announces"), orderBy("at", "desc"), limit(10)), (snap) => {
+      F.ann = snap.docs.map((d) => ({ id: d.id, type: "annonce", name: "Quizly", ...d.data() }));
+      merge();
+    }, () => {}));
+  }
+  const ago = (t) => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? "à l'instant" : m < 60 ? `il y a ${m} min` : m < 1440 ? `il y a ${Math.round(m / 60)} h` : `il y a ${Math.round(m / 1440)} j`; };
+  function renderNotifs() {
+    const items = F.notifs || [];
+    $("notifEmpty").hidden = items.length > 0;
+    $("notifList").replaceChildren(...items.map((n) => {
+      const r = document.createElement("div"); r.className = "frow notif" + (n.type === "annonce" ? " ann" : "");
+      const t = document.createElement("span"); t.className = "fname";
+      t.textContent = n.text;
+      const w = document.createElement("span"); w.className = "frec"; w.textContent = ago(n.at); t.append(w);
+      const act = n.type === "invite" ? btn("Rejoindre", "sun", () => { const c = (String(n.url).match(/tv=([A-Z0-9]+)/) || [])[1]; if (c) joinRoom(c); })
+        : n.type === "demande" || n.type === "accepte" ? btn("Voir", "ghost", () => openFriends()) : null;
+      r.append(avatarEl(n.name || "Quizly", n.photo), t, ...(act ? [act] : []));
+      return r;
+    }));
+    try { localStorage.setItem(seenKey(), String(Date.now())); } catch {}
+    $("notifBadge").hidden = true;
+  }
+
   /* ---------- notification : quelqu'un veut devenir votre ami ---------- */
   function showRequest(r) {
     F.shownReq = r;
@@ -219,7 +265,7 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, joinRoom, ro
         try {
           const m = me();
           await F.fs.setDoc(ref("invites", f.uid, "list", F.uid), { code: room.code, kind: room.kind, name: m.name, photo: m.photo || "", at: Date.now() });
-          sendPush(f.uid, `${m.name} vous invite à jouer${KIND[room.kind] ? ` (${KIND[room.kind]})` : ""}.`, `/?tv=${room.code}`); // un appui rejoint le salon
+          notify(f.uid, "invite", `${m.name} vous invite à jouer${KIND[room.kind] ? ` (${KIND[room.kind]})` : ""}.`, `/?tv=${room.code}`); // un appui rejoint le salon
           b.textContent = "Invité";
         } catch { b.disabled = false; b.textContent = "Réessayer"; }
       });
@@ -248,7 +294,14 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, joinRoom, ro
   $("btnInvite").onclick = openInvites;
 
   return {
-    start, stop, ready, render, syncRecords, addByCode, openInvites,
+    start, stop, ready, render, syncRecords, addByCode, openInvites, renderNotifs,
+    // annonce du développeur : gardée dans la cloche de tout le monde (Firestore) puis envoyée en notification
+    async announce(text, key) {
+      if (!ready()) throw new Error("cloud");
+      await F.fs.addDoc(F.fs.collection(F.fs.db, "announces"), { text, at: Date.now() });
+      const r = await fetch("/api/push/broadcast", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key, body: text }) });
+      return (await r.json()).sent || 0;
+    },
     hideInvitePanel: () => ($("invitePanel").hidden = true),
     refresh: () => (ready() ? loadFriends() : render())
   };
