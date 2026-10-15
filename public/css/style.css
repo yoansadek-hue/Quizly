@@ -639,3 +639,8 @@ main{min-height:0}
 #btnUser:active,.iconbtn:active,.reactfab:active{transform:translateY(3px) scale(.95);box-shadow:0 1px 0 var(--ink)}
 #btnUser.tap,.iconbtn.tap{animation:tapbounce .35s cubic-bezier(.2,1.4,.4,1)}
 @keyframes tapbounce{0%{transform:translateY(3px) scale(.93)}60%{transform:translateY(-2px) scale(1.04)}100%{transform:none}}
+
+/* ---------- 2.10.6 : barre du haut comme avant (transparente, sur le fond à points) ---------- */
+body{padding-top:env(safe-area-inset-top)}
+#bar{position:static;background:none;box-shadow:none;padding-top:12px;padding-bottom:0}
+body::before{display:block} /* seule la zone de l'heure (iPhone) reste couverte */
