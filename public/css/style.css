@@ -579,3 +579,44 @@ body.tvmode #s-game #mcq .btn::before{width:54px;height:54px;font-size:24px}
 #btnAllThemes{display:block;margin:12px auto 0}
 #s-friends .fcode{margin-top:8px}
 @media (min-width:700px){#s-profile .profgrid .stat strong{font-size:22px} .profstats{font-size:17px}}
+
+/* ---------- 2.10.3 ---------- */
+/* iPhone : un bandeau opaque sous la barre d'état, pour que rien ne défile (flouté) derrière l'heure */
+html{background:var(--bg)}
+body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top);background:var(--bg);z-index:60;pointer-events:none}
+
+/* Profil : des formes et des couleurs, presque pas de texte */
+.profhead{display:flex;align-items:center;gap:14px;margin:6px 0 18px}
+.profhead .avatar.big{width:64px;height:64px;font-size:26px;border-width:3px;box-shadow:var(--edge-s)}
+.profhead h2{margin:0 0 6px}
+.cloudchip{display:inline-flex;align-items:center;gap:6px;padding:3px 12px;border-radius:99px;font:800 12px var(--display);border:2px solid var(--ink);background:var(--lilac);color:var(--ink)}
+.cloudchip::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}
+.cloudchip.cloud{background:var(--mint)} .cloudchip.error{background:var(--coral)}
+#s-profile .profgrid{grid-template-columns:repeat(3,1fr);gap:10px;margin:0 0 18px}
+#s-profile .profgrid .stat{min-height:96px;display:flex;flex-direction:column;justify-content:flex-end;padding:12px}
+#s-profile .profgrid .stat strong{font-size:clamp(20px,6.5vw,30px);line-height:1;white-space:nowrap}
+#s-profile .profgrid .stat span{margin-top:6px;font-size:12px}
+.bubbles{display:flex;justify-content:space-between;gap:10px;margin:0 0 18px}
+.bub{flex:1;aspect-ratio:1;max-width:108px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg-deep);border:3px solid rgba(196,184,255,.35)}
+.bub:nth-child(2){border-radius:28px;transform:rotate(-4deg)} /* trois formes : rond, carré penché, galet */
+.bub:nth-child(2)>*{transform:rotate(4deg)}
+.bub:nth-child(3){border-radius:40% 60% 55% 45% / 50% 45% 55% 50%}
+.bub strong{font:800 clamp(20px,6vw,28px) var(--display);color:var(--sun);line-height:1}
+.bub span{font:700 11px var(--font);color:var(--lilac);margin-top:4px}
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 6px}
+.duo:empty{display:none}
+.tile{position:relative;overflow:hidden;padding:14px;border:3px solid var(--ink);border-radius:22px;box-shadow:var(--edge-s);color:var(--ink)}
+.tile span{display:block;font:700 12px var(--font);opacity:.75}
+.tile strong{display:block;margin-top:4px;font:800 16px var(--display);line-height:1.15;position:relative}
+.tile.up{background:var(--mint)} .tile.down{background:var(--coral)}
+.tile::after{content:"";position:absolute;right:-12px;bottom:-12px;width:54px;height:54px;background:rgba(30,15,69,.12)}
+.tile.up::after{clip-path:polygon(50% 0,100% 100%,0 100%)} .tile.down::after{clip-path:polygon(0 0,100% 0,50% 100%)}
+#s-profile .profthemes li{grid-template-columns:1fr 1.2fr 3.2em}
+#s-profile .profthemes .v{text-align:right;color:var(--paper)}
+#s-profile .profthemes .bar{height:14px}
+
+/* code ami : tient toujours dans sa pastille sur téléphone */
+.code.small{width:100%;font-size:clamp(20px,6.4vw,32px);letter-spacing:.14em;padding:8px 0 8px .14em;white-space:nowrap;overflow:hidden}
+.fcode{gap:12px}
+#myQr{width:104px;height:104px}
+@media (min-width:700px){#myQr{width:150px;height:150px} .code.small{font-size:34px}}
