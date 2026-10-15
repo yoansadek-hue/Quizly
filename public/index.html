@@ -193,7 +193,7 @@ addEventListener("error", function (e) {
         <div class="fcodeTxt">
           <span class="fsub">Mon code ami</span>
           <button class="code small" id="myCode" aria-label="Copier mon code ami"></button>
-          <span class="fhint">Vos amis le tapent, ou scannent votre QR code avec Quizly (Amis › Scanner).</span>
+          <span class="fhint">À taper ou à scanner.</span>
         </div>
         <img id="myQr" class="qr" alt="Mon QR code ami" width="140" height="140">
       </div>
@@ -217,11 +217,13 @@ addEventListener("error", function (e) {
   <!-- Profil -->
   <section id="s-profile" class="screen" hidden>
     <button class="goback" data-back="s-mode">← Retour</button>
-    <h2 id="profName">Profil</h2>
-    <p class="lead small" id="profCloud"></p>
+    <div class="profhead">
+      <span id="profAv"></span>
+      <div><h2 id="profName">Profil</h2><span class="cloudchip" id="profCloud"></span></div>
+    </div>
     <div class="profgrid" id="profRecords"></div>
-    <p class="profstats" id="profStats"></p>
-    <p class="lead small" id="profSum"></p>
+    <div class="bubbles" id="profStats"></div>
+    <div class="duo" id="profSum"></div>
     <h3 class="profh">Par thème</h3>
     <p class="lead small" id="profEmpty">Aucune question jouée pour l'instant.</p>
     <ol class="profthemes" id="profThemes"></ol>
