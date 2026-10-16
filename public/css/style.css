@@ -838,3 +838,11 @@ body{display:flex;flex-direction:column;padding-top:env(safe-area-inset-top)}
 #main.pulling{transition:none}
 /* la page elle-même ne peut jamais défiler, même de côté (seule la zone du contenu défile) */
 html,body{overflow:hidden;overflow:clip}
+
+/* ---------- 2.12.4 : retour au défilement de toute la page (comme avant) ---------- */
+html,body{height:auto;overflow-x:hidden;overflow-x:clip;overflow-y:visible}
+body{display:block;padding-top:env(safe-area-inset-top)}
+#main{overflow:visible;flex:none;min-height:0;max-width:var(--w);margin:0 auto;padding:calc(14px + var(--pull,0px)) 18px calc(124px + env(safe-area-inset-bottom))}
+/* le tour de l'écran (sous l'heure, au-dessus de la barre d'accueil) a le même fond à points : plus de bande unie */
+html{background-color:var(--bg);background-image:radial-gradient(rgba(255,255,255,.075) 1.2px,transparent 1.4px);background-size:22px 22px;background-attachment:fixed}
+.ptr{position:fixed;top:calc(env(safe-area-inset-top) + 64px)}
