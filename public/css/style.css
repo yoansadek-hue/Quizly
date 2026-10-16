@@ -763,3 +763,36 @@ body::before{display:none} /* plus de bande sous l'heure */
 .mlp small{font:700 11px var(--font);color:var(--sun)}
 .mlp.ok{border-color:var(--mint)} .mlp.me{background:var(--sun);color:var(--ink)} .mlp.me small{color:var(--ink)}
 .mlp.out{opacity:.5}
+
+/* ---------- 2.12.2 ---------- */
+/* tirer pour recharger : un jeton qui se remplit puis tourne */
+.ptr{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 6px);z-index:70;width:44px;height:44px;border:0;border-radius:50%;background:var(--paper);box-shadow:var(--edge-s);opacity:0;transform:translate(-50%,0);pointer-events:none;display:grid;place-items:center;will-change:transform}
+.ptr svg{width:34px;height:34px;transform:rotate(-90deg)}
+.ptr circle{fill:none;stroke-width:4}
+.ptr .track{stroke:rgba(30,15,69,.12)}
+.ptr .arc{stroke:var(--sun);stroke-linecap:round;stroke-dasharray:88;stroke-dashoffset:88;transition:stroke .2s}
+.ptr.ready .arc{stroke:var(--mint)}
+.ptr.spin svg{animation:ptrspin .7s linear infinite}
+@keyframes ptrspin{to{transform:rotate(270deg)}}
+/* chat : historique */
+.chatlog{width:100%;max-height:34vh;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding:8px;background:rgba(0,0,0,.18);border-radius:14px}
+.cl{margin:0;font:600 14px var(--font);color:var(--paper);text-align:left;overflow-wrap:anywhere}
+.cl b{color:var(--sun);font-weight:800}
+.cl.me b{color:var(--mint)}
+.cl.empty{color:var(--lilac);font-weight:500;text-align:center}
+.reactmenu{flex-direction:row;flex-wrap:wrap;justify-content:center}
+.reactfab.unread::after{content:"";position:absolute;top:-2px;right:-2px;width:14px;height:14px;border-radius:50%;background:var(--coral);border:2px solid var(--ink)}
+/* paramètres */
+.setlist{display:flex;flex-direction:column;gap:10px}
+.setlist .fsub{margin:16px 0 2px}
+.setrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;background:var(--bg-deep);border-radius:18px;font:700 15px var(--font);cursor:pointer}
+.setrow .btn.sm{width:auto;flex:none}
+.setrow .btn.ghost{color:var(--paper)}
+.tgl{appearance:none;flex:none;width:50px;height:30px;border-radius:99px;background:rgba(196,184,255,.3);border:2px solid var(--ink);position:relative;cursor:pointer;transition:background .2s}
+.tgl::after{content:"";position:absolute;top:2px;left:2px;width:22px;height:22px;border-radius:50%;background:var(--paper);border:2px solid var(--ink);transition:transform .2s cubic-bezier(.2,.8,.2,1)}
+.tgl:checked{background:var(--mint)}
+.tgl:checked::after{transform:translateX(20px)}
+#setVersion{margin-top:18px}
+/* animations réduites */
+body.calm *,body.calm *::before,body.calm *::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+body.calm .ptr.spin svg{animation:ptrspin .7s linear infinite!important}
