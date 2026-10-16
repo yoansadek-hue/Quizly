@@ -202,19 +202,33 @@ addEventListener("error", function (e) {
   <section id="s-settings" class="screen" hidden>
     <button class="goback" data-back="s-profile">← Retour</button>
     <h2>Paramètres</h2>
-    <div class="setlist">
-      <h3 class="fsub">Notifications</h3>
-      <div class="setrow"><span id="setPushTxt">Notifications</span><button class="btn sun sm" id="setPushBtn">Activer</button></div>
-      <h3 class="fsub">Jeu</h3>
-      <label class="setrow"><span>Lecture automatique des extraits musicaux</span><input type="checkbox" class="tgl" data-set="autoplay"></label>
-      <label class="setrow"><span>Vibrations (bonne ou mauvaise réponse)</span><input type="checkbox" class="tgl" data-set="vibrate"></label>
-      <label class="setrow"><span>Animations réduites</span><input type="checkbox" class="tgl" data-set="calm"></label>
-      <div class="setrow"><span>Bulle du chat</span><button class="btn ghost sm" id="setFabReset">Remettre à sa place</button></div>
-      <h3 class="fsub">Compte</h3>
-      <div class="setrow"><span>Questions déjà vues (pour en avoir de nouvelles)</span><button class="btn ghost sm" id="setClearSeen">Oublier</button></div>
-      <div class="setrow"><span id="setAccount">Compte Google</span><button class="btn coral sm" id="btnLogout">Se déconnecter</button></div>
-      <p class="version" id="setVersion"></p>
+    <!-- le compte, en tête -->
+    <div class="setacct">
+      <span id="setAv"></span>
+      <div class="stxt"><b id="setName"></b><small id="setAccount">Compte Google</small></div>
+      <button class="btn white sm" id="setEditMe">Modifier</button>
     </div>
+    <div class="setgroup">
+      <h3 class="setg">Notifications</h3>
+        <div class="setitem"><span class="sico c1"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22zm7-6V11a7 7 0 0 0-5.5-6.84V3.5a1.5 1.5 0 0 0-3 0v.66A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2z"/></svg></span><div class="stxt"><b>Notifications</b><small id="setPushTxt"></small></div><button class="btn sun sm" id="setPushBtn">Activer</button><span class="schip" id="setPushChip"></span></div>
+    </div>
+    <div class="setgroup">
+      <h3 class="setg">Jeu</h3>
+        <div class="setitem" id="setDiffRow"><span class="sico c2"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M3 20h4v-6H3v6zm7 0h4V9h-4v11zm7-16v16h4V4h-4z"/></svg></span><div class="stxt"><b>Difficulté par défaut</b><small>Évolutive : elle monte toute seule à chaque tour.</small></div><div class="seg" id="setDiff"><button data-v="1">Évolutive</button><button data-v="0">Au choix</button></div></div>
+        <div class="setitem"><span class="sico c3"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg></span><div class="stxt"><b>Extraits musicaux</b><small>Lancer l'extrait tout seul dans « Devine la chanson ».</small></div><input type="checkbox" class="tgl" data-set="autoplay" aria-label="Lecture automatique"></div>
+        <div class="setitem" id="setVibRow"><span class="sico c4"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M7 4h10a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zm1 2v12h8V6H8zM2 9h2v6H2V9zm18 0h2v6h-2V9z"/></svg></span><div class="stxt"><b>Vibrations</b><small id="setVibTxt">Une petite vibration à chaque réponse.</small></div><input type="checkbox" class="tgl" data-set="vibrate" aria-label="Vibrations"></div>
+        <div class="setitem"><span class="sico c1"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 3a9 9 0 1 0 9 9A9 9 0 0 0 12 3zm-4 9h8v2H8v-2z"/></svg></span><div class="stxt"><b>Animations réduites</b><small>Moins de mouvements à l'écran.</small></div><input type="checkbox" class="tgl" data-set="calm" aria-label="Animations réduites"></div>
+    </div>
+    <div class="setgroup">
+      <h3 class="setg">En ligne</h3>
+        <div class="setitem"><span class="sico c2"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H11l-4.5 4v-4A2.5 2.5 0 0 1 4 13.5z"/></svg></span><div class="stxt"><b>Bulle du chat</b><small>Vous l'avez déplacée ? Remettez-la sur le bord droit.</small></div><button class="btn white sm" id="setFabReset">Replacer</button></div>
+    </div>
+    <div class="setgroup">
+      <h3 class="setg">Compte</h3>
+        <div class="setitem"><span class="sico c3"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M13 3a9 9 0 0 0-9 9H1l4 4 4-4H6a7 7 0 1 1 2.05 4.95l-1.42 1.42A9 9 0 1 0 13 3zm-1 5v5l4.25 2.52.77-1.28-3.52-2.09V8H12z"/></svg></span><div class="stxt"><b>Questions déjà vues</b><small id="setSeenTxt"></small></div><button class="btn white sm" id="setClearSeen">Oublier</button></div>
+        <div class="setitem"><span class="sico c5"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M10 17l1.41-1.41L8.83 13H20v-2H8.83l2.58-2.59L10 7l-5 5 5 5zM4 5h7V3H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h7v-2H4V5z"/></svg></span><div class="stxt"><b>Se déconnecter</b><small>Vos données restent sauvegardées dans le cloud.</small></div><button class="btn coral sm" id="btnLogout">Déconnexion</button></div>
+    </div>
+    <p class="version" id="setVersion"></p>
   </section>
 
   <!-- Défi du jour -->
@@ -311,7 +325,6 @@ addEventListener("error", function (e) {
   <!-- Profil -->
   <section id="s-profile" class="screen" hidden>
     <button class="goback" data-back="s-mode">← Retour</button>
-    <button class="gearbtn" id="btnSettings" aria-label="Paramètres"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3.3h-4l-.4 2.6a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1l.4 2.6h4l.4-2.6a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z"/></svg></button>
     <div class="profhead">
       <label class="avedit" for="mePhoto" aria-label="Changer ma photo"><span id="profAv"></span><span class="pen"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm17.7-10.2a1 1 0 0 0 0-1.42l-2.33-2.33a1 1 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></span></label>
       <input id="mePhoto" type="file" accept="image/*" hidden>
@@ -319,6 +332,7 @@ addEventListener("error", function (e) {
         <div class="profline"><h2 id="profName">Profil</h2><button class="penbtn" id="btnEditName" aria-label="Modifier mon nom"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm17.7-10.2a1 1 0 0 0 0-1.42l-2.33-2.33a1 1 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button></div>
         <span class="cloudchip" id="profCloud"></span>
       </div>
+      <button class="gearbtn" id="btnSettings" aria-label="Paramètres"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.03 7.03 0 0 0-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.47.47 0 0 0-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87a.47.47 0 0 0 .12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.48.48 0 0 0-.12-.61l-2.01-1.58zM12 15.6a3.6 3.6 0 1 1 0-7.2 3.6 3.6 0 0 1 0 7.2z"/></svg></button>
     </div>
     <div class="meedit" id="meEdit" hidden>
       <input id="meName" type="text" maxlength="20" placeholder="Votre nom" autocomplete="nickname" enterkeyhint="done">
