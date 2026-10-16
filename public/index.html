@@ -45,6 +45,8 @@ addEventListener("error", function (e) {
 <div id="reactMenu" class="reactmenu" hidden></div>
 
 <div id="fx"></div>
+<div id="gameToast" class="gtoast" role="status" hidden></div>
+<div id="ptr" class="ptr" aria-hidden="true"></div>
 <!-- demande d'ami reçue -->
 <div id="reqToast" class="toast" role="alert" hidden>
   <div class="toastTop"><span id="reqAv"></span><span id="reqText"></span></div>
@@ -130,6 +132,8 @@ addEventListener("error", function (e) {
         <button class="btn white sm" id="btnSetHost">Le nommer hôte</button>
         <button class="btn coral sm" id="btnKick">Retirer du salon</button>
       </div>
+      <button class="btn sun sm" id="btnAddFromLobby">Ajouter en ami</button>
+      <p class="msg" id="pactMsg"></p>
     </div>
     <p id="lobbyWait" class="lead small meta" hidden>En attente de l'hôte…</p>
     <p id="lobbyMsg" class="msg" role="alert"></p>
@@ -419,6 +423,7 @@ addEventListener("error", function (e) {
   <section id="s-million" class="screen" hidden>
     <p class="who"><span class="whoL"><span id="mAv"></span><span id="mStep"></span></span><span id="mWon" class="chip small"></span></p>
     <p class="alive" id="mInfo"></p>
+    <div class="mlive" id="mLive" hidden></div>
     <div class="clockrow" id="mClockrow" hidden><div class="timer"><i id="mBar"></i></div><span id="mClock" class="clock"></span></div>
     <ol class="ladder" id="mLadder" aria-label="Échelle des gains"></ol>
     <div class="mcard">
