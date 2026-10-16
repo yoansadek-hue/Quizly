@@ -8,7 +8,7 @@ import { startCloud, cloudState } from "./cloud.js";
 import { initFriends, friendCodeFrom } from "./friends.js";
 import { enablePush, pushState, currentSub } from "./push.js";
 
-const VERSION = "2.12.2"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.12.3"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -31,7 +31,7 @@ const S = {
   uid: null, firstName: "", count: 4, slots: [], players: [], themes: new Set(), active: new Set(), rand: false, photo: "",
   i: -1, diff: 1, q: null, buf: [], loading: null, joker: false, locked: false, tid: null, left: 30,
   rest: [], qn: 0, editRoom: false, elim: 0, mode: "classic", played: new Set(), asked: [], inGame: false, pending: false, resume: false,
-  cfg: { time: 30, jokers: 1, lives: 2, auto: false } // auto : difficulté évolutive
+  cfg: { time: 30, jokers: 1, lives: 2, auto: true } // auto : difficulté évolutive (par défaut)
 };
 const M = () => MODES[S.mode];
 document.querySelectorAll(".ver").forEach((e) => (e.textContent = `Quizly v${VERSION} · par YoskanGame`));
@@ -73,7 +73,7 @@ function show(id) {
   document.querySelectorAll(".screen").forEach((s) => (s.hidden = s.id !== id));
   userLabel();
   $("bar").hidden = id === "s-login" || id === "s-local";
-  window.scrollTo(0, 0);
+  $("main").scrollTop = 0; // c'est la zone du contenu qui défile, pas la page
   const sp = document.getElementById("splash"); // le jeu est prêt : on retire l'écran de démarrage
   if (sp) { sp.classList.add("off"); setTimeout(() => sp.remove(), 450); }
 }
@@ -1435,29 +1435,58 @@ $("setClearSeen").onclick = () => ask("Oublier les questions déjà vues ?", "Le
 });
 applySettings();
 
-/* ---------- tirer pour recharger : version fluide ----------
-   le rond suit le doigt avec une résistance, se remplit, puis tourne pendant le rechargement */
+/* ---------- tirer pour rafraîchir, façon Snapchat ----------
+   - seulement si la zone du contenu est tout en haut, et pour un geste vraiment vertical ;
+   - rien ne bouge avant 24 px (un petit défilement ne déclenche rien) ;
+   - le contenu descend avec le doigt (résistance), un jeton se remplit au-dessus ;
+   - en relâchant au-delà du seuil : seul l'onglet affiché se met à jour (pas toute l'appli). */
 (() => {
-  const ptr = $("ptr"), arc = ptr.querySelector("circle.arc"), LEN = 2 * Math.PI * 14, NEED = 80;
-  let y0 = null, dy = 0, raf = 0;
-  const can = () => scrollY <= 0 && !PLAYING.includes(curScreen) && !["s-lobby", "s-scan"].includes(curScreen);
-  const draw = () => {
-    raf = 0;
-    const d = NEED * 1.6 * (1 - Math.exp(-dy / (NEED * 1.6))); // résistance douce
-    const p = Math.min(1, dy / NEED);
-    ptr.style.transform = `translate(-50%, ${d}px) rotate(${p * 270}deg)`;
-    ptr.style.opacity = Math.min(1, dy / 30);
+  const main = $("main"), ptr = $("ptr"), arc = ptr.querySelector("circle.arc"), LEN = 88, DEAD = 24, NEED = 72;
+  let st = null, busy = false;
+  const can = () => main.scrollTop <= 0 && !busy && !PLAYING.includes(curScreen) && !["s-lobby", "s-scan", "s-daily"].includes(curScreen);
+  const set = (d, p) => {
+    main.style.setProperty("--pull", `${d}px`);
+    ptr.style.opacity = Math.min(1, d / 40);
     arc.style.strokeDashoffset = LEN * (1 - p);
     ptr.classList.toggle("ready", p >= 1);
   };
-  addEventListener("touchstart", (e) => { if (ptr.classList.contains("spin")) return; y0 = can() && e.touches.length === 1 ? e.touches[0].clientY : null; dy = 0; ptr.style.transition = "none"; }, { passive: true });
-  addEventListener("touchmove", (e) => { if (y0 === null) return; dy = Math.max(0, e.touches[0].clientY - y0); if (!raf) raf = requestAnimationFrame(draw); }, { passive: true });
-  addEventListener("touchend", () => {
-    if (y0 === null) return;
-    y0 = null;
-    ptr.style.transition = "transform .3s cubic-bezier(.2,.8,.2,1), opacity .3s";
-    if (dy >= NEED) { ptr.classList.add("spin"); ptr.style.transform = "translate(-50%, 70px)"; arc.style.strokeDashoffset = LEN * 0.7; setTimeout(() => location.reload(), 450); }
-    else { ptr.style.transform = "translate(-50%, 0)"; ptr.style.opacity = 0; }
-    dy = 0;
+  main.addEventListener("touchstart", (e) => {
+    st = can() && e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY, on: false, dy: 0 } : null;
   }, { passive: true });
+  main.addEventListener("touchmove", (e) => {
+    if (!st) return;
+    const dx = e.touches[0].clientX - st.x, dy = e.touches[0].clientY - st.y;
+    if (!st.on) {
+      if (dy < DEAD || Math.abs(dx) > dy || main.scrollTop > 0) { if (dy < -4 || Math.abs(dx) > 12) st = null; return; } // pas un vrai tirage
+      st.on = true; main.classList.add("pulling");
+    }
+    st.dy = dy - DEAD;
+    const d = 110 * (1 - Math.exp(-st.dy / 110)); // le contenu suit le doigt, de plus en plus difficilement
+    set(d, Math.min(1, st.dy / NEED));
+    if (e.cancelable) e.preventDefault();
+  }, { passive: false });
+  const end = async () => {
+    if (!st || !st.on) { st = null; return; }
+    const go = st.dy >= NEED; st = null;
+    main.classList.remove("pulling");
+    if (!go) { set(0, 0); return; }
+    busy = true; ptr.classList.add("spin"); set(56, 0.75);
+    const t0 = Date.now();
+    try { await refreshScreen(); } catch {}
+    setTimeout(() => { ptr.classList.remove("spin"); set(0, 0); busy = false; }, Math.max(0, 600 - (Date.now() - t0)));
+  };
+  main.addEventListener("touchend", end, { passive: true });
+  main.addEventListener("touchcancel", end, { passive: true });
 })();
+// met à jour seulement l'onglet affiché
+async function refreshScreen() {
+  if (S.uid) await startCloud(S.uid).catch(() => {});
+  switch (curScreen) {
+    case "s-mode": renderModes(); dailyCard(); menuPushUI(); break;
+    case "s-profile": renderProfile(); break;
+    case "s-friends": await friends.refresh(); break;
+    case "s-notifs": friends.renderNotifs(); break;
+    case "s-settings": renderSettings(); break;
+    default: break;
+  }
+}
