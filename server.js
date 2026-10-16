@@ -951,6 +951,7 @@ function rejoin(ws, m) {
   p.ws = ws; ws.room = room; ws.pid = p.id;
   if (!room.players.get(room.hostId) || room.players.get(room.hostId).left) room.hostId = p.id;
   send(ws, { ...lobbyMsg(room, p), t: "resume" });
+  if (room.chat && room.chat.length) send(ws, { t: "chatlog", list: room.chat }); // l'historique du chat
   if (room.phase === "lobby") return castLobby(room);
   const k = room.cfg.kind, L = room.last;
   if (k === "chrono") {
@@ -1073,6 +1074,7 @@ function handle(ws, m) {
     if (players(room).length >= 20) return send(ws, { t: "error", msg: "Salle pleine (20 joueurs)." });
     if (ws.room) leave(ws);
     join(ws, room, m.name, m.photo, m.hist, m.uid);
+    if (room.chat && room.chat.length) send(ws, { t: "chatlog", list: room.chat });
     return castLobby(room);
   }
   if (m.t === "rejoin") return rejoin(ws, m);
@@ -1114,7 +1116,9 @@ function handle(ws, m) {
     const now = Date.now(), text = clean(m.text, 80);
     if (!text || now - (me.lastReact || 0) < 1500) return;
     me.lastReact = now;
-    cast(room, { t: "chat", text, id: me.id, name: me.name });
+    const msg = { t: "chat", text, id: me.id, name: me.name, at: now };
+    room.chat = [...(room.chat || []), msg].slice(-40); // les 40 derniers messages du salon
+    cast(room, msg);
   }
   else if (m.t === "react") { // réaction envoyée à tout le salon (et à la télé)
     const now = Date.now(), r = Number(m.r);
