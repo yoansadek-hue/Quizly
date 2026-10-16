@@ -8,7 +8,7 @@ import { startCloud, cloudState } from "./cloud.js";
 import { initFriends, friendCodeFrom } from "./friends.js";
 import { enablePush, pushState, currentSub } from "./push.js";
 
-const VERSION = "2.12.1"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.12.2"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -78,6 +78,7 @@ function show(id) {
   if (sp) { sp.classList.add("off"); setTimeout(() => sp.remove(), 450); }
 }
 function flash(kind) {
+  if (setting("vibrate") && navigator.vibrate) navigator.vibrate(kind === "ok" ? 30 : [40, 60, 40]); // réglage « vibrations »
   const fx = $("fx");
   fx.className = ""; void fx.offsetWidth; fx.className = kind;
   if (kind === "ko") { // secousse sans toucher aux ancêtres des boutons fixes
@@ -1406,22 +1407,57 @@ function dailyEnd(fresh) {
 $("btnDaily").onclick = openDaily;
 $("btnDailyBack").onclick = () => show("s-mode");
 
-/* ---------- tirer vers le bas pour recharger (hors partie) ---------- */
+
+/* ---------- Paramètres (gardés sur cet appareil) ---------- */
+const SETKEY = "quizly:settings";
+const DEFAULTS = { autoplay: true, vibrate: true, calm: false };
+function settings() { try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(SETKEY) || "{}") }; } catch { return { ...DEFAULTS }; } }
+function setting(k) { return settings()[k]; }
+function applySettings() { document.body.classList.toggle("calm", !!setting("calm")); }
+function renderSettings() {
+  const st = settings();
+  document.querySelectorAll("#s-settings .tgl").forEach((c) => {
+    c.checked = !!st[c.dataset.set];
+    c.onchange = () => { const s2 = settings(); s2[c.dataset.set] = c.checked; try { localStorage.setItem(SETKEY, JSON.stringify(s2)); } catch {} applySettings(); };
+  });
+  const p = pushState();
+  $("setPushTxt").textContent = p === "granted" ? "Notifications activées sur cet appareil" : p === "denied" ? "Notifications bloquées (réglages du téléphone)" : p === "unsupported" ? "Notifications : installez Quizly sur l'écran d'accueil" : "Notifications désactivées";
+  $("setPushBtn").hidden = p !== "default";
+  $("setAccount").textContent = `Connecté : ${S.gName || S.firstName || "compte Google"}`;
+  $("setVersion").textContent = `Quizly v${VERSION} · par YoskanGame`;
+}
+$("btnSettings").onclick = () => { renderSettings(); show("s-settings"); };
+$("setPushBtn").onclick = async () => { await askPush(); renderSettings(); };
+$("setFabReset").onclick = () => { try { localStorage.removeItem("quizly:fabPos"); } catch {} const f = $("reactFab"); f.style.left = f.style.top = ""; f.style.right = ""; $("setFabReset").textContent = "C'est fait"; };
+$("setClearSeen").onclick = () => ask("Oublier les questions déjà vues ?", "Les questions de vos anciennes parties pourront revenir.", "Oublier", () => {
+  try { localStorage.removeItem(`quizly:${S.uid}:recent`); localStorage.removeItem(`quizly:${S.uid}:history`); } catch {}
+  recentCache = null; renderSettings(); show("s-settings");
+});
+applySettings();
+
+/* ---------- tirer pour recharger : version fluide ----------
+   le rond suit le doigt avec une résistance, se remplit, puis tourne pendant le rechargement */
 (() => {
-  const ptr = $("ptr"); let y0 = null, dy = 0;
-  const can = () => scrollY <= 0 && !PLAYING.includes(curScreen) && curScreen !== "s-lobby" && curScreen !== "s-scan";
-  addEventListener("touchstart", (e) => { y0 = can() && e.touches.length === 1 ? e.touches[0].clientY : null; dy = 0; }, { passive: true });
-  addEventListener("touchmove", (e) => {
-    if (y0 === null) return;
-    dy = Math.max(0, e.touches[0].clientY - y0);
-    if (dy < 6) return;
-    const d = Math.min(dy, 120);
-    ptr.style.opacity = Math.min(1, d / 80); ptr.style.transform = `translate(-50%, ${d * 0.6}px) rotate(${d * 3}deg)`;
-    ptr.classList.toggle("ready", dy > 90);
-  }, { passive: true });
+  const ptr = $("ptr"), arc = ptr.querySelector("circle.arc"), LEN = 2 * Math.PI * 14, NEED = 80;
+  let y0 = null, dy = 0, raf = 0;
+  const can = () => scrollY <= 0 && !PLAYING.includes(curScreen) && !["s-lobby", "s-scan"].includes(curScreen);
+  const draw = () => {
+    raf = 0;
+    const d = NEED * 1.6 * (1 - Math.exp(-dy / (NEED * 1.6))); // résistance douce
+    const p = Math.min(1, dy / NEED);
+    ptr.style.transform = `translate(-50%, ${d}px) rotate(${p * 270}deg)`;
+    ptr.style.opacity = Math.min(1, dy / 30);
+    arc.style.strokeDashoffset = LEN * (1 - p);
+    ptr.classList.toggle("ready", p >= 1);
+  };
+  addEventListener("touchstart", (e) => { if (ptr.classList.contains("spin")) return; y0 = can() && e.touches.length === 1 ? e.touches[0].clientY : null; dy = 0; ptr.style.transition = "none"; }, { passive: true });
+  addEventListener("touchmove", (e) => { if (y0 === null) return; dy = Math.max(0, e.touches[0].clientY - y0); if (!raf) raf = requestAnimationFrame(draw); }, { passive: true });
   addEventListener("touchend", () => {
-    if (y0 !== null && dy > 90) { ptr.classList.add("spin"); setTimeout(() => location.reload(), 350); }
-    else { ptr.style.opacity = 0; ptr.style.transform = "translate(-50%, 0)"; ptr.classList.remove("ready"); }
-    y0 = null; dy = 0;
+    if (y0 === null) return;
+    y0 = null;
+    ptr.style.transition = "transform .3s cubic-bezier(.2,.8,.2,1), opacity .3s";
+    if (dy >= NEED) { ptr.classList.add("spin"); ptr.style.transform = "translate(-50%, 70px)"; arc.style.strokeDashoffset = LEN * 0.7; setTimeout(() => location.reload(), 450); }
+    else { ptr.style.transform = "translate(-50%, 0)"; ptr.style.opacity = 0; }
+    dy = 0;
   }, { passive: true });
 })();
