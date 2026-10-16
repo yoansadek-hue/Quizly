@@ -367,6 +367,21 @@ async function pickLocal(themes, d, used, soft) {
   }
   return null;
 }
+// extrait musical relayé par le serveur (pour le jouer sans le lecteur du téléphone) : seulement les adresses d'Apple
+app.get("/api/audio", async (req, res) => {
+  let u;
+  try { u = new URL(String(req.query.u || "")); } catch { return res.status(400).end(); }
+  if (u.protocol !== "https:" || !/(^|\.)(itunes\.apple\.com|mzstatic\.com|apple\.com)$/.test(u.hostname)) return res.status(403).end();
+  try {
+    const ctl = new AbortController(), stop = setTimeout(() => ctl.abort(), 10000);
+    const r = await fetch(u, { signal: ctl.signal }); clearTimeout(stop);
+    if (!r.ok) return res.status(502).end();
+    const b = Buffer.from(await r.arrayBuffer());
+    if (b.length > 3_000_000) return res.status(413).end();
+    res.set("Content-Type", r.headers.get("content-type") || "audio/mp4").set("Cache-Control", "public, max-age=86400").send(b);
+  } catch { res.status(502).end(); }
+});
+
 app.get("/api/song", async (req, res) => {
   const avoid = new Set(String(req.query.avoid || "").split(",").filter(Boolean).slice(0, 300));
   try { res.json(await songQuestion(clamp(+req.query.d || 1, 1, 5), (q) => !avoid.has(q.key))); }
@@ -417,7 +432,7 @@ const shuffle = (a) => a.map((x) => [Math.random(), x]).sort((p, q) => p[0] - q[
 function lobbyMsg(room, p) {
   return {
     t: "lobby", code: room.code, host: room.hostId, you: p.id, tok: p.tok, phase: room.phase, cfg: room.cfg, tv: tvs(room).size > 0, tvRoom: !!room.tvRoom,
-    players: players(room).filter((x) => !x.left).map(({ id, name, photo, ci }) => ({ id, name, photo, ci }))
+    players: players(room).filter((x) => !x.left).map(({ id, name, photo, ci, uid }) => ({ id, name, photo, ci, uid }))
   };
 }
 const castLobby = (room) => {
@@ -431,7 +446,7 @@ function okPhoto(s) {
   return /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(s) && s.length <= 12000 ? s : ""; // photo personnalisée (réduite)
 }
 
-function join(ws, room, name, photo, hist) {
+function join(ws, room, name, photo, hist, uid) {
   const base = clean(name) || "Joueur";
   let n = base, k = 2;
   while (players(room).some((p) => !p.left && p.name.toLowerCase() === n.toLowerCase())) n = `${base} ${k++}`;
@@ -440,7 +455,8 @@ function join(ws, room, name, photo, hist) {
     tok: Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2), // secret pour revenir après une coupure
     photo: okPhoto(photo),
     lives: 0, score: 0, points: 0, dead: false, outAt: 0, left: false, ci: room.nextCi++,
-    hist: (Array.isArray(hist) ? hist : []).slice(-300).map((x) => String(x).slice(0, 220)) // questions vues récemment par ce joueur
+    hist: (Array.isArray(hist) ? hist : []).slice(-300).map((x) => String(x).slice(0, 220)), // questions vues récemment par ce joueur
+    uid: cleanUid(uid) // compte Google : permet aux autres de l'ajouter en ami
   };
   room.players.set(p.id, p); ws.room = room; ws.pid = p.id;
   if (!room.hostId || !room.players.has(room.hostId)) room.hostId = p.id; // salon télé : le premier qui scanne est l'hôte
@@ -868,6 +884,8 @@ function mReveal(room) {
     p.mq = null;
   });
   if (room.mshared) [...watching.map((p) => p.ws), ...tvs(room)].forEach((w) => send(w, { t: "mspec", answer: room.mshared.a, results }));
+  const outNow = results.filter((r) => r.out || r.stopped);
+  if (outNow.length) cast(room, { t: "mout", list: outNow.map((r) => ({ name: r.name, won: r.won, stopped: !!r.stopped, top: !!(r.correct && r.out) })) });
   mBoard(room);
   room.mn++;
   room.timer = setTimeout(() => (inGame(room).length ? mNext(room) : mEnd(room)), inGame(room).length ? 3500 : 2500);
@@ -1045,7 +1063,7 @@ function handle(ws, m) {
       diff: 1, buf: [], asked: [], played: new Set(), i: -1, elim: 0, q: null, timer: null, loads: new Map(), nextCi: 0
     };
     rooms.set(room.code, room);
-    room.hostId = join(ws, room, m.name, m.photo, m.hist).id;
+    room.hostId = join(ws, room, m.name, m.photo, m.hist, m.uid).id;
     return castLobby(room);
   }
   if (m.t === "join") {
@@ -1054,7 +1072,7 @@ function handle(ws, m) {
     if (room.phase !== "lobby") return send(ws, { t: "error", msg: "La partie a déjà commencé." });
     if (players(room).length >= 20) return send(ws, { t: "error", msg: "Salle pleine (20 joueurs)." });
     if (ws.room) leave(ws);
-    join(ws, room, m.name, m.photo, m.hist);
+    join(ws, room, m.name, m.photo, m.hist, m.uid);
     return castLobby(room);
   }
   if (m.t === "rejoin") return rejoin(ws, m);
@@ -1091,6 +1109,12 @@ function handle(ws, m) {
   else if (m.t === "sethost" && host) { // l'hôte donne son rôle
     const t = room.players.get(String(m.id));
     if (t && !t.left && !t.away && t.id !== me.id) { room.hostId = t.id; cast(room, { t: "host", host: t.id }); if (room.phase === "lobby") castLobby(room); }
+  }
+  else if (m.t === "chat") { // message écrit, envoyé à tout le salon (et à la télé)
+    const now = Date.now(), text = clean(m.text, 80);
+    if (!text || now - (me.lastReact || 0) < 1500) return;
+    me.lastReact = now;
+    cast(room, { t: "chat", text, id: me.id, name: me.name });
   }
   else if (m.t === "react") { // réaction envoyée à tout le salon (et à la télé)
     const now = Date.now(), r = Number(m.r);
