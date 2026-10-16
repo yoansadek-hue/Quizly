@@ -217,10 +217,19 @@ export function avatarEl(name, photo, big) {
    Joué avec Web Audio, et non avec un lecteur <audio> : le téléphone n'affiche plus le lecteur « Quizly »
    sur l'écran verrouillé ni dans le centre de contrôle. Le fichier passe par le serveur (même origine). */
 let actx = null, src = null, buf = null, curUrl = null, btn = null;
+const autoPlay = () => { try { return (JSON.parse(localStorage.getItem("quizly:settings") || "{}").autoplay ?? true); } catch { return true; } }; // réglage « lecture automatique »
 const label = (t) => { if (btn) btn.textContent = t; };
-export function stopAudio() { if (src) { try { src.onended = null; src.stop(); } catch {} src = null; } }
+export function stopAudio() {
+  if (src) { try { src.onended = null; src.stop(); } catch {} src = null; }
+  if (fallback) { fallback.pause(); }
+}
+// iPhone : sans ça, le mode silencieux coupe le son des extraits
+function soundOn() { try { if (navigator.audioSession) navigator.audioSession.type = "playback"; } catch {} }
+let fallback = null; // plan B : lecteur classique si le décodage échoue
 function playBuf() {
+  if (fallback) { fallback.currentTime = 0; fallback.play().then(() => label("Arrêter l'extrait")).catch(() => label("Écouter l'extrait")); return; }
   if (!buf || !actx) return;
+  soundOn();
   stopAudio();
   actx.resume().catch(() => {});
   src = actx.createBufferSource(); src.buffer = buf; src.connect(actx.destination);
@@ -229,12 +238,19 @@ function playBuf() {
 }
 export function setAudio($, url) {
   btn = $("qPlay"); stopAudio(); buf = null; curUrl = url || null;
+  if (fallback) { fallback.removeAttribute("src"); fallback.load(); fallback = null; }
+  soundOn();
   if (!url) { btn.hidden = true; return; }
   btn.hidden = false; label("Chargement de l'extrait…");
   try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); } catch { label("Son indisponible"); return; }
-  btn.onclick = (e) => { e.stopPropagation(); if (src) { stopAudio(); label("Écouter l'extrait"); } else playBuf(); };
+  btn.onclick = (e) => { e.stopPropagation(); if (src || (fallback && !fallback.paused)) { stopAudio(); label("Écouter l'extrait"); } else playBuf(); };
   fetch(`/api/audio?u=${encodeURIComponent(url)}`).then((r) => { if (!r.ok) throw new Error(); return r.arrayBuffer(); })
     .then((a) => new Promise((ok, ko) => actx.decodeAudioData(a, ok, ko)))
-    .then((d) => { if (curUrl !== url) return; buf = d; label("Écouter l'extrait"); if (actx.state === "running") playBuf(); }) // démarre tout seul si le téléphone l'autorise
-    .catch(() => { if (curUrl === url) label("Extrait indisponible"); });
+    .then((d) => { if (curUrl !== url) return; buf = d; label("Écouter l'extrait"); if (actx.state === "running" && autoPlay()) playBuf(); }) // démarre tout seul si le téléphone l'autorise
+    .catch(() => { // décodage impossible : lecteur classique
+      if (curUrl !== url) return;
+      fallback = new Audio(`/api/audio?u=${encodeURIComponent(url)}`); fallback.preload = "auto";
+      fallback.onended = () => label("Réécouter l'extrait");
+      label("Écouter l'extrait");
+    });
 }
