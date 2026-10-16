@@ -141,7 +141,12 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
         m.list.forEach((r, i) => setTimeout(() => toast(
           r.top ? `${r.name} gagne 1 000 000 € !` : r.stopped ? `${r.name} s'arrête avec ${euros(r.won)}` : `${r.name} est éliminé (${euros(r.won)})`), i * 1200));
         break;
-      case "chat": showChat(m); break;
+      case "chat":
+        showChat(m);
+        O.chatLog = [...O.chatLog, m].slice(-40); renderLog();
+        if (menu.hidden && m.id !== O.you) fab.classList.add("unread"); // un point sur la bulle : message non lu
+        break;
+      case "chatlog": O.chatLog = m.list.slice(-40); renderLog(); break;
       case "mspec": // spectateur : résultat de la question pour chaque joueur
         mu.reveal({ answer: m.answer, picked: -1, correct: false });
         mu.info(m.results.map((r) => `${r.name} : ${r.stopped ? `s'arrête (${euros(r.won)})` : r.correct ? (r.out ? "1 000 000 € !" : `juste, ${euros(r.won)}`) : `raté, repart avec ${euros(r.won)}`}`).join(" · "));
@@ -201,6 +206,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     $("lobbyHint").textContent = m.tvRoom ? "Salon télé : vos amis rejoignent en scannant le QR code de la télé." : "Vos amis scannent le QR code (En ligne › Scanner) ou tapent le code.";
     O.chrono = false; O.cur = null;
     O.mout = false; O.watch = false; O.mboard = [];
+    if (O.chatRoom !== m.code) { O.chatRoom = m.code; O.chatLog = []; renderLog(); fab.classList.remove("unread"); }
     $("lobbyInfo").textContent = chrono
       ? `Chrono 60 s · ${plural(m.cfg.themes.length, "thème")} · le plus de points gagne`
       : mill ? `Qui veut gagner des millions · toutes les catégories · ${m.cfg.time ? m.cfg.time + " s par question" : "sans limite"}`
@@ -393,7 +399,20 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
   };
   go.onclick = sendChat; inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); sendChat(); } });
   inp.addEventListener("focus", () => clearTimeout(O.reactT)); // on écrit : le menu ne se referme pas tout seul
-  row.append(inp, go); menu.append(row);
+  row.append(inp, go);
+  // l'historique : tous les messages écrits du salon, comme un vrai chat
+  const log = document.createElement("div"); log.className = "chatlog"; log.id = "chatLog";
+  menu.append(log, row);
+  O.chatLog = [];
+  function renderLog() {
+    log.replaceChildren(...(O.chatLog.length ? O.chatLog.map((c) => {
+      const l = document.createElement("p"); l.className = "cl" + (c.id === O.you ? " me" : "");
+      const n = document.createElement("b"); n.textContent = c.id === O.you ? "Vous" : c.name;
+      l.append(n, document.createTextNode(` ${c.text}`)); return l;
+    }) : [Object.assign(document.createElement("p"), { className: "cl empty", textContent: "Aucun message pour l'instant." })]));
+    log.scrollTop = log.scrollHeight;
+  }
+  renderLog();
   function closeReacts() { menu.hidden = true; fab.setAttribute("aria-expanded", "false"); fab.classList.remove("open"); }
   // la bulle se déplace au doigt (sa place est retenue) ; un simple appui ouvre le menu
   try { const pos = JSON.parse(localStorage.getItem("quizly:fabPos") || "null"); if (pos) { fab.style.left = pos.x + "px"; fab.style.top = pos.y + "px"; fab.style.right = "auto"; } } catch {}
@@ -413,7 +432,8 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
   fab.onclick = () => {
     if (fab.dataset.dragged) { delete fab.dataset.dragged; return; } // c'était un déplacement, pas un appui
     const open = menu.hidden;
-    clearTimeout(O.reactT); if (open) O.reactT = setTimeout(closeReacts, 5000); // se referme seul
+    clearTimeout(O.reactT);
+    if (open) { O.unread = 0; fab.classList.remove("unread"); renderLog(); }
     menu.hidden = !open; fab.setAttribute("aria-expanded", String(open)); fab.classList.toggle("open", open);
   };
   document.addEventListener("pointerdown", (e) => { if (!menu.hidden && !menu.contains(e.target) && !fab.contains(e.target)) closeReacts(); });
