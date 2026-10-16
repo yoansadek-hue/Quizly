@@ -2,13 +2,13 @@ import { THEMES, fetchAI } from "./questions.js";
 import { watch, signIn, logout } from "./auth.js";
 import { initOnline } from "./online.js";
 import { makeLocal, LOCAL_THEMES, SONG_THEME, euros } from "./local.js";
-import { millionUI, millionLocal, avatarEl, setAudio } from "./million.js";
+import { millionUI, millionLocal, avatarEl, setAudio, stopAudio } from "./million.js";
 import { startScan, stopScan, tvCodeFrom } from "./scan.js";
 import { startCloud, cloudState } from "./cloud.js";
 import { initFriends, friendCodeFrom } from "./friends.js";
 import { enablePush, pushState, currentSub } from "./push.js";
 
-const VERSION = "2.12.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.12.1"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -35,7 +35,8 @@ const S = {
 };
 const M = () => MODES[S.mode];
 document.querySelectorAll(".ver").forEach((e) => (e.textContent = `Quizly v${VERSION} · par YoskanGame`));
-const online = initOnline({ $, show, flash, confetti, me: () => ({ name: S.firstName || "Joueur", photo: S.photo || "" }), record: chronoRecord, millionUI, avatarEl, setAudio, noteQ: noteRecent, recent: () => getRecent().arr.slice(-300), setMode: (kind) => (S.mode = KIND_MODE[kind] || "online"), stat: { answer: (t, ok) => statAnswer(t, ok), game: (k) => statGame(k) } });
+const online = initOnline({ $, show, flash, confetti, me: () => ({ name: S.firstName || "Joueur", photo: S.photo || "", uid: S.uid || "" }),
+  addFriend: (uid, name) => friends.addByUid(uid, name), isFriend: (uid) => friends.isFriend(uid), record: chronoRecord, millionUI, avatarEl, setAudio, noteQ: noteRecent, recent: () => getRecent().arr.slice(-300), setMode: (kind) => (S.mode = KIND_MODE[kind] || "online"), stat: { answer: (t, ok) => statAnswer(t, ok), game: (k) => statGame(k) } });
 // record personnel du Chrono en ligne (gardé sur l'appareil, par compte)
 function chronoRecord(points) {
   const key = `quizly:${S.uid}:bestChrono`;
@@ -68,7 +69,7 @@ function show(id) {
   // rond des réactions : seulement pendant une partie en ligne
   let onl = false; try { onl = online.active(); online.closeReacts(); } catch {}
   $("reactFab").hidden = !(onl && ["s-game", "s-million", "s-load"].includes(id));
-  const au = document.getElementById("qAudio"); if (au && id !== "s-game") au.pause(); // l'extrait s'arrête quand on quitte la question
+  if (id !== "s-game") stopAudio(); // l'extrait s'arrête quand on quitte la question
   document.querySelectorAll(".screen").forEach((s) => (s.hidden = s.id !== id));
   userLabel();
   $("bar").hidden = id === "s-login" || id === "s-local";
@@ -1404,3 +1405,23 @@ function dailyEnd(fresh) {
 }
 $("btnDaily").onclick = openDaily;
 $("btnDailyBack").onclick = () => show("s-mode");
+
+/* ---------- tirer vers le bas pour recharger (hors partie) ---------- */
+(() => {
+  const ptr = $("ptr"); let y0 = null, dy = 0;
+  const can = () => scrollY <= 0 && !PLAYING.includes(curScreen) && curScreen !== "s-lobby" && curScreen !== "s-scan";
+  addEventListener("touchstart", (e) => { y0 = can() && e.touches.length === 1 ? e.touches[0].clientY : null; dy = 0; }, { passive: true });
+  addEventListener("touchmove", (e) => {
+    if (y0 === null) return;
+    dy = Math.max(0, e.touches[0].clientY - y0);
+    if (dy < 6) return;
+    const d = Math.min(dy, 120);
+    ptr.style.opacity = Math.min(1, d / 80); ptr.style.transform = `translate(-50%, ${d * 0.6}px) rotate(${d * 3}deg)`;
+    ptr.classList.toggle("ready", dy > 90);
+  }, { passive: true });
+  addEventListener("touchend", () => {
+    if (y0 !== null && dy > 90) { ptr.classList.add("spin"); setTimeout(() => location.reload(), 350); }
+    else { ptr.style.opacity = 0; ptr.style.transform = "translate(-50%, 0)"; ptr.classList.remove("ready"); }
+    y0 = null; dy = 0;
+  }, { passive: true });
+})();
