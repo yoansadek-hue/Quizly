@@ -55,6 +55,16 @@ function onMsg(m) {
     case "mboard": T.mboard = m.list; renderMLive(); break;
     case "mspec": renderMSpec(m); break;
     case "end": renderEnd(m); break;
+    case "chat": { // message écrit d'un joueur
+      const d = document.createElement("div");
+      d.className = "bubble r4";
+      const n = document.createElement("b"); n.textContent = m.name;
+      d.append(n, document.createTextNode(` ${m.text}`));
+      d.style.left = `${6 + Math.random() * 50}vw`;
+      d.onanimationend = () => d.remove();
+      document.body.append(d);
+      break;
+    }
     case "react": { // les réactions des joueurs s'envolent aussi sur la télé
       const d = document.createElement("div");
       d.className = `bubble r${m.r}`;
