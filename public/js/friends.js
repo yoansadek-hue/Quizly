@@ -247,12 +247,18 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
       merge();
     }, () => {}));
     F.unsub.push(onSnapshot(query(collection(F.fs.db, "announces"), orderBy("at", "desc"), limit(10)), (snap) => {
-      const hid = hiddenAnn();
-      F.ann = snap.docs.map((d) => ({ id: d.id, type: "annonce", name: "Quizly", ...d.data() })).filter((a) => !hid.includes(a.id)); // annonces masquées sur cet appareil
+      const hid = hiddenAnn(), since = notifStart();
+      F.ann = snap.docs.map((d) => ({ id: d.id, type: "annonce", name: "Quizly", ...d.data() })).filter((a) => !hid.includes(a.id) && a.at >= since); // ni les annonces masquées, ni celles d'avant votre arrivée
       merge();
     }, () => {}));
   }
   const hidKey = () => `quizly:${F.uid}:annHidden`;
+  function notifStart() { // date à partir de laquelle ce compte reçoit les annonces (gardée dans le cloud)
+    const k = `quizly:${F.uid}:notifStart`;
+    let t = +localStorage.getItem(k) || 0;
+    if (!t) { t = Date.now(); try { localStorage.setItem(k, String(t)); } catch {} }
+    return t;
+  }
   const hiddenAnn = () => { try { return JSON.parse(localStorage.getItem(hidKey()) || "[]"); } catch { return []; } };
   async function dismiss(n) {
     if (n.type === "annonce") { // une annonce est commune à tous : on la masque seulement chez vous
@@ -339,6 +345,19 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
 
   return {
     start, stop, ready, render, syncRecords, addByCode, openInvites, renderNotifs,
+    isFriend: (uid) => F.friends.some((f) => f.uid === uid),
+    // ajouter quelqu'un rencontré dans un salon (sans son code)
+    async addByUid(to, name) {
+      if (!ready()) return "Connectez-vous au cloud pour ajouter des amis.";
+      if (!to || to === F.uid) return "";
+      if (F.friends.some((f) => f.uid === to)) return `${name} est déjà votre ami.`;
+      try {
+        const m = me();
+        await F.fs.setDoc(ref("requests", to, "from", F.uid), { name: m.name, photo: m.photo || "", at: Date.now() });
+        notify(to, "demande", `${m.name} veut devenir votre ami.`, "/?amis=1");
+        return `Demande envoyée à ${name}.`;
+      } catch { return "Impossible d'envoyer la demande pour le moment."; }
+    },
     // cet appareil, enregistré dans Firestore : le serveur le retrouve même après s'être endormi
     async saveSub(sub) {
       if (!ready() || !sub || !sub.endpoint || !sub.keys) return;
