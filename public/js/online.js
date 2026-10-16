@@ -4,7 +4,7 @@ const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
 const PALETTE = ["#ffe14d", "#34e3b0", "#ff6b8b", "#62c7ff", "#c4b8ff", "#ffb36b", "#f6f3ff", "#9df0d4"]; // couleurs des jetons
 const HEART = "\u2665\uFE0E"; // cœur « texte » (jamais l'emoji rouge)
 
-export function initOnline({ $, show, flash, confetti, me, record, millionUI, avatarEl, setAudio, stat, setMode, noteQ, recent }) {
+export function initOnline({ $, show, flash, confetti, me, record, millionUI, avatarEl, setAudio, stat, setMode, noteQ, recent, addFriend, isFriend }) {
   const photoOf = (id) => (O.pl && O.pl[id] ? O.pl[id].photo : "") || ""; // photo d'un joueur du salon
   const theme = (tag) => String(tag || "").split(" · ")[0]; // « Drapeaux · Facile » → « Drapeaux »
   const mu = millionUI($); // écran « Qui veut gagner des millions »
@@ -136,7 +136,12 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
       case "mlock": mu.lock(m.i); mu.info(m.i < 0 ? "Vous vous arrêtez. En attente des autres joueurs…" : "Réponse verrouillée. En attente des autres joueurs…"); break;
       case "mfifty": mu.fifty(m.keep); break;
       case "mpublic": mu.showPublic(m.perc); break;
-      case "mboard": O.mboard = m.list; if (O.watch) mu.info(watchInfo()); break;
+      case "mboard": O.mboard = m.list; millLive(); if (O.watch) mu.info(watchInfo()); break;
+      case "mout": // qui vient d'être éliminé (ou de s'arrêter)
+        m.list.forEach((r, i) => setTimeout(() => toast(
+          r.top ? `${r.name} gagne 1 000 000 € !` : r.stopped ? `${r.name} s'arrête avec ${euros(r.won)}` : `${r.name} est éliminé (${euros(r.won)})`), i * 1200));
+        break;
+      case "chat": showChat(m); break;
       case "mspec": // spectateur : résultat de la question pour chaque joueur
         mu.reveal({ answer: m.answer, picked: -1, correct: false });
         mu.info(m.results.map((r) => `${r.name} : ${r.stopped ? `s'arrête (${euros(r.won)})` : r.correct ? (r.out ? "1 000 000 € !" : `juste, ${euros(r.won)}`) : `raté, repart avec ${euros(r.won)}`}`).join(" · "));
@@ -171,7 +176,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
       li.style.background = PALETTE[(p.ci || 0) % PALETTE.length];
       li.style.setProperty("--i", i);
       li.append(avatarEl(p.name, p.photo));
-      if (m.host === m.you && p.id !== m.you) { // l'hôte peut agir sur les autres joueurs
+      if (p.id !== m.you) { // toucher un autre joueur : l'ajouter en ami (et, pour l'hôte, le gérer)
         li.classList.add("tap"); li.tabIndex = 0; li.setAttribute("role", "button");
         li.onclick = () => pickPlayer(p);
         li.onkeydown = (e) => (e.key === "Enter" || e.key === " ") && pickPlayer(p);
@@ -346,10 +351,19 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
   /* ----- l'hôte : retirer un joueur, donner son rôle ----- */
   function pickPlayer(p) {
     if (O.sel === p.id && !$("lobbyActions").hidden) { $("lobbyActions").hidden = true; O.sel = null; return; }
-    O.sel = p.id;
-    $("pactName").textContent = p.name;
+    O.sel = p.id; O.selP = p;
+    $("pactName").textContent = p.name; $("pactMsg").textContent = "";
+    const host = O.host === O.you;
+    $("btnSetHost").hidden = $("btnKick").hidden = !host;
+    $("btnAddFromLobby").hidden = !p.uid || !addFriend || (isFriend && isFriend(p.uid));
     $("lobbyActions").hidden = false;
   }
+  $("btnAddFromLobby").onclick = async () => {
+    const p = O.selP; if (!p || !addFriend) return;
+    $("btnAddFromLobby").disabled = true;
+    $("pactMsg").textContent = await addFriend(p.uid, p.name);
+    $("btnAddFromLobby").disabled = false; $("btnAddFromLobby").hidden = true;
+  };
   $("btnSetHost").onclick = () => { if (O.sel) send({ t: "sethost", id: O.sel }); $("lobbyActions").hidden = true; O.sel = null; };
   $("btnKick").onclick = () => { if (O.sel) send({ t: "kick", id: O.sel }); $("lobbyActions").hidden = true; O.sel = null; };
 
@@ -368,13 +382,70 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     };
     menu.append(b);
   });
+  // écrire un message (80 caractères) : il s'envole chez tout le monde, comme les réactions
+  const row = document.createElement("div"); row.className = "chatrow";
+  const inp = document.createElement("input"); inp.type = "text"; inp.maxLength = 80; inp.placeholder = "Écrire un message…"; inp.setAttribute("enterkeyhint", "send");
+  const go = document.createElement("button"); go.className = "btn sun sm"; go.textContent = "Envoyer";
+  const sendChat = () => {
+    const t = inp.value.trim(); if (!t) return;
+    if (Date.now() - (O.reacted || 0) < 1500) return;
+    O.reacted = Date.now(); send({ t: "chat", text: t }); inp.value = ""; closeReacts();
+  };
+  go.onclick = sendChat; inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); sendChat(); } });
+  inp.addEventListener("focus", () => clearTimeout(O.reactT)); // on écrit : le menu ne se referme pas tout seul
+  row.append(inp, go); menu.append(row);
   function closeReacts() { menu.hidden = true; fab.setAttribute("aria-expanded", "false"); fab.classList.remove("open"); }
+  // la bulle se déplace au doigt (sa place est retenue) ; un simple appui ouvre le menu
+  try { const pos = JSON.parse(localStorage.getItem("quizly:fabPos") || "null"); if (pos) { fab.style.left = pos.x + "px"; fab.style.top = pos.y + "px"; fab.style.right = "auto"; } } catch {}
+  let drag = null;
+  fab.addEventListener("pointerdown", (e) => { drag = { x: e.clientX, y: e.clientY, moved: false }; fab.setPointerCapture(e.pointerId); });
+  fab.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 8) return;
+    drag.moved = true;
+    const w = fab.offsetWidth, x = Math.min(innerWidth - w - 4, Math.max(4, e.clientX - w / 2)), y = Math.min(innerHeight - w - 4, Math.max(60, e.clientY - w / 2));
+    fab.style.left = x + "px"; fab.style.top = y + "px"; fab.style.right = "auto";
+  });
+  fab.addEventListener("pointerup", () => {
+    if (drag && drag.moved) { try { localStorage.setItem("quizly:fabPos", JSON.stringify({ x: parseInt(fab.style.left), y: parseInt(fab.style.top) })); } catch {} fab.dataset.dragged = "1"; }
+    drag = null;
+  });
   fab.onclick = () => {
+    if (fab.dataset.dragged) { delete fab.dataset.dragged; return; } // c'était un déplacement, pas un appui
     const open = menu.hidden;
     clearTimeout(O.reactT); if (open) O.reactT = setTimeout(closeReacts, 5000); // se referme seul
     menu.hidden = !open; fab.setAttribute("aria-expanded", String(open)); fab.classList.toggle("open", open);
   };
   document.addEventListener("pointerdown", (e) => { if (!menu.hidden && !menu.contains(e.target) && !fab.contains(e.target)) closeReacts(); });
+  function showChat(m) {
+    const d = document.createElement("div");
+    d.className = "bubble chat";
+    const n = document.createElement("b"); n.textContent = m.id === O.you ? "Vous" : m.name;
+    d.append(n, document.createTextNode(` ${m.text}`));
+    d.style.left = `${6 + Math.random() * 40}vw`;
+    d.onanimationend = () => d.remove();
+    document.body.append(d);
+    setTimeout(() => d.remove(), 6000);
+  }
+  // message bref en haut de l'écran (ex. : « Cyril est éliminé »)
+  function toast(t) {
+    const el = $("gameToast"); el.textContent = t; el.hidden = false;
+    clearTimeout(O.toastT); O.toastT = setTimeout(() => (el.hidden = true), 3500);
+  }
+  // Millionnaire : l'avancement de chaque joueur, toujours visible
+  function millLive() {
+    const box = $("mLive");
+    const list = O.mboard || [];
+    box.hidden = list.length < 2;
+    box.replaceChildren(...list.map((p) => {
+      const c = document.createElement("span");
+      c.className = "mlp" + (p.out ? " out" : p.answered ? " ok" : "") + (p.id === O.you ? " me" : "");
+      const nm = document.createElement("b"); nm.textContent = p.id === O.you ? "Vous" : p.name;
+      const v = document.createElement("small"); v.textContent = p.out ? `${euros(p.won)} · sorti` : euros(p.won);
+      c.append(avatarEl(p.name, photoOf(p.id)), nm, v);
+      return c;
+    }));
+  }
   function showReact(m) {
     const d = document.createElement("div");
     d.className = `bubble r${m.r}`;
