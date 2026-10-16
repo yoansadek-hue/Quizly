@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#3b1d8f">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-180.png?v=3">
 <link rel="icon" type="image/png" href="icons/icon-32.png?v=3">
@@ -46,7 +47,7 @@ addEventListener("error", function (e) {
 
 <div id="fx"></div>
 <div id="gameToast" class="gtoast" role="status" hidden></div>
-<div id="ptr" class="ptr" aria-hidden="true"></div>
+<div id="ptr" class="ptr" aria-hidden="true"><svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" class="track"/><circle cx="18" cy="18" r="14" class="arc"/></svg></div>
 <!-- demande d'ami reçue -->
 <div id="reqToast" class="toast" role="alert" hidden>
   <div class="toastTop"><span id="reqAv"></span><span id="reqText"></span></div>
@@ -150,7 +151,7 @@ addEventListener("error", function (e) {
     </div>
     <button class="daily" id="btnDaily"><span class="dk">Défi du jour</span><strong id="dailyTitle">10 questions, une seule tentative</strong><span class="dsub" id="dailySub">Les mêmes pour tout le monde. Battez vos amis.</span></button>
     <div id="modes"></div>
-    <p class="center-link"><button class="link" id="btnLogout">Changer de compte</button></p>
+    <p class="center-link"><button class="link" id="btnSettings">Paramètres</button></p>
     <p class="version ver"></p>
   </section>
 
@@ -195,6 +196,25 @@ addEventListener("error", function (e) {
     <div class="stack">
       <button class="btn white" id="btnShuffle">Mélanger au hasard</button>
       <button class="btn sun" id="btnTeams">Choisir les thèmes</button>
+    </div>
+  </section>
+
+  <!-- Paramètres -->
+  <section id="s-settings" class="screen" hidden>
+    <button class="goback" data-back="s-mode">← Retour</button>
+    <h2>Paramètres</h2>
+    <div class="setlist">
+      <h3 class="fsub">Notifications</h3>
+      <div class="setrow"><span id="setPushTxt">Notifications</span><button class="btn sun sm" id="setPushBtn">Activer</button></div>
+      <h3 class="fsub">Jeu</h3>
+      <label class="setrow"><span>Lecture automatique des extraits musicaux</span><input type="checkbox" class="tgl" data-set="autoplay"></label>
+      <label class="setrow"><span>Vibrations (bonne ou mauvaise réponse)</span><input type="checkbox" class="tgl" data-set="vibrate"></label>
+      <label class="setrow"><span>Animations réduites</span><input type="checkbox" class="tgl" data-set="calm"></label>
+      <div class="setrow"><span>Bulle du chat</span><button class="btn ghost sm" id="setFabReset">Remettre à sa place</button></div>
+      <h3 class="fsub">Compte</h3>
+      <div class="setrow"><span>Questions déjà vues (pour en avoir de nouvelles)</span><button class="btn ghost sm" id="setClearSeen">Oublier</button></div>
+      <div class="setrow"><span id="setAccount">Compte Google</span><button class="btn coral sm" id="btnLogout">Se déconnecter</button></div>
+      <p class="version" id="setVersion"></p>
     </div>
   </section>
 
