@@ -796,3 +796,45 @@ body::before{display:none} /* plus de bande sous l'heure */
 /* animations réduites */
 body.calm *,body.calm *::before,body.calm *::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
 body.calm .ptr.spin svg{animation:ptrspin .7s linear infinite!important}
+
+/* ---------- 2.12.3 ---------- */
+/* seule la zone du contenu défile : rien ne passe sous l'heure ni sous la barre d'accueil (plus de flou ni de bande) */
+html,body{height:100%;overflow:hidden}
+body{display:flex;flex-direction:column;padding-top:env(safe-area-inset-top)}
+#bar{flex:none;width:100%}
+#main{position:relative;flex:1;width:100%;min-height:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding-bottom:calc(124px + env(safe-area-inset-bottom))}
+#main>.screen{transform:translateY(var(--pull,0px));transition:transform .35s cubic-bezier(.2,.8,.2,1)}
+#main.pulling>.screen{transition:none}
+/* le jeton de rafraîchissement, au-dessus du contenu */
+.ptr{position:absolute;left:50%;top:6px;z-index:5;width:40px;height:40px;margin-left:-20px;border-radius:50%;background:var(--paper);box-shadow:var(--edge-s);opacity:0;display:grid;place-items:center;pointer-events:none;transform:translateY(calc(var(--pull,0px) - 46px)) rotate(calc(var(--pull,0px) * 3));transition:opacity .2s,transform .35s cubic-bezier(.2,.8,.2,1)}
+#main.pulling .ptr{transition:opacity .2s}
+.ptr svg{width:30px;height:30px;transform:rotate(-90deg)}
+.ptr circle{fill:none;stroke-width:4}
+.ptr .track{stroke:rgba(30,15,69,.12)}
+.ptr .arc{stroke:var(--sun);stroke-linecap:round;stroke-dasharray:88;stroke-dashoffset:88}
+.ptr.ready .arc{stroke:var(--mint)}
+.ptr.spin svg{animation:ptrspin2 .7s linear infinite}
+@keyframes ptrspin2{to{transform:rotate(270deg)}}
+/* bouton Paramètres dans le Profil */
+#s-profile{position:relative}
+.gearbtn{position:absolute;right:0;top:0;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:var(--paper);color:var(--ink);border:3px solid var(--ink);box-shadow:var(--edge-s);cursor:pointer}
+.gearbtn:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ink)}
+/* Paramètres aux couleurs de Quizly : des jetons */
+.setlist{gap:12px}
+.setlist .fsub{display:inline-block;align-self:flex-start;margin:18px 0 0;padding:4px 12px;border-radius:99px;background:var(--ink);color:var(--sun);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+.setrow{background:var(--paper);color:var(--ink);border:3px solid var(--ink);border-radius:20px;box-shadow:var(--edge-s);padding:12px 14px}
+.setlist .setrow:nth-child(odd){border-left:10px solid var(--sun)}
+.setlist .setrow:nth-child(even){border-left:10px solid var(--mint)}
+.setrow .btn.ghost{color:var(--ink);border-color:var(--muted)}
+.tgl{background:#ddd6ff;border-color:var(--ink)}
+.tgl:checked{background:var(--mint)}
+#setVersion{color:var(--lilac)}
+/* correctif 2.12.3 : on ne déplace jamais l'écran (les boutons fixés en bas en dépendent) ; le contenu descend par la marge du haut */
+#main>.screen{transform:none!important;transition:none}
+:root{--w:480px}
+@media (min-width:700px){:root{--w:760px}}
+@media (min-width:1000px){:root{--w:920px}}
+#main{max-width:none;margin:0;padding-left:max(18px,calc((100% - var(--w)) / 2 + 18px));padding-right:max(18px,calc((100% - var(--w)) / 2 + 18px));padding-top:calc(14px + var(--pull,0px));transition:padding-top .35s cubic-bezier(.2,.8,.2,1)}
+#main.pulling{transition:none}
+/* la page elle-même ne peut jamais défiler, même de côté (seule la zone du contenu défile) */
+html,body{overflow:hidden;overflow:clip}
