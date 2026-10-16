@@ -8,7 +8,7 @@ import { startCloud, cloudState } from "./cloud.js";
 import { initFriends, friendCodeFrom } from "./friends.js";
 import { enablePush, pushState, currentSub } from "./push.js";
 
-const VERSION = "2.12.3"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.12.4"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -73,7 +73,7 @@ function show(id) {
   document.querySelectorAll(".screen").forEach((s) => (s.hidden = s.id !== id));
   userLabel();
   $("bar").hidden = id === "s-login" || id === "s-local";
-  $("main").scrollTop = 0; // c'est la zone du contenu qui défile, pas la page
+  window.scrollTo(0, 0);
   const sp = document.getElementById("splash"); // le jeu est prêt : on retire l'écran de démarrage
   if (sp) { sp.classList.add("off"); setTimeout(() => sp.remove(), 450); }
 }
@@ -1443,21 +1443,21 @@ applySettings();
 (() => {
   const main = $("main"), ptr = $("ptr"), arc = ptr.querySelector("circle.arc"), LEN = 88, DEAD = 24, NEED = 72;
   let st = null, busy = false;
-  const can = () => main.scrollTop <= 0 && !busy && !PLAYING.includes(curScreen) && !["s-lobby", "s-scan", "s-daily"].includes(curScreen);
+  const can = () => scrollY <= 0 && !busy && !PLAYING.includes(curScreen) && !["s-lobby", "s-scan", "s-daily"].includes(curScreen);
   const set = (d, p) => {
     main.style.setProperty("--pull", `${d}px`);
     ptr.style.opacity = Math.min(1, d / 40);
     arc.style.strokeDashoffset = LEN * (1 - p);
     ptr.classList.toggle("ready", p >= 1);
   };
-  main.addEventListener("touchstart", (e) => {
+  addEventListener("touchstart", (e) => {
     st = can() && e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY, on: false, dy: 0 } : null;
   }, { passive: true });
-  main.addEventListener("touchmove", (e) => {
+  addEventListener("touchmove", (e) => {
     if (!st) return;
     const dx = e.touches[0].clientX - st.x, dy = e.touches[0].clientY - st.y;
     if (!st.on) {
-      if (dy < DEAD || Math.abs(dx) > dy || main.scrollTop > 0) { if (dy < -4 || Math.abs(dx) > 12) st = null; return; } // pas un vrai tirage
+      if (dy < DEAD || Math.abs(dx) > dy || scrollY > 0) { if (dy < -4 || Math.abs(dx) > 12) st = null; return; } // pas un vrai tirage
       st.on = true; main.classList.add("pulling");
     }
     st.dy = dy - DEAD;
@@ -1475,8 +1475,8 @@ applySettings();
     try { await refreshScreen(); } catch {}
     setTimeout(() => { ptr.classList.remove("spin"); set(0, 0); busy = false; }, Math.max(0, 600 - (Date.now() - t0)));
   };
-  main.addEventListener("touchend", end, { passive: true });
-  main.addEventListener("touchcancel", end, { passive: true });
+  addEventListener("touchend", end, { passive: true });
+  addEventListener("touchcancel", end, { passive: true });
 })();
 // met à jour seulement l'onglet affiché
 async function refreshScreen() {
