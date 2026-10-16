@@ -213,15 +213,28 @@ export function avatarEl(name, photo, big) {
   return s;
 }
 
-/* ---------- Extrait musical (Devine la chanson) ---------- */
+/* ---------- Extrait musical (Devine la chanson) ----------
+   Joué avec Web Audio, et non avec un lecteur <audio> : le téléphone n'affiche plus le lecteur « Quizly »
+   sur l'écran verrouillé ni dans le centre de contrôle. Le fichier passe par le serveur (même origine). */
+let actx = null, src = null, buf = null, curUrl = null, btn = null;
+const label = (t) => { if (btn) btn.textContent = t; };
+export function stopAudio() { if (src) { try { src.onended = null; src.stop(); } catch {} src = null; } }
+function playBuf() {
+  if (!buf || !actx) return;
+  stopAudio();
+  actx.resume().catch(() => {});
+  src = actx.createBufferSource(); src.buffer = buf; src.connect(actx.destination);
+  src.onended = () => { src = null; label("Réécouter l'extrait"); };
+  src.start(); label("Arrêter l'extrait");
+}
 export function setAudio($, url) {
-  const a = $("qAudio"), b = $("qPlay");
-  a.pause();
-  if (!url) { b.hidden = true; a.removeAttribute("src"); return; }
-  a.src = url; b.hidden = false;
-  const label = () => (b.textContent = a.paused ? "Écouter l'extrait" : "Arrêter l'extrait");
-  b.onclick = (e) => { e.stopPropagation(); if (a.paused) { a.currentTime = 0; a.play().then(label).catch(label); } else { a.pause(); label(); } };
-  a.onended = a.onpause = label;
-  label();
-  a.play().then(label).catch(label); // lance tout de suite si le téléphone l'autorise, sinon il faut toucher le bouton
+  btn = $("qPlay"); stopAudio(); buf = null; curUrl = url || null;
+  if (!url) { btn.hidden = true; return; }
+  btn.hidden = false; label("Chargement de l'extrait…");
+  try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); } catch { label("Son indisponible"); return; }
+  btn.onclick = (e) => { e.stopPropagation(); if (src) { stopAudio(); label("Écouter l'extrait"); } else playBuf(); };
+  fetch(`/api/audio?u=${encodeURIComponent(url)}`).then((r) => { if (!r.ok) throw new Error(); return r.arrayBuffer(); })
+    .then((a) => new Promise((ok, ko) => actx.decodeAudioData(a, ok, ko)))
+    .then((d) => { if (curUrl !== url) return; buf = d; label("Écouter l'extrait"); if (actx.state === "running") playBuf(); }) // démarre tout seul si le téléphone l'autorise
+    .catch(() => { if (curUrl === url) label("Extrait indisponible"); });
 }
