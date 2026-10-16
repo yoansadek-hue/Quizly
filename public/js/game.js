@@ -8,7 +8,7 @@ import { startCloud, cloudState } from "./cloud.js";
 import { initFriends, friendCodeFrom } from "./friends.js";
 import { enablePush, pushState, currentSub } from "./push.js";
 
-const VERSION = "2.12.4"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.12.5"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -1410,29 +1410,61 @@ $("btnDailyBack").onclick = () => show("s-mode");
 
 /* ---------- Paramètres (gardés sur cet appareil) ---------- */
 const SETKEY = "quizly:settings";
-const DEFAULTS = { autoplay: true, vibrate: true, calm: false };
+const DEFAULTS = { autoplay: true, vibrate: true, calm: false, auto: true };
 function settings() { try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(SETKEY) || "{}") }; } catch { return { ...DEFAULTS }; } }
 function setting(k) { return settings()[k]; }
-function applySettings() { document.body.classList.toggle("calm", !!setting("calm")); }
+function saveSetting(k, v) { const s2 = settings(); s2[k] = v; try { localStorage.setItem(SETKEY, JSON.stringify(s2)); } catch {} applySettings(); }
+function applySettings() {
+  document.body.classList.toggle("calm", !!setting("calm"));
+  S.cfg.auto = !!setting("auto"); // difficulté proposée par défaut avant chaque partie
+}
 function renderSettings() {
   const st = settings();
-  document.querySelectorAll("#s-settings .tgl").forEach((c) => {
-    c.checked = !!st[c.dataset.set];
-    c.onchange = () => { const s2 = settings(); s2[c.dataset.set] = c.checked; try { localStorage.setItem(SETKEY, JSON.stringify(s2)); } catch {} applySettings(); };
+  // compte
+  $("setAv").replaceChildren(avatarEl(S.firstName, S.photo, true));
+  $("setName").textContent = S.firstName || "Joueur";
+  const cs = cloudState();
+  $("setAccount").textContent = `Compte Google · ${cs === "cloud" ? "sauvegardé" : cs === "error" ? "hors ligne" : "connexion…"}`;
+  // interrupteurs
+  document.querySelectorAll("#s-settings .tgl").forEach((c) => { c.checked = !!st[c.dataset.set]; c.onchange = () => saveSetting(c.dataset.set, c.checked); });
+  // difficulté par défaut
+  document.querySelectorAll("#setDiff button").forEach((b) => {
+    b.setAttribute("aria-pressed", String(!!st.auto === (b.dataset.v === "1")));
+    b.onclick = () => { saveSetting("auto", b.dataset.v === "1"); renderSettings(); };
   });
+  $("setDiffRow").querySelector("small").textContent = st.auto ? "Évolutive : elle monte toute seule à chaque tour." : "Au choix : on vous demande à chaque tour.";
+  // vibrations : seulement si l'appareil sait vibrer (pas l'iPhone)
+  const canVib = "vibrate" in navigator;
+  $("setVibRow").classList.toggle("off", !canVib);
+  $("setVibRow").querySelector(".tgl").disabled = !canVib;
+  $("setVibTxt").textContent = canVib ? "Une petite vibration à chaque réponse." : "Non disponible sur cet appareil (iPhone).";
+  // notifications
   const p = pushState();
-  $("setPushTxt").textContent = p === "granted" ? "Notifications activées sur cet appareil" : p === "denied" ? "Notifications bloquées (réglages du téléphone)" : p === "unsupported" ? "Notifications : installez Quizly sur l'écran d'accueil" : "Notifications désactivées";
+  $("setPushTxt").textContent = p === "granted" ? "Amis, invitations, défi de 10 h et annonces." : p === "denied" ? "Bloquées : autorisez-les dans les réglages du téléphone, pour Quizly." : p === "unsupported" ? "Sur iPhone, installez d'abord Quizly sur l'écran d'accueil." : "Soyez prévenu même appli fermée.";
   $("setPushBtn").hidden = p !== "default";
-  $("setAccount").textContent = `Connecté : ${S.gName || S.firstName || "compte Google"}`;
+  $("setPushChip").hidden = p !== "granted" && p !== "denied";
+  $("setPushChip").textContent = p === "granted" ? "Activées" : "Bloquées";
+  $("setPushChip").className = `schip ${p === "granted" ? "on" : "no"}`;
+  // questions vues
+  const n = getRecent().arr.length;
+  $("setSeenTxt").textContent = n ? `${n} question${n > 1 ? "s" : ""} évitée${n > 1 ? "s" : ""} pour vous proposer du neuf.` : "Aucune pour l'instant.";
+  $("setClearSeen").disabled = !n;
   $("setVersion").textContent = `Quizly v${VERSION} · par YoskanGame`;
 }
 $("btnSettings").onclick = () => { renderSettings(); show("s-settings"); };
-$("setPushBtn").onclick = async () => { await askPush(); renderSettings(); };
-$("setFabReset").onclick = () => { try { localStorage.removeItem("quizly:fabPos"); } catch {} const f = $("reactFab"); f.style.left = f.style.top = ""; f.style.right = ""; $("setFabReset").textContent = "C'est fait"; };
-$("setClearSeen").onclick = () => ask("Oublier les questions déjà vues ?", "Les questions de vos anciennes parties pourront revenir.", "Oublier", () => {
+$("setEditMe").onclick = () => { renderProfile(); show("s-profile"); $("btnEditName").click(); };
+$("setPushBtn").onclick = async () => { $("setPushBtn").disabled = true; await askPush(); $("setPushBtn").disabled = false; renderSettings(); };
+$("setFabReset").onclick = () => {
+  try { localStorage.removeItem("quizly:fabPos"); } catch {}
+  const f = $("reactFab"); f.style.left = f.style.top = f.style.right = "";
+  $("setFabReset").textContent = "Replacée"; setTimeout(() => ($("setFabReset").textContent = "Replacer"), 1500);
+};
+$("setClearSeen").onclick = () => ask("Oublier les questions déjà vues ?", "Des questions de vos anciennes parties pourront revenir.", "Oublier", () => {
   try { localStorage.removeItem(`quizly:${S.uid}:recent`); localStorage.removeItem(`quizly:${S.uid}:history`); } catch {}
   recentCache = null; renderSettings(); show("s-settings");
 });
+// se déconnecter : avec confirmation
+{ const doLogout = $("btnLogout").onclick; $("btnLogout").onclick = () => ask("Se déconnecter ?", "Vous retrouverez tout en vous reconnectant avec Google.", "Se déconnecter", doLogout); }
 applySettings();
 
 /* ---------- tirer pour rafraîchir, façon Snapchat ----------
