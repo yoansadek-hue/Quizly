@@ -7,8 +7,9 @@ import { startScan, stopScan, tvCodeFrom } from "./scan.js";
 import { startCloud, cloudState } from "./cloud.js";
 import { initFriends, friendCodeFrom } from "./friends.js";
 import { enablePush, pushState, currentSub } from "./push.js";
+import { initCosmetics } from "./cosmetics.js";
 
-const VERSION = "2.15.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.16.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -35,7 +36,7 @@ const S = {
 };
 const M = () => MODES[S.mode];
 document.querySelectorAll(".ver").forEach((e) => (e.textContent = `Quizly v${VERSION} · par YoskanGame`));
-const online = initOnline({ $, show, flash, confetti, me: () => ({ name: S.firstName || "Joueur", photo: S.photo || "", uid: S.uid || "" }),
+const online = initOnline({ $, show, flash, confetti, me: () => ({ name: S.firstName || "Joueur", photo: S.photo || "", uid: S.uid || "", cos: cosm.get() }),
   addFriend: (uid, name) => friends.addByUid(uid, name), isFriend: (uid) => friends.isFriend(uid), record: chronoRecord, millionUI, avatarEl, setAudio, noteQ: noteRecent, recent: () => getRecent().arr.slice(-300), setMode: (kind) => (S.mode = KIND_MODE[kind] || "online"), stat: { answer: (t, ok) => statAnswer(t, ok), game: (k) => statGame(k) } });
 // record personnel du Chrono en ligne (gardé sur l'appareil, par compte)
 function chronoRecord(points) {
@@ -782,6 +783,7 @@ function statAnswer(theme, ok) {
   const st = getStats();
   const t = (st.themes[theme] ||= { ok: 0, n: 0 });
   t.n++; if (ok) t.ok++;
+  if (ok) cosm.earn(1); // 1 jeton par bonne réponse
   st.run = ok ? (st.run || 0) + 1 : 0; // bonnes réponses d'affilée (toutes parties confondues)
   st.bestRun = Math.max(st.bestRun || 0, st.run);
   saveStats(st);
@@ -792,6 +794,7 @@ function statGame(kind) {
   const st = getStats();
   st.games[kind] = (st.games[kind] || 0) + 1;
   saveStats(st);
+  cosm.earn(2, "partie"); // 2 jetons par partie
   checkAch();
 }
 const GAME_NAMES = { classic: "Classique", qcm: "QCM", solo: "Solo", teams: "Équipes", million: "Millionnaire", online: "En ligne", chrono: "Chrono", omillion: "Millionnaire en ligne" };
@@ -799,6 +802,8 @@ function renderProfile() {
   const st = getStats();
   const best = (k) => { try { return +localStorage.getItem(`quizly:${S.uid}:${k}`) || 0; } catch { return 0; } };
   $("profName").textContent = S.firstName || "Profil";
+  $("coinCount").textContent = cosm.coins();
+  $("s-profile").querySelector(".profhead").className = `profhead banner ${cosm.get().banner}`; // votre bannière
   $("meEdit").hidden = true;
   $("profAv").replaceChildren(avatarEl(S.firstName, S.photo, true));
   const themes = Object.entries(st.themes).map(([name, t]) => ({ name, ...t, pct: Math.round((100 * t.ok) / t.n) }));
@@ -1040,6 +1045,7 @@ const friends = initFriends({
     return { games: Object.values(st.games || {}).reduce((a, b) => a + b, 0), questions: n, pct: n ? Math.round((100 * ok) / n) : 0 }; },
   daily: () => getDaily(),
   achs: () => Object.keys(getAch()),
+  cos: () => cosm.get(),
   showScreen: (id) => { if (id === "s-friends") friends.render(); show(id); }
 });
 function openNotifs() { friends.renderNotifs(); adminUI(); show("s-notifs"); }
@@ -1077,6 +1083,7 @@ document.addEventListener("touchstart", () => {}, { passive: true });
 let pendingAmi = new URLSearchParams(location.search).get("ami"); // QR code ami scanné avec l'appareil photo
 async function afterCloud() {
   setUser(S.gName, S.gPhoto); // nom et photo personnalisés récupérés du cloud
+  cosm.apply();
   await friends.start();
   enablePush(S.uid, false).then((st) => { pushUI(st); if (st === "granted") saveDevice(); }); // réinscrit cet appareil (sans rien demander)
   if (new URLSearchParams(location.search).get("defi")) { try { history.replaceState(null, "", location.pathname); } catch {} openDaily(); } // notification de 10 h touchée
@@ -1133,6 +1140,7 @@ document.querySelectorAll("[data-back]").forEach((b) => (b.onclick = () => {
   if (t === "s-themes" && M().million) t = "s-roomtype"; // le Millionnaire n'a pas d'écran de thèmes
   if (t === "s-lobby") { S.editRoom = false; online.setEditing(false); }
   if (t === "s-mode" && S.menuSec && ["s-count", "s-themes"].includes(curScreen)) t = "s-sub"; // retour à la liste Party / Solo
+  if (t === "s-profile") renderProfile(); // retour au Profil (depuis la Boutique ou les Paramètres) : à jour
   if (curScreen === "s-scan" && S.scanFrom) { t = S.scanFrom; if (t === "s-friends") friends.render(); } // le scanner ramène d'où l'on vient
   show(t);
 }));
@@ -1272,7 +1280,7 @@ $("btnAllThemes").onclick = () => { S.allThemes = !S.allThemes; renderProfile();
 /* ---------- personnaliser son nom et sa photo ---------- */
 function saveMe(o) {
   try { localStorage.setItem(meKey(), JSON.stringify(o)); } catch {}
-  setUser(S.gName, S.gPhoto); renderProfile(); friends.syncRecords(); // vos amis voient le nouveau nom et la nouvelle photo
+  setUser(S.gName, S.gPhoto); cosm.apply(); // le cadre suit le nouveau nom renderProfile(); friends.syncRecords(); // vos amis voient le nouveau nom et la nouvelle photo
 }
 // réduit la photo choisie : petit carré JPEG (assez léger pour le cloud et le jeu en ligne)
 function shrinkPhoto(file) {
@@ -1534,7 +1542,10 @@ const dHistKey = () => `quizly:${S.uid}:dailyHist`;
 function dailyDays() { try { return JSON.parse(localStorage.getItem(dHistKey()) || "[]"); } catch { return []; } }
 function noteDailyDay(d) {
   const days = dailyDays();
-  if (!days.includes(d.day)) { days.push(d.day); try { localStorage.setItem(dHistKey(), JSON.stringify(days.slice(-120))); } catch {} }
+  if (!days.includes(d.day)) { // une seule fois par jour
+    days.push(d.day); try { localStorage.setItem(dHistKey(), JSON.stringify(days.slice(-120))); } catch {}
+    cosm.earn(10, "défi du jour");
+  }
   friends.dailyDone(d.day, d); // pour le rappel du soir et le classement mondial
   checkAch();
 }
@@ -1586,6 +1597,7 @@ function checkAchNow() {
   const have = getAch(), x = achFacts(), fresh = ACH.filter(([id, , , , , ok]) => !have[id] && ok(x));
   if (!fresh.length) return;
   fresh.forEach(([id]) => (have[id] = Date.now()));
+  cosm.earn(25 * fresh.length, "succès"); // 25 jetons par succès
   try { localStorage.setItem(achKey(), JSON.stringify(have)); } catch {}
   fresh.forEach(([, title], i) => setTimeout(() => achToast(title), i * 2200)); // une annonce par succès
   friends.syncRecords(); // vos amis voient vos succès
@@ -1670,3 +1682,11 @@ function addCustom() {
 }
 $("btnCustomAdd").onclick = addCustom;
 $("customIn").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); addCustom(); } });
+
+/* ---------- cosmétiques : jetons et Boutique ---------- */
+const cosm = initCosmetics({
+  $, ask, avatarEl, uid: () => S.uid, name: () => S.firstName, photo: () => S.photo,
+  achs: () => Object.keys(getAch()),
+  onChange: () => { if (curScreen === "s-profile") renderProfile(); friends.syncRecords(); } // vos amis voient vos cosmétiques
+});
+$("btnShop").onclick = () => { cosm.render(); show("s-shop"); };
