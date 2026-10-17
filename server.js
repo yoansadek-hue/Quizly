@@ -1178,13 +1178,19 @@ function handle(ws, m) {
   }
 }
 
+// filet de sécurité : une erreur imprévue est notée dans les journaux mais n'arrête plus le serveur (toutes les parties en cours tombaient)
+process.on("uncaughtException", (e) => console.error("Erreur imprévue :", e));
+process.on("unhandledRejection", (e) => console.error("Promesse rejetée :", e));
 const port = process.env.PORT || 3000;
 const server = app.listen(port, () => console.log(`Quizly sur http://localhost:${port}`));
-const wss = new WebSocketServer({ server, path: "/ws", maxPayload: 20480 });
+// 256 Ko : la photo (12 Ko) et l'historique des questions vues tiennent largement (avant : 20 Ko, un message trop gros arrêtait le serveur)
+const wss = new WebSocketServer({ server, path: "/ws", maxPayload: 262144 });
+wss.on("error", (e) => console.error("WebSocket :", e.message));
 wss.on("connection", (ws, req) => {
   ws.ip = req.headers["x-forwarded-for"]?.split(",")[0].trim() || req.socket.remoteAddress;
   ws.isAlive = true;
   ws.on("pong", () => (ws.isAlive = true));
+  ws.on("error", (e) => console.warn("Connexion :", e.message)); // message invalide ou trop gros : on ferme ce joueur, jamais le serveur
   ws.on("message", (buf) => { let m; try { m = JSON.parse(buf); } catch { return; } try { handle(ws, m); } catch (e) { console.error(e); } });
   ws.on("close", () => { if (ws.tvRoom) dropTv(ws); drop(ws); });
 });
