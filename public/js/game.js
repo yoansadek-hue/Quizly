@@ -1702,6 +1702,7 @@ $("customIn").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.pr
 /* ---------- cosmétiques : jetons et Boutique ---------- */
 const cosm = initCosmetics({
   $, ask, avatarEl, uid: () => S.uid, name: () => S.firstName, photo: () => S.photo,
+  dev: () => S.uid === DEV_UID, // le développeur a toute la Boutique
   achs: () => Object.keys(getAch()),
   onChange: () => { if (curScreen === "s-profile") renderProfile(); friends.syncRecords(); } // vos amis voient vos cosmétiques
 });

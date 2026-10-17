@@ -23,12 +23,12 @@ export function rarity(id) {
 const DEFAULT = { frame: "fr-ink", bubble: "sk-classic", banner: "bn-plain" };
 const CATS = [["frame", "Cadres"], ["bubble", "Bulles"], ["banner", "Bannières"]];
 
-export function initCosmetics({ $, ask, uid, name, photo, achs, avatarEl, onChange }) {
+export function initCosmetics({ $, ask, uid, name, photo, achs, avatarEl, onChange, dev = () => false }) {
   const k = (n) => `quizly:${uid()}:${n}`;
   const read = (n, d) => { try { return JSON.parse(localStorage.getItem(k(n)) || "null") ?? d; } catch { return d; } };
   const write = (n, v) => { try { localStorage.setItem(k(n), JSON.stringify(v)); } catch {} };
   const coins = () => +read("coins", 0) || 0;
-  const owned = () => new Set([...read("owned", []), "fr-ink", "sk-classic", "bn-plain"]);
+  const owned = () => new Set(dev() ? Object.keys(ITEMS) : [...read("owned", []), "fr-ink", "sk-classic", "bn-plain"]);
   const equipped = () => ({ ...DEFAULT, ...read("cos", {}) });
   let tab = "frame";
 
@@ -41,7 +41,7 @@ export function initCosmetics({ $, ask, uid, name, photo, achs, avatarEl, onChan
     t.hidden = false; t.classList.remove("go"); void t.offsetWidth; t.classList.add("go");
     clearTimeout(t._t); t._t = setTimeout(() => (t.hidden = true), 1600);
   }
-  const unlocked = (id) => { const need = ITEMS[id][3]; return !need || achs().includes(need); };
+  const unlocked = (id) => { const need = ITEMS[id][3]; return !need || dev() || achs().includes(need); };
 
   function apply() { // ce qui est équipé s'affiche partout
     const e = equipped();
