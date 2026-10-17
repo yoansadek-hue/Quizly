@@ -1,5 +1,5 @@
 // Quizly TV : la télé crée son salon (caché, rejoint par QR code) et affiche la partie comme un plateau télé.
-import { avatarEl } from "./million.js";
+import { avatarEl, setFrame } from "./million.js";
 import { euros, PRIZES, SAFE } from "./local.js";
 import { THEMES } from "./questions.js";
 
@@ -55,8 +55,8 @@ function onMsg(m) {
     case "mspec": renderMSpec(m); break;
     case "mout": break; // visible dans la colonne de droite
     case "end": renderEnd(m); break;
-    case "react": bubble(m.name, TAUNTS[m.r] || "", `r${m.r}`); break;
-    case "chat": bubble(m.name, m.text, "r4"); break;
+    case "react": bubble(m.name, TAUNTS[m.r] || "", `r${m.r} ${m.sk || ""}`); break;
+    case "chat": bubble(m.name, m.text, `r4 ${m.sk || ""}`); break;
   }
 }
 
@@ -64,6 +64,7 @@ function onMsg(m) {
 function renderLobby(m) {
   T.kind = m.cfg.kind || "survie";
   T.pl = Object.fromEntries(m.players.map((p) => [p.id, p]));
+  m.players.forEach((p) => setFrame(p.name, (p.cos || {}).frame)); // cadres des joueurs
   if (m.phase !== "lobby") return;
   const link = `${location.origin}/?tv=${m.code}`; // lu par le scanner de l'appli (ou l'appareil photo)
   if ($("tQr").dataset.code !== m.code) { $("tQr").dataset.code = m.code; $("tQr").src = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&margin=8&data=${encodeURIComponent(link)}`; }
