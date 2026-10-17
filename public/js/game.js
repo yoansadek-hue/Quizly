@@ -8,7 +8,7 @@ import { startCloud, cloudState } from "./cloud.js";
 import { initFriends, friendCodeFrom } from "./friends.js";
 import { enablePush, pushState, currentSub } from "./push.js";
 
-const VERSION = "2.14.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.15.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
