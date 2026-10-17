@@ -1003,10 +1003,20 @@ body::after{content:"";position:fixed;inset:-50px;z-index:-1;pointer-events:none
 .bubble.sk-candy{background:repeating-linear-gradient(45deg,#ffd6e7 0 10px,#fff 10px 20px)!important;border-color:#b05a85}
 /* ---------- 2.17 : barre d'onglets du bas ---------- */
 .tabbar{position:fixed;left:50%;bottom:calc(10px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:35;width:min(460px,calc(100% - 20px));display:grid;grid-template-columns:repeat(5,1fr);gap:2px;padding:6px;background:rgba(30,15,69,.82);-webkit-backdrop-filter:blur(16px) saturate(1.4);backdrop-filter:blur(16px) saturate(1.4);border:2px solid rgba(196,184,255,.28);border-radius:30px;box-shadow:0 10px 30px rgba(10,4,30,.45)}
-.tab{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:54px;border:0;border-radius:22px;background:transparent;color:var(--lilac);font:700 11px var(--font);cursor:pointer;transition:background .2s,color .2s,transform .12s}
-.tab svg{width:24px;height:24px}
-.tab:active{transform:scale(.92)}
-.tab.on{background:var(--sun);color:var(--ink);box-shadow:0 3px 0 var(--ink)}
+.tab{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:54px;border:0;border-radius:24px;background:transparent;color:var(--lilac);font:700 11px var(--font);cursor:pointer;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;transition:color .25s}
+.tab svg{width:24px;height:24px;transition:scale .3s cubic-bezier(.34,1.56,.64,1)}
+.tab.on{color:var(--sun)}
+.tabbar.drag .tab.on:not(.over){color:var(--lilac)}
+.tabbar.drag .tab.over{color:var(--sun)}
+.tabbar.drag .tab.over svg{scale:1.12}
+/* la bulle de verre de l'onglet choisi */
+.tabbar{touch-action:none;transition:scale .3s cubic-bezier(.34,1.56,.64,1)}
+.tabbar.press{scale:1.015}
+.tabpill{position:absolute;top:6px;bottom:6px;left:0;z-index:0;border-radius:24px;pointer-events:none;opacity:0;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.16);box-shadow:inset 0 1px 0 rgba(255,255,255,.18);transition:translate .55s cubic-bezier(.34,1.45,.64,1),width .4s,scale .35s cubic-bezier(.34,1.56,.64,1),opacity .2s,background .25s,box-shadow .25s}
+.tabpill.show{opacity:1}
+.tabpill.now{transition:none}
+.tabbar.press .tabpill{scale:1.14 1.18;background:rgba(255,255,255,.2);-webkit-backdrop-filter:blur(6px) saturate(1.8);backdrop-filter:blur(6px) saturate(1.8);box-shadow:inset 0 1px 1px rgba(255,255,255,.45),inset 0 -1px 1px rgba(255,255,255,.12),0 8px 22px rgba(10,4,30,.35)}
+.tabbar.drag .tabpill{transition:translate .09s linear,width .4s,scale .35s cubic-bezier(.34,1.56,.64,1),opacity .2s,background .25s,box-shadow .25s}
 .tab .nbadge{top:2px;right:calc(50% - 22px)}
 body.withtabs #main{padding-bottom:calc(110px + env(safe-area-inset-bottom))}
 body.withtabs .reactfab{bottom:auto}
@@ -1053,3 +1063,4 @@ body.withtabs .reactfab{bottom:auto}
 .earn{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:18px;padding:14px;background:var(--bg-deep);border-radius:20px;font:700 13px var(--font);color:var(--lilac)}
 .earn b{width:100%;font:800 13px var(--display);color:var(--sun)}
 .earn span{padding:4px 10px;border-radius:99px;background:rgba(255,255,255,.08)}
+.two:has(> [hidden]){grid-template-columns:1fr}

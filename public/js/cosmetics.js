@@ -41,6 +41,14 @@ export function initCosmetics({ $, ask, uid, name, photo, achs, avatarEl, onChan
     t.hidden = false; t.classList.remove("go"); void t.offsetWidth; t.classList.add("go");
     clearTimeout(t._t); t._t = setTimeout(() => (t.hidden = true), 1600);
   }
+  // rattrapage : les jetons qu'on aurait gagnés avant la Boutique (calcul sans doublon : on compare au total déjà gagné)
+  function backpay(owed) {
+    if (!uid()) return 0;
+    const spent = read("owned", []).reduce((a, id) => a + (ITEMS[id] ? ITEMS[id][2] : 0), 0);
+    const gift = Math.floor(owed - coins() - spent);
+    if (gift > 0) earn(gift, "cadeau");
+    return Math.max(0, gift);
+  }
   const unlocked = (id) => { const need = ITEMS[id][3]; return !need || dev() || achs().includes(need); };
 
   function apply() { // ce qui est équipé s'affiche partout
@@ -141,5 +149,5 @@ export function initCosmetics({ $, ask, uid, name, photo, achs, avatarEl, onChan
     b.onclick = () => { tab = c; sel = null; $("shopMsg").textContent = ""; render(); };
     return b;
   }));
-  return { earn, apply, render, coins, equipped, get: () => equipped() };
+  return { earn, backpay, apply, render, coins, equipped, get: () => equipped() };
 }
