@@ -171,6 +171,23 @@
   .bubble b{font-family:var(--font)}
   .bubble.r0{background:var(--sun)} .bubble.r1{background:var(--mint)} .bubble.r2{background:var(--coral)} .bubble.r3{background:var(--sky)} .bubble.r4{background:var(--paper)} .bubble.r5{background:var(--peach)}
   @keyframes floatup{0%{transform:translateY(20px) scale(.6);opacity:0}12%{transform:none;opacity:1}100%{transform:translateY(-55vh) rotate(-6deg);opacity:0}}
+/* cadres de photo (cosmétiques) */
+.avatar.fr-sun{border-color:var(--sun);box-shadow:0 0 0 2px var(--ink)}
+.avatar.fr-mint{border-color:var(--mint);box-shadow:0 0 0 2px var(--ink)}
+.avatar.fr-coral{border-color:var(--coral);box-shadow:0 0 0 2px var(--ink)}
+.avatar.fr-sky{border-color:var(--sky);box-shadow:0 0 0 2px var(--ink)}
+.avatar.fr-peach{border-color:var(--peach);box-shadow:0 0 0 2px var(--ink)}
+.avatar.fr-neon{border-color:#7df9ff;box-shadow:0 0 0 2px var(--ink),0 0 12px 3px rgba(125,249,255,.75)}
+.avatar.fr-gold{border-color:#ffd23f;box-shadow:0 0 0 2px #8a6400,0 0 10px 2px rgba(255,210,63,.7)}
+.avatar.fr-rainbow{border-color:transparent;background-origin:border-box;box-shadow:0 0 0 2px var(--ink);border-image:none;outline:3px solid transparent;background-image:none;position:relative}
+.avatar.fr-rainbow{box-shadow:0 0 0 3px #ff6b8b,0 0 0 6px #ffe14d,0 0 0 9px #34e3b0}
+.avatar.fr-crown{border-color:var(--sun);box-shadow:0 0 0 3px var(--ink),0 0 0 6px var(--sun),0 0 14px 6px rgba(255,225,77,.6)}
+/* bulles du chat (cosmétiques) */
+.bubble.sk-ink{background:var(--ink)!important;color:var(--sun);border-color:var(--sun)}
+.bubble.sk-pastel{background:#ffd6e7!important;border-color:#b05a85}
+.bubble.sk-neon{background:#140a33!important;color:#7df9ff;border-color:#7df9ff;box-shadow:0 0 14px rgba(125,249,255,.8)}
+.bubble.sk-gold{background:linear-gradient(135deg,#fff3b0,#ffd23f 50%,#e3a600)!important;border-color:#8a6400}
+
   @media (max-aspect-ratio:1/1){.lobby{grid-template-columns:1fr;justify-items:center;text-align:center}.lobbyR{align-items:center}.players{justify-content:center}.gbody{grid-template-columns:1fr}.side{display:none}}
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
