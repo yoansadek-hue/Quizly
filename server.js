@@ -541,7 +541,7 @@ async function takeQuestion(room) {
 
 /* --- déroulement --- */
 function startGame(room) {
-  Object.assign(room, { phase: "load", diff: 1, buf: [], asked: [], used: new Set(), soft: null, played: new Set(), i: -1, elim: 0, loads: new Map() });
+  Object.assign(room, { phase: "load", diff: 1, qn: 0, buf: [], asked: [], used: new Set(), soft: null, played: new Set(), i: -1, elim: 0, loads: new Map() });
   players(room).forEach((p) => Object.assign(p, { lives: room.cfg.lives, score: 0, points: 0, dead: false, outAt: 0 }));
   if (room.cfg.kind === "equipes") makeTeams(room);
   nextTurn(room);
@@ -569,8 +569,13 @@ async function loadQuestion(room) {
   cast(room, {
     ...teamInfo(room, p),
     t: "q", who: p.id, name: p.name, lives: p.lives, alive: alive(room).length, total: ps.filter((x) => !x.left).length + ps.filter((x) => x.left && !x.dead).length,
-    tag: `${q.t} · ${LEVELS[room.diff]}`, q: q.q, img: q.img || null, audio: q.audio || null, options: room.q.options, ms, diff: room.diff
+    tag: `${q.t} · ${LEVELS[room.diff]}`, q: q.q, img: q.img || null, audio: q.audio || null, options: room.q.options, ms, diff: room.diff,
+    board: boardOf(room), qn: (room.qn = (room.qn || 0) + 1)
   });
+}
+// le tableau de tous les joueurs (vies, bonnes réponses, équipe) : affiché par la télé
+function boardOf(room) {
+  return players(room).filter((x) => !x.left || x.dead).map((x) => ({ id: x.id, name: x.name, lives: x.lives, score: x.score, points: x.points, dead: !!x.dead, team: x.team ?? null }));
 }
 function answer(room, me, i) {
   const p = players(room)[room.i];
@@ -584,7 +589,7 @@ function resolveTurn(room, correct, picked) {
   const p = players(room)[room.i];
   if (correct) { p.score++; p.points += 10 * room.diff; }
   else if (room.cfg.kind !== "equipes") { p.lives--; if (p.lives <= 0) { p.dead = true; p.outAt = ++room.elim; } } // en Équipes, personne n'est éliminé
-  cast(room, { ...teamInfo(room, p), t: "result", who: p.id, name: p.name, correct, picked, answer: room.q.a, lives: p.lives, dead: p.dead });
+  cast(room, { ...teamInfo(room, p), t: "result", who: p.id, name: p.name, correct, picked, answer: room.q.a, lives: p.lives, dead: p.dead, board: boardOf(room) });
   room.timer = setTimeout(() => afterTurn(room), 25000); // filet de sécurité : normalement le bouton « Continuer » fait avancer
 }
 function afterTurn(room) {
