@@ -545,6 +545,7 @@ addEventListener("error", function (e) {
 </main>
 <!-- barre d'onglets en bas (écrans principaux) -->
 <nav class="tabbar" id="tabbar" hidden>
+  <span class="tabpill" id="tabPill" aria-hidden="true"></span>
   <button class="tab" data-go="s-mode"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M12 3.2 2.5 11h2.7v9.3h5.3v-6h3v6h5.3V11h2.7z"/></svg><span>Accueil</span></button>
   <button class="tab" data-go="s-friends"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-3.3 0-7 1.7-7 4.5V20h14v-2.5C16 14.7 12.3 13 9 13zm8-2a3.5 3.5 0 1 0-2.1-6.3 5.9 5.9 0 0 1 0 5.6A3.5 3.5 0 0 0 17 11zm1.2 2.1c1.6 1 2.8 2.5 2.8 4.4V20h3v-2.5c0-2.1-2.6-3.8-5.8-4.4z"/></svg><span>Amis</span><span class="nbadge small" id="tabFriendsBadge" hidden></span></button>
   <button class="tab" data-go="s-shop"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M7 7V6a5 5 0 0 1 10 0v1h3l-1.2 13.2A2 2 0 0 1 16.8 22H7.2a2 2 0 0 1-2-1.8L4 7h3zm2 0h6V6a3 3 0 0 0-6 0v1zm-1 4a1 1 0 1 0 2 0 1 1 0 0 0-2 0zm6 0a1 1 0 1 0 2 0 1 1 0 0 0-2 0z"/></svg><span>Boutique</span></button>

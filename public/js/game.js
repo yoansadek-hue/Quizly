@@ -9,7 +9,7 @@ import { initFriends, friendCodeFrom } from "./friends.js";
 import { enablePush, pushState, currentSub } from "./push.js";
 import { initCosmetics } from "./cosmetics.js";
 
-const VERSION = "2.17.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.17.1"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -262,6 +262,7 @@ function saveBank() {
 function ask(title, text, yes, onYes, onNo) {
   $("cfTitle").textContent = title; $("cfText").textContent = text; $("cfYes").textContent = yes;
   S.onYes = onYes; S.onNo = onNo || null;
+  $("cfNo").hidden = onNo === false; // false : un seul bouton (simple message)
   $("confirm").hidden = false;
 }
 function resetLives() {
@@ -1081,15 +1082,56 @@ function tabbar(id) {
   bar.hidden = !on;
   document.body.classList.toggle("withtabs", on);
   bar.querySelectorAll(".tab").forEach((t) => t.classList.toggle("on", t.dataset.go === TAB_OF[id]));
+  if (on) requestAnimationFrame(() => pillTo(bar.querySelector(".tab.on")));
 }
-document.querySelectorAll("#tabbar .tab").forEach((t) => (t.onclick = () => {
+function goTab(t) {
   const go = t.dataset.go;
   if (go === "s-friends") return openFriends();
   if (go === "s-shop") { cosm.render(); return show("s-shop"); }
   if (go === "s-profile") { renderProfile(); return show("s-profile"); }
   if (go === "s-settings") { renderSettings(); return show("s-settings"); }
   show("s-mode");
-}));
+}
+// la bulle de verre sous l'onglet choisi : elle glisse d'un onglet à l'autre, et on peut la faire glisser du doigt (comme sur iPhone)
+const pill = $("tabPill"), TABS = [...document.querySelectorAll("#tabbar .tab")];
+function pillTo(t, x) {
+  if (!t) { pill.classList.remove("show"); return; }
+  const first = !pill.classList.contains("show");
+  if (first) pill.classList.add("now"); // première apparition : sans glisser depuis le bord
+  pill.style.width = t.offsetWidth + "px";
+  pill.style.translate = `${x ?? t.offsetLeft}px 0`;
+  pill.classList.add("show");
+  if (first) requestAnimationFrame(() => requestAnimationFrame(() => pill.classList.remove("now")));
+}
+const tabAt = (cx) => TABS.reduce((best, t) => { const r = t.getBoundingClientRect(), d = Math.abs(cx - (r.left + r.width / 2)); return d < best.d ? { t, d } : best; }, { t: null, d: Infinity }).t;
+let drag = null;
+$("tabbar").addEventListener("pointerdown", (e) => {
+  const t = e.target.closest(".tab"); if (!t) return;
+  drag = { id: e.pointerId, x0: e.clientX, moved: false, t };
+  $("tabbar").setPointerCapture(e.pointerId);
+  $("tabbar").classList.add("press");
+  pillTo(t); // la bulle vient sous le doigt et grossit
+});
+$("tabbar").addEventListener("pointermove", (e) => {
+  if (!drag || e.pointerId !== drag.id) return;
+  if (!drag.moved && Math.abs(e.clientX - drag.x0) < 6) return;
+  drag.moved = true; $("tabbar").classList.add("drag");
+  const bar = $("tabbar"), br = bar.getBoundingClientRect(), w = pill.offsetWidth, pad = TABS[0].offsetLeft;
+  const x = Math.max(pad, Math.min(br.width - pad - w, e.clientX - br.left - w / 2));
+  pill.style.translate = `${x}px 0`;
+  const t = tabAt(e.clientX); TABS.forEach((b) => b.classList.toggle("over", b === t));
+});
+function dragEnd(e, cancel) {
+  if (!drag || e.pointerId !== drag.id) return;
+  const t = cancel ? null : drag.moved ? tabAt(e.clientX) : drag.t;
+  drag = null;
+  const bar = $("tabbar"); bar.classList.remove("press", "drag"); TABS.forEach((b) => b.classList.remove("over"));
+  if (t) { pillTo(t); goTab(t); } else pillTo(bar.querySelector(".tab.on"));
+}
+$("tabbar").addEventListener("pointerup", (e) => dragEnd(e));
+$("tabbar").addEventListener("pointercancel", (e) => dragEnd(e, true));
+TABS.forEach((t) => (t.onclick = (e) => { if (e.detail === 0) goTab(t); })); // clavier (au doigt ou à la souris : géré ci-dessus)
+addEventListener("resize", () => { if (!$("tabbar").hidden) pillTo($("tabbar").querySelector(".tab.on")); });
 // petite animation d'appui sur les boutons du haut (et :active fonctionne aussi sur iPhone)
 document.addEventListener("touchstart", () => {}, { passive: true });
 ["btnUser", "btnNotifs"].forEach((id) => $(id).addEventListener("pointerdown", (e) => {
@@ -1100,6 +1142,7 @@ let pendingAmi = new URLSearchParams(location.search).get("ami"); // QR code ami
 async function afterCloud() {
   setUser(S.gName, S.gPhoto); // nom et photo personnalisés récupérés du cloud
   cosm.apply();
+  coinBackpay();
   await friends.start();
   enablePush(S.uid, false).then((st) => { pushUI(st); if (st === "granted") saveDevice(); }); // réinscrit cet appareil (sans rien demander)
   if (new URLSearchParams(location.search).get("defi")) { try { history.replaceState(null, "", location.pathname); } catch {} openDaily(); } // notification de 10 h touchée
@@ -1605,6 +1648,14 @@ function achFacts() {
     perfect: !!(d && d.done !== false && d.score === 10) || !!getAch().perfect, streak: dailyStreak(),
     onlineGames: (g.online || 0) + (g.chrono || 0) + (g.omillion || 0) + (g.oteams || 0), friends: friends.ready() ? friends.count() : 0
   };
+}
+// jetons en cadeau pour ce qui a été fait avant la Boutique : 1 par bonne réponse, 2 par partie, 10 par Défi du jour, 25 par succès
+function coinBackpay() {
+  if (!S.uid) return;
+  const x = achFacts();
+  const owed = x.good + 2 * x.games + 10 * dailyDays().length + 25 * Object.keys(getAch()).length;
+  const gift = cosm.backpay(owed);
+  if (gift > 0) setTimeout(() => ask("Cadeau !", `Vous recevez ${gift} jetons pour vos parties d'avant la Boutique : bonnes réponses, parties, Défis du jour et succès.`, "Merci !", () => {}, false), 600);
 }
 let achT = null;
 function checkAch() { clearTimeout(achT); achT = setTimeout(checkAchNow, 300); } // regroupé : une vérification après une rafale de réponses
