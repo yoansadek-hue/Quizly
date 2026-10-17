@@ -47,6 +47,7 @@ addEventListener("error", function (e) {
 
 <div id="fx"></div>
 <div id="gameToast" class="gtoast" role="status" hidden></div>
+<div id="coinPop" class="coinpop" hidden></div>
 <div id="achToast" class="achtoast" role="status" hidden><span class="achk">Succès débloqué</span><b id="achToastName"></b></div>
 <!-- demande d'ami reçue -->
 <div id="reqToast" class="toast" role="alert" hidden>
@@ -199,6 +200,16 @@ addEventListener("error", function (e) {
     </div>
   </section>
 
+  <!-- Boutique -->
+  <section id="s-shop" class="screen" hidden>
+    <button class="goback" data-back="s-profile">← Retour</button>
+    <div class="shophead"><h2>Boutique</h2><span class="shopcoins"><span class="coin"></span><b id="shopCoins">0</b></span></div>
+    <p class="lead small">Gagnez des jetons en jouant : 1 par bonne réponse, 2 par partie, 10 par Défi du jour, 25 par succès.</p>
+    <div class="scope three" id="shopTabs"></div>
+    <div class="shopgrid" id="shopGrid"></div>
+    <p class="msg" id="shopMsg"></p>
+  </section>
+
   <!-- Paramètres -->
   <section id="s-settings" class="screen" hidden>
     <button class="goback" data-back="s-profile">← Retour</button>
@@ -293,6 +304,7 @@ addEventListener("error", function (e) {
         <button class="ftab" data-tab="mine" role="tab">Mes amis<span class="nbadge small" id="fTabBadge" hidden></span></button>
         <button class="ftab" data-tab="add" role="tab">Ajouter</button>
         <button class="ftab" data-tab="rank" role="tab">Classement</button>
+        <button class="ftab" data-tab="club" role="tab">Club</button>
       </div>
       <div class="fpanel" id="fpMine">
         <div class="pushbox" id="pushBox" hidden>
@@ -316,6 +328,31 @@ addEventListener("error", function (e) {
           </div>
           <img id="myQr" class="qr" alt="Mon QR code ami" width="140" height="140">
         </div>
+      </div>
+      <div class="fpanel" id="fpClub" hidden>
+        <div id="clubNone">
+          <p class="lead small">Un club, c'est un groupe privé (votre classe, votre bande…) avec son propre classement.</p>
+          <div class="clubbox">
+            <h4 class="fsub">Créer un club</h4>
+            <div class="row"><input id="clubName" type="text" maxlength="24" placeholder="Nom du club" autocomplete="off"><button class="btn sun sm" id="btnClubCreate">Créer</button></div>
+          </div>
+          <div class="clubbox">
+            <h4 class="fsub">Rejoindre un club</h4>
+            <div class="row"><input id="clubCode" type="text" maxlength="6" placeholder="Code du club" autocomplete="off" autocapitalize="characters"><button class="btn mint sm" id="btnClubJoin">Rejoindre</button></div>
+          </div>
+        </div>
+        <div id="clubIn" hidden>
+          <div class="clubcard">
+            <span class="dk">Club</span>
+            <b id="clubTitle"></b>
+            <small id="clubInfo"></small>
+            <div class="clubcode"><span>Code</span><b id="clubShowCode"></b></div>
+          </div>
+          <div class="chips opts" id="clubTabs"></div>
+          <ol class="rank" id="clubRank"></ol>
+          <div class="two"><button class="btn sun sm" id="btnClubShare">Inviter (code)</button><button class="btn ghost sm" id="btnClubLeave">Quitter le club</button></div>
+        </div>
+        <p class="msg" id="clubMsg"></p>
       </div>
       <div class="fpanel" id="fpRank" hidden>
         <div class="scope" id="rankScope"><button data-s="friends" aria-pressed="true">Amis</button><button data-s="world" aria-pressed="false">Monde</button></div>
@@ -345,6 +382,7 @@ addEventListener("error", function (e) {
       <div class="two"><button class="btn sun sm" id="btnMeSave">Enregistrer</button><button class="btn ghost sm" id="btnMeReset">Reprendre Google</button></div>
       <p id="meMsg" class="msg" role="alert"></p>
     </div>
+    <button class="shopbar" id="btnShop"><span class="coin"></span><b id="coinCount">0</b><span>jetons</span><span class="go">Boutique ›</span></button>
     <div class="profgrid" id="profRecords"></div>
     <div class="bubbles" id="profStats"></div>
     <div class="duo" id="profSum"></div>
