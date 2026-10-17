@@ -2,16 +2,18 @@
 // Tout passe par Firestore (voir les règles dans le message de la 2.10). Il faut être connecté au cloud.
 import { cloudFs } from "./cloud.js";
 import { sendPush } from "./push.js";
+import { setFrame } from "./million.js";
 
 const ALPHA = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // sans I, O, 0, 1 : pas de confusion à la lecture
 const INVITE_TTL = 10 * 60 * 1000; // une invitation de plus de 10 minutes est ignorée
 
-export function initFriends({ $, ask, avatarEl, euros, me, records, summary, daily, achs, joinRoom, roomInfo, openFriends, openNotifs, showScreen }) {
+export function initFriends({ $, ask, avatarEl, euros, me, records, summary, daily, achs, cos, joinRoom, roomInfo, openFriends, openNotifs, showScreen }) {
   const F = { uid: null, fs: null, code: "", friends: [], unsub: [], tab: "best2", inv: null, panel: null };
   // onglets de l'écran Amis
   function setPanel(p) {
     F.panel = p;
-    [["mine", "fpMine"], ["add", "fpAdd"], ["rank", "fpRank"]].forEach(([k, id]) => ($(id).hidden = k !== p));
+    [["mine", "fpMine"], ["add", "fpAdd"], ["rank", "fpRank"], ["club", "fpClub"]].forEach(([k, id]) => ($(id).hidden = k !== p));
+    if (p === "club") loadClub();
     document.querySelectorAll("#fTabs .ftab").forEach((b) => b.setAttribute("aria-selected", b.dataset.tab === p));
   }
   document.querySelectorAll("#fTabs .ftab").forEach((b) => (b.onclick = () => setPanel(b.dataset.tab)));
@@ -47,7 +49,7 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
     if (!code) code = await newCode();
     F.code = code;
     const m = me();
-    await F.fs.setDoc(pref, { name: m.name, photo: m.photo || "", code, records: records(), summary: summary(), daily: daily() || null, achs: achs(), at: Date.now() }, { merge: true });
+    await F.fs.setDoc(pref, { name: m.name, photo: m.photo || "", code, records: records(), summary: summary(), daily: daily() || null, achs: achs(), cos: cos(), at: Date.now() }, { merge: true });
   }
   async function newCode() {
     for (let t = 0; t < 8; t++) {
@@ -62,7 +64,7 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
   // les records changent : on met à jour le profil public (appelé à l'ouverture du profil et en fin de partie)
   async function syncRecords() {
     if (!ready()) return;
-    try { await F.fs.setDoc(ref("profiles", F.uid), { records: records(), summary: summary(), daily: daily() || null, achs: achs(), name: me().name, photo: me().photo || "", at: Date.now() }, { merge: true }); } catch {}
+    try { await F.fs.setDoc(ref("profiles", F.uid), { records: records(), summary: summary(), daily: daily() || null, achs: achs(), cos: cos(), name: me().name, photo: me().photo || "", at: Date.now() }, { merge: true }); } catch {}
   }
 
   /* ---------- en direct : demandes reçues et invitations ---------- */
@@ -149,6 +151,7 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
       d.append(b, s); return d;
     }));
     if (window.__renderAch) window.__renderAch($("frAch"), $("frAchCount"), f.achs || []);
+    $("s-friend").querySelector(".profhead").className = `profhead banner ${(f.cos || {}).banner || "bn-plain"}`; // sa bannière
     showScreen("s-friend");
   }
   $("btnFrRemove").onclick = () => F.cur && remove(F.cur, () => showScreen("s-friends"));
@@ -162,6 +165,7 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
       try { const p = await F.fs.getDoc(ref("profiles", d.id)); if (p.exists()) out.push({ uid: d.id, ...p.data() }); } catch {}
     }
     F.friends = out.sort((a, b) => a.name.localeCompare(b.name));
+    F.friends.forEach((f) => setFrame(f.name, (f.cos || {}).frame)); // leur cadre s'affiche partout
     render();
   }
 
@@ -362,8 +366,117 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
   $("myCode").onclick = () => { try { navigator.clipboard.writeText(F.code); say("Code copié."); } catch {} };
   $("btnInvite").onclick = openInvites;
 
+  /* ---------- clubs : un groupe privé, son code, son classement ---------- */
+  const CLUB_MAX = 30;
+  const clubKey = () => `quizly:${F.uid}:club`;
+  const myClub = () => { try { return localStorage.getItem(clubKey()) || ""; } catch { return ""; } };
+  const setMyClub = (c) => { try { c ? localStorage.setItem(clubKey(), c) : localStorage.removeItem(clubKey()); } catch {} };
+  const cmsg = (t) => ($("clubMsg").textContent = t);
+  async function newClubCode() {
+    for (let t = 0; t < 8; t++) {
+      const c = Array.from({ length: 6 }, () => ALPHA[Math.floor(Math.random() * ALPHA.length)]).join("");
+      if (!(await F.fs.getDoc(ref("clubs", c))).exists()) return c;
+    }
+    throw new Error("code");
+  }
+  async function createClub(raw) {
+    const nm = String(raw || "").replace(/[<>]/g, "").replace(/\s+/g, " ").trim().slice(0, 24);
+    if (!ready()) return cmsg("Connectez-vous au cloud pour créer un club.");
+    if (nm.length < 3) return cmsg("Donnez un nom d'au moins 3 caractères.");
+    try {
+      const code = await newClubCode(), m = me();
+      await F.fs.setDoc(ref("clubs", code), { name: nm, owner: F.uid, at: Date.now() });
+      await F.fs.setDoc(ref("clubs", code, "members", F.uid), { name: m.name, photo: m.photo || "", at: Date.now() });
+      setMyClub(code); $("clubName").value = ""; cmsg("");
+      await loadClub();
+    } catch { cmsg("Impossible de créer le club pour le moment."); }
+  }
+  async function joinClub(raw) {
+    const code = String(raw || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (!ready()) return cmsg("Connectez-vous au cloud pour rejoindre un club.");
+    if (code.length !== 6) return cmsg("Un code de club fait 6 caractères.");
+    try {
+      const c = await F.fs.getDoc(ref("clubs", code));
+      if (!c.exists()) return cmsg("Aucun club avec ce code.");
+      const mem = await F.fs.getDocs(F.fs.collection(F.fs.db, "clubs", code, "members"));
+      if (mem.docs.length >= CLUB_MAX) return cmsg(`Ce club est complet (${CLUB_MAX} membres).`);
+      if (myClub() && myClub() !== code) await leaveClub(true); // un seul club à la fois
+      const m = me();
+      await F.fs.setDoc(ref("clubs", code, "members", F.uid), { name: m.name, photo: m.photo || "", at: Date.now() });
+      setMyClub(code); $("clubCode").value = ""; cmsg("");
+      await loadClub();
+    } catch { cmsg("Impossible de rejoindre ce club pour le moment."); }
+  }
+  async function leaveClub(silent) {
+    const code = myClub(); if (!code || !ready()) return;
+    try {
+      const c = await F.fs.getDoc(ref("clubs", code));
+      const others = (await F.fs.getDocs(F.fs.collection(F.fs.db, "clubs", code, "members"))).docs.filter((d) => d.id !== F.uid);
+      await F.fs.deleteDoc(ref("clubs", code, "members", F.uid));
+      if (c.exists() && c.data().owner === F.uid) { // le créateur part : le club passe au plus ancien membre, ou disparaît
+        if (others.length) await F.fs.setDoc(ref("clubs", code), { owner: others.sort((a, b) => (a.data().at || 0) - (b.data().at || 0))[0].id }, { merge: true });
+        else await F.fs.deleteDoc(ref("clubs", code));
+      }
+    } catch {}
+    setMyClub(""); F.club = null;
+    if (!silent) renderClub();
+  }
+  async function loadClub() {
+    const code = myClub();
+    if (!code || !ready()) { F.club = null; return renderClub(); }
+    try {
+      const c = await F.fs.getDoc(ref("clubs", code));
+      if (!c.exists()) { setMyClub(""); F.club = null; return renderClub(); }
+      const mem = await F.fs.getDocs(F.fs.collection(F.fs.db, "clubs", code, "members"));
+      if (!mem.docs.some((d) => d.id === F.uid)) { setMyClub(""); F.club = null; return renderClub(); } // plus membre
+      const members = [];
+      for (const d of mem.docs) {
+        let p = {};
+        try { const s = await F.fs.getDoc(ref("profiles", d.id)); if (s.exists()) p = s.data(); } catch {}
+        members.push({ uid: d.id, ...d.data(), ...p, you: d.id === F.uid });
+        setFrame(p.name || d.data().name, (p.cos || {}).frame);
+      }
+      F.club = { code, ...c.data(), members };
+    } catch { F.club = null; }
+    renderClub();
+  }
+  F.ctab = "daily";
+  const CTABS = [["daily", "Défi du jour"], ["best2", "Solo"], ["bestChrono", "Chrono"], ["bestMillion", "Millionnaire"], ["achs", "Succès"]];
+  function renderClub() {
+    const c = F.club;
+    $("clubNone").hidden = !!c; $("clubIn").hidden = !c;
+    if (!c) return;
+    $("clubTitle").textContent = c.name;
+    $("clubShowCode").textContent = c.code;
+    $("clubInfo").textContent = `${c.members.length} membre${c.members.length > 1 ? "s" : ""} sur ${CLUB_MAX}${c.owner === F.uid ? " · vous l'avez créé" : ""}`;
+    $("clubTabs").replaceChildren(...CTABS.map(([k, label]) => {
+      const b = document.createElement("button"); b.className = "chip"; b.textContent = label; b.setAttribute("aria-pressed", String(F.ctab === k));
+      b.onclick = () => { F.ctab = k; renderClub(); }; return b;
+    }));
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(Date.now());
+    const k = F.ctab;
+    const val = (p) => k === "daily" ? (p.daily && p.daily.day === today ? p.daily.score * 1e6 - (p.daily.ms || 0) : -1) : k === "achs" ? (p.achs || []).length : ((p.records || {})[k] || 0);
+    const txt = (p) => k === "daily" ? (p.daily && p.daily.day === today ? `${p.daily.score} / 10` : "pas encore") : k === "achs" ? `${(p.achs || []).length} succès` : k === "bestMillion" ? euros((p.records || {})[k] || 0) : `${(p.records || {})[k] || 0} pts`;
+    const list = [...c.members].sort((a, b) => val(b) - val(a));
+    $("clubRank").replaceChildren(...list.map((p, i) => {
+      const li = document.createElement("li"); li.className = "rk" + (i === 0 && val(p) > 0 ? " first" : "") + (p.you ? " mine" : "");
+      const pos = document.createElement("span"); pos.className = "pos"; pos.textContent = i + 1;
+      const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = p.you ? `${p.name} (vous)` : p.name;
+      const st = document.createElement("span"); st.className = "st"; st.textContent = txt(p);
+      li.append(pos, avatarEl(p.name, p.photo), nm, st); return li;
+    }));
+  }
+  $("btnClubCreate").onclick = () => createClub($("clubName").value);
+  $("btnClubJoin").onclick = () => joinClub($("clubCode").value);
+  $("btnClubLeave").onclick = () => ask("Quitter le club ?", "Vous pourrez le rejoindre à nouveau avec son code.", "Quitter", () => leaveClub());
+  $("btnClubShare").onclick = async () => {
+    const c = F.club; if (!c) return;
+    const text = `Rejoins mon club Quizly « ${c.name} » avec le code ${c.code} (Amis › Club).`;
+    try { if (navigator.share) await navigator.share({ title: "Quizly", text }); else { await navigator.clipboard.writeText(c.code); cmsg("Code copié."); } } catch {}
+  };
+
   const api = {
-    start, stop, ready, render, syncRecords, addByCode, openInvites, renderNotifs,
+    start, stop, ready, loadClub, render, syncRecords, addByCode, openInvites, renderNotifs,
     isFriend: (uid) => F.friends.some((f) => f.uid === uid),
     count: () => F.friends.length,
     // défi du jour terminé : noté pour le rappel du soir (le serveur ne prévient que ceux qui ne l'ont pas fait)
