@@ -1,20 +1,23 @@
-// Quizly TV : la télé s'abonne à un salon et affiche la partie en grand. Elle ne joue pas.
+// Quizly TV : la télé crée son salon (caché, rejoint par QR code) et affiche la partie comme un plateau télé.
 import { avatarEl } from "./million.js";
-import { euros, PRIZES } from "./local.js";
+import { euros, PRIZES, SAFE } from "./local.js";
 import { THEMES } from "./questions.js";
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
-const T = { ws: null, code: "", pl: {}, kind: "survie", timer: null, cur: null, board: [], mboard: [] };
+const KIND = { survie: "Survie", chrono: "Chrono 60 s", million: "Qui veut gagner des millions", equipes: "Équipes" };
+const TAUNTS = ["Trop facile", "Tu dors ?", "Pleure pas", "Même pas peur", "Je suis trop fort", "Cadeau !"];
+const T = { ws: null, code: "", pl: {}, kind: "survie", raf: 0, last: null, board: [], mboard: [], who: null, craf: 0 };
 
 function show(id) {
   document.querySelectorAll(".screen").forEach((s) => (s.hidden = s.id !== id));
-  if (id !== "tQuestion") $("tAudio").pause();
+  if (id !== "tGame") $("tAudio").pause();
 }
 const plural = (n, w) => `${n} ${w}${n > 1 ? "s" : ""}`;
 const photo = (id) => (T.pl[id] && T.pl[id].photo) || "";
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 
-/* ---------- connexion : la télé crée son propre salon (caché, rejoint uniquement par le QR code) ---------- */
+/* ---------- connexion : la télé crée son propre salon ---------- */
 const sendWs = (o) => T.ws && T.ws.readyState === 1 && T.ws.send(JSON.stringify(o));
 function connect() {
   $("tMsg").textContent = T.code ? "Reconnexion…" : "Préparation du salon télé…";
@@ -22,59 +25,38 @@ function connect() {
   if (T.ws) try { T.ws.onclose = null; T.ws.close(); } catch {}
   const ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`);
   T.ws = ws;
-  ws.onopen = () => sendWs(T.code ? { t: "tv", code: T.code } : { t: "tvcreate", themes: THEMES }); // on retrouve le même salon après une coupure
+  ws.onopen = () => sendWs(T.code ? { t: "tv", code: T.code } : { t: "tvcreate", themes: THEMES });
   ws.onmessage = (e) => { let m; try { m = JSON.parse(e.data); } catch { return; } onMsg(m); };
-  ws.onclose = () => { if (T.ws === ws) setTimeout(() => T.ws === ws && connect(), 3000); }; // le serveur gratuit peut couper : on se reconnecte
+  ws.onclose = () => { if (T.ws === ws) setTimeout(() => T.ws === ws && connect(), 3000); }; // le serveur gratuit peut couper
 }
 $("tGo").onclick = () => { T.code = ""; connect(); };
-$("tSound").onclick = () => { $("tAudio").play().catch(() => {}); $("tAudio").pause(); $("tSound").hidden = true; }; // un clic autorise le son des extraits
+$("tSound").onclick = () => { $("tAudio").play().catch(() => {}); $("tAudio").pause(); $("tSound").hidden = true; };
 connect();
 
 /* ---------- messages du serveur ---------- */
 function onMsg(m) {
   switch (m.t) {
-    case "error": // salon perdu (serveur redémarré…) : on en recrée un
+    case "error":
       if (T.code) { T.code = ""; sendWs({ t: "tvcreate", themes: THEMES }); }
       else { $("tMsg").textContent = m.msg; $("tGo").hidden = false; show("tJoin"); }
       break;
     case "closed": T.code = ""; sendWs({ t: "tvcreate", themes: THEMES }); break;
     case "tvok": T.code = m.code; break;
     case "lobby": renderLobby(m); break;
-    case "load": stopBar(); $("tLoadText").textContent = m.msg || "L'IA prépare la question…"; show("tLoad"); break;
-    case "fail": stopBar(); $("tLoadText").textContent = m.msg; show("tLoad"); break;
+    case "load": stopRing(); $("tLoadText").textContent = m.msg || "L'IA prépare la question…"; show("tLoad"); break;
+    case "fail": stopRing(); $("tLoadText").textContent = m.msg; show("tLoad"); break;
     case "q": renderQ(m); break;
     case "result": renderResult(m); break;
-    case "level":
-      stopBar();
-      $("tLevelText").textContent = `Niveau actuel : ${LEVELS[m.diff]}`;
-      show("tLevel");
-      break;
-    case "cgo": $("tChronoInfo").textContent = "Tout le monde joue en même temps"; renderBoard(); show("tChrono"); break;
-    case "cboard": T.board = m.list; renderBoard(); break;
+    case "level": renderLevel(m); break;
+    case "cgo": startChrono(m.ms); break;
+    case "cboard": T.board = m.list; renderRace(); break;
     case "mq": renderMQ(m); break;
-    case "mboard": T.mboard = m.list; renderMLive(); break;
+    case "mboard": T.mboard = m.list; renderMSide(); break;
     case "mspec": renderMSpec(m); break;
+    case "mout": break; // visible dans la colonne de droite
     case "end": renderEnd(m); break;
-    case "chat": { // message écrit d'un joueur
-      const d = document.createElement("div");
-      d.className = "bubble r4";
-      const n = document.createElement("b"); n.textContent = m.name;
-      d.append(n, document.createTextNode(` ${m.text}`));
-      d.style.left = `${6 + Math.random() * 50}vw`;
-      d.onanimationend = () => d.remove();
-      document.body.append(d);
-      break;
-    }
-    case "react": { // les réactions des joueurs s'envolent aussi sur la télé
-      const d = document.createElement("div");
-      d.className = `bubble r${m.r}`;
-      const n = document.createElement("b"); n.textContent = m.name;
-      d.append(n, document.createTextNode(` ${["Trop facile", "Tu dors ?", "Pleure pas", "Même pas peur", "Je suis trop fort", "Cadeau !"][m.r] || ""}`));
-      d.style.left = `${6 + Math.random() * 70}vw`;
-      d.onanimationend = () => d.remove();
-      document.body.append(d);
-      break;
-    }
+    case "react": bubble(m.name, TAUNTS[m.r] || "", `r${m.r}`); break;
+    case "chat": bubble(m.name, m.text, "r4"); break;
   }
 }
 
@@ -82,139 +64,213 @@ function onMsg(m) {
 function renderLobby(m) {
   T.kind = m.cfg.kind || "survie";
   T.pl = Object.fromEntries(m.players.map((p) => [p.id, p]));
-  if (m.phase !== "lobby") return; // partie en cours ou podium affiché : on ne repasse pas au salon
-  const link = `${location.origin}/?tv=${m.code}`; // lu par le scanner de l'appli (ou l'appareil photo du téléphone)
+  if (m.phase !== "lobby") return;
+  const link = `${location.origin}/?tv=${m.code}`; // lu par le scanner de l'appli (ou l'appareil photo)
   if ($("tQr").dataset.code !== m.code) { $("tQr").dataset.code = m.code; $("tQr").src = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&margin=8&data=${encodeURIComponent(link)}`; }
-  const kind = { survie: "Survie", chrono: "Chrono 60 s", million: "Qui veut gagner des millions", equipes: "Équipes" }[T.kind];
-  $("tLobbyInfo").textContent = m.players.length ? `${kind} · ${plural(m.players.length, "joueur")}` : "";
+  $("tLobbyInfo").textContent = m.players.length ? `${KIND[T.kind]} · ${plural(m.players.length, "joueur")}` : "";
   const host = T.pl[m.host];
   $("tWait").textContent = host ? `${host.name} choisit le mode et lance la partie…` : "Le premier qui scanne choisit le mode et lance la partie.";
-  $("tPlayers").replaceChildren(...m.players.map((p) => {
-    const c = document.createElement("span"); c.className = "chip";
-    c.append(avatarEl(p.name, p.photo), document.createTextNode(p.name));
-    return c;
-  }));
+  $("tPlayers").replaceChildren(...m.players.map((p) => { const c = el("span", "chip"); c.append(avatarEl(p.name, p.photo), document.createTextNode(p.name)); return c; }));
+  T.who = null;
   show("tLobby");
 }
 
-/* ---------- minuteur ---------- */
-function stopBar() { cancelAnimationFrame(T.timer); T.timer = null; }
-function startBar(sec, total) {
-  stopBar();
-  $("tBarBox").hidden = !sec;
+/* ---------- minuteur en anneau ---------- */
+function stopRing() { cancelAnimationFrame(T.raf); T.raf = 0; }
+function ring(arcId, clockId, ringId, sec, total) {
+  stopRing();
+  $(ringId).hidden = !sec;
   if (!sec) return;
-  const end = performance.now() + sec * 1000;
+  const end = performance.now() + sec * 1000, len = 264;
   const tick = () => {
-    const left = Math.max(0, end - performance.now());
-    $("tBar").style.transform = `scaleX(${left / (total * 1000)})`;
-    $("tBar").style.background = left < 5000 ? "var(--coral)" : "var(--mint)";
-    if (left > 0) T.timer = requestAnimationFrame(tick);
+    const left = Math.max(0, end - performance.now()), s = Math.ceil(left / 1000);
+    $(arcId).style.strokeDashoffset = len * (1 - left / (total * 1000));
+    $(clockId).textContent = s;
+    $(ringId).classList.toggle("urgent", s <= 5);
+    if (left > 0) T.raf = requestAnimationFrame(tick);
   };
   tick();
 }
 
-/* ---------- question ---------- */
-function paintQuestion(m) {
-  $("tTag").textContent = m.tag;
-  $("tText").textContent = m.q;
-  const im = $("tImg");
+/* ---------- la question ---------- */
+function paint(m) {
+  $("gVerdict").hidden = true;
+  $("gTag").textContent = m.tag;
+  const card = $("gCard"); card.classList.remove("enter"); void card.offsetWidth; card.classList.add("enter");
+  $("gText").textContent = m.q;
+  const im = $("gImg");
   if (m.img) { im.hidden = false; im.onerror = () => (im.hidden = true); im.src = m.img; } else { im.hidden = true; im.removeAttribute("src"); }
-  const au = $("tAudio");
-  au.pause();
-  if (m.audio) { au.src = m.audio; au.currentTime = 0; au.play().catch(() => {}); } else au.removeAttribute("src"); // l'extrait passe sur la télé
-  $("tOpts").replaceChildren(...m.options.map((o, i) => {
-    const b = document.createElement("div"); b.className = `opt o${i % 4}`; b.textContent = o; return b;
-  }));
-  $("tStatus").textContent = "";
-  $("tLive").replaceChildren();
+  const au = $("tAudio"); au.pause();
+  if (m.audio) { au.src = `/api/audio?u=${encodeURIComponent(m.audio)}`; au.currentTime = 0; au.play().catch(() => {}); } else au.removeAttribute("src"); // l'extrait passe sur la télé
+  $("gOpts").replaceChildren(...m.options.map((o, i) => el("div", `opt o${i % 4}`, o)));
+  $("gLive").replaceChildren();
 }
 function reveal(answer, picked) {
-  [...$("tOpts").children].forEach((b, i) => {
+  [...$("gOpts").children].forEach((b, i) => {
     if (b.textContent === answer) b.classList.add("right");
+    else if (i === picked) b.classList.add("wrong");
     else b.classList.add("dim");
   });
 }
-function renderQ(m) { // Survie : la question du joueur dont c'est le tour
-  T.cur = m;
-  paintQuestion(m);
-  $("tWho").replaceChildren(avatarEl(m.name, photo(m.who), true), document.createTextNode(`Au tour de ${m.name}`));
-  $("tStatus").textContent = m.teams
-    ? `Équipe ${m.team} · ${m.teams.map((t) => `${t.name} ${t.points}`).join(" · ")} pts`
-    : `♥︎ ${m.lives} · ${plural(m.alive, "joueur")} en vie`;
-  startBar(m.ms ? m.ms / 1000 : 0, m.ms ? m.ms / 1000 : 0);
-  show("tQuestion");
-}
-function renderResult(m) {
-  stopBar();
-  reveal(m.answer, m.picked);
-  const res = m.correct ? `Bonne réponse de ${m.name} !` : m.dead ? `${m.name} est éliminé` : m.picked < 0 ? "Temps écoulé" : `Raté pour ${m.name}`;
-  $("tStatus").textContent = m.teams ? `${res} · ${m.teams.map((t) => `${t.name} ${t.points}`).join(" · ")} pts` : res;
+function verdict(text, kind) { const v = $("gVerdict"); v.className = `verdict ${kind}`; v.textContent = text; v.hidden = false; }
+// écran « Au tour de… » quand le joueur change
+function splash(name, ph) {
+  const s = $("gSplash");
+  $("gSplashAv").replaceChildren(avatarEl(name, ph, true));
+  $("gSplashName").textContent = name;
+  s.hidden = false; s.style.animation = "none"; void s.offsetWidth; s.style.animation = "";
+  clearTimeout(T.splashT); T.splashT = setTimeout(() => (s.hidden = true), 1400);
 }
 
-/* ---------- Chrono : classement en direct ---------- */
-function renderBoard() {
-  const done = T.board.filter((p) => p.done).length;
-  if (T.board.length) $("tChronoInfo").textContent = done ? `${done} / ${T.board.length} ont fini` : "Tout le monde joue en même temps";
-  $("tBoard").replaceChildren(...T.board.slice(0, 10).map((p, i) => {
-    const li = document.createElement("li");
-    li.className = (i === 0 ? "first" : "") + (p.done ? " done" : "");
-    const pos = document.createElement("span"); pos.className = "pos"; pos.textContent = i + 1;
-    const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = p.name + (p.done ? " · fini" : "");
-    const pt = document.createElement("span"); pt.textContent = `${p.points} pts`;
-    li.append(pos, avatarEl(p.name, photo(p.id)), nm, pt);
-    return li;
+/* ---------- Survie et Équipes ---------- */
+function renderQ(m) {
+  T.last = m;
+  paint(m);
+  $("gWho").replaceChildren(avatarEl(m.name, photo(m.who), true), el("span", null, m.name));
+  $("gCount").textContent = m.teams ? `Équipe ${m.team}` : `Question ${m.qn || ""}`.trim();
+  const sec = m.ms ? m.ms / 1000 : 0;
+  ring("gArc", "gClock", "gRing", sec, sec);
+  renderSide(m.board, m.who, m.teams);
+  show("tGame");
+  if (T.who !== m.who && (m.board || []).length > 1) splash(m.name, photo(m.who));
+  T.who = m.who;
+}
+function renderResult(m) {
+  stopRing();
+  reveal(m.answer, m.picked);
+  verdict(m.correct ? `Bonne réponse de ${m.name} !` : m.dead ? `${m.name} est éliminé` : m.picked < 0 ? "Temps écoulé !" : `Raté pour ${m.name}`, m.correct ? "ok" : "ko");
+  renderSide(m.board, m.who, m.teams);
+}
+// colonne de droite : les joueurs (Survie) ou les équipes
+function renderSide(board, cur, teams) {
+  const side = $("gSide");
+  if (!board) return;
+  if (teams) {
+    const max = Math.max(1, ...teams.map((t) => t.points));
+    side.replaceChildren(el("h3", null, "Équipes"), ...teams.map((t, k) => {
+      const d = el("div", `team t${k}`);
+      const h = el("div", "th"); h.append(el("span", null, t.name), el("span", "tp", `${t.points}`));
+      const ms = el("div", "tm");
+      board.filter((p) => p.team === k).forEach((p) => ms.append(el("span", p.id === cur ? "cur" : "", p.name)));
+      d.style.opacity = 0.75 + 0.25 * (t.points / max);
+      d.append(h, ms); return d;
+    }));
+    return;
+  }
+  const rows = [...board].sort((a, b) => (a.dead - b.dead) || b.score - a.score);
+  side.replaceChildren(el("h3", null, `Joueurs · ${board.filter((p) => !p.dead).length} en vie`), ...rows.map((p) => {
+    const r = el("div", "prow" + (p.id === cur ? " cur" : "") + (p.dead ? " dead" : ""));
+    r.append(avatarEl(p.name, photo(p.id)), el("span", "pn", p.name), el("span", "pv hearts", p.dead ? "éliminé" : "♥︎".repeat(Math.max(0, Math.min(p.lives, 5))) || "♥︎ 0"));
+    return r;
   }));
+}
+function renderLevel(m) {
+  stopRing();
+  $("tLevelText").textContent = `Niveau ${LEVELS[m.diff]}`;
+  $("tLevels").replaceChildren(...[1, 2, 3, 4, 5].map((n) => { const s = el("span", n <= m.diff ? "on" : "", n); s.style.animationDelay = `${n * 0.08}s`; return s; }));
+  show("tLevel");
 }
 
 /* ---------- Millionnaire ---------- */
 function renderMQ(m) {
-  T.cur = m;
-  paintQuestion(m);
-  $("tWho").replaceChildren(document.createTextNode(`Question ${m.n + 1} / 15 · ${euros(PRIZES[m.n])}`));
-  startBar(m.time, m.total);
-  renderMLive();
-  show("tQuestion");
+  T.last = m;
+  paint(m);
+  $("gWho").replaceChildren(el("span", null, `Pour ${euros(PRIZES[m.n])}`));
+  $("gCount").textContent = `Question ${m.n + 1} / 15`;
+  ring("gArc", "gClock", "gRing", m.time, m.total);
+  T.mn = m.n;
+  renderMSide();
+  show("tGame");
 }
-function renderMLive() {
-  if (!T.cur || T.cur.t !== "mq") return;
-  const still = T.mboard.filter((p) => !p.out);
-  $("tLive").replaceChildren(...still.map((p) => {
-    const c = document.createElement("span"); c.className = "chip" + (p.answered ? " ok" : "");
-    c.append(avatarEl(p.name, photo(p.id)), document.createTextNode(`${p.name} · ${p.answered ? "a répondu" : "réfléchit…"}`));
+function renderMSide() {
+  if (!T.last || T.last.t !== "mq") return;
+  const n = T.mn || 0;
+  const lad = el("ol", "ladder");
+  PRIZES.forEach((p, i) => {
+    const li = el("li", (i < n ? "done " : "") + (i === n ? "now " : "") + (SAFE.includes(i + 1) ? "safe" : ""));
+    li.append(el("span", "n", i + 1), el("span", null, euros(p)));
+    lad.append(li);
+  });
+  $("gSide").replaceChildren(el("h3", null, "Échelle"), lad);
+  $("gLive").replaceChildren(...T.mboard.map((p) => {
+    const c = el("span", "chip" + (p.out ? " out" : p.answered ? " ok" : ""));
+    c.append(avatarEl(p.name, photo(p.id)), document.createTextNode(`${p.name} · ${p.out ? `sorti (${euros(p.won)})` : p.answered ? "a répondu" : "réfléchit…"}`));
     return c;
   }));
-  $("tStatus").textContent = still.length ? `${plural(still.length, "joueur")} encore en jeu` : "";
 }
 function renderMSpec(m) {
-  stopBar();
+  stopRing();
   reveal(m.answer, -1);
-  $("tStatus").textContent = m.results.map((r) => `${r.name} : ${r.stopped ? `s'arrête (${euros(r.won)})` : r.correct ? (r.out ? "1 000 000 € !" : `juste, ${euros(r.won)}`) : `raté, ${euros(r.won)}`}`).join(" · ");
-  $("tLive").replaceChildren();
+  const out = m.results.filter((r) => !r.correct || r.stopped);
+  verdict(out.length ? out.map((r) => (r.stopped ? `${r.name} s'arrête (${euros(r.won)})` : r.out && r.correct ? `${r.name} : 1 000 000 € !` : `${r.name} éliminé (${euros(r.won)})`)).join(" · ") : "Tout le monde a juste !", out.length ? "info" : "ok");
 }
 
-/* ---------- fin : podium ---------- */
+/* ---------- Chrono : la course ---------- */
+function startChrono(ms) {
+  T.board = [];
+  const total = (ms || 60000) / 1000, end = performance.now() + ms;
+  cancelAnimationFrame(T.craf);
+  const tick = () => { // compte à rebours indicatif (chacun a son propre chrono, en pause pendant les corrections)
+    const left = Math.max(0, end - performance.now());
+    $("cArc").style.strokeDashoffset = 264 * (1 - left / (total * 1000));
+    $("cClock").textContent = Math.ceil(left / 1000);
+    if (left > 0) T.craf = requestAnimationFrame(tick);
+  };
+  tick();
+  renderRace(); show("tChrono");
+}
+function renderRace() {
+  const ol = $("cRace");
+  const before = new Map([...ol.children].map((li) => [li.dataset.id, li.getBoundingClientRect().top])); // pour animer les dépassements
+  const max = Math.max(1, ...T.board.map((p) => p.points));
+  const done = T.board.filter((p) => p.done).length;
+  $("cInfo").textContent = done ? `${done} / ${T.board.length} ont fini` : "Tout le monde joue en même temps";
+  ol.replaceChildren(...T.board.slice(0, 8).map((p, i) => {
+    const li = el("li", p.done ? "done" : ""); li.dataset.id = p.id;
+    const tr = el("div", "track"), bar = el("i"); bar.style.width = `${(100 * p.points) / max}%`; tr.append(bar);
+    const mid = el("div", "mid"); mid.append(el("span", "rn", p.name + (p.done ? " · fini" : "")), tr); // le nom au-dessus de sa barre
+    li.append(el("span", "pos", i + 1), avatarEl(p.name, photo(p.id)), mid, el("span", null, `${p.points} pts`));
+    return li;
+  }));
+  [...ol.children].forEach((li) => { const t0 = before.get(li.dataset.id); if (t0 == null) return; const dy = t0 - li.getBoundingClientRect().top; if (dy) { li.style.transition = "none"; li.style.transform = `translateY(${dy}px)`; requestAnimationFrame(() => { li.style.transition = ""; li.style.transform = ""; }); } });
+}
+
+/* ---------- fin : podium et confettis ---------- */
 function renderEnd(m) {
-  stopBar();
+  stopRing(); cancelAnimationFrame(T.craf);
   const fmt = (p) => (m.kind === "million" ? euros(p.points) : m.kind === "chrono" || m.kind === "equipes" ? `${p.points} pts` : `${p.score} bonne${p.score > 1 ? "s" : ""}`);
   $("tEndLead").textContent = m.winner ? "Vainqueur" : "Partie terminée";
   $("tWinner").textContent = m.winner || "Égalité";
   const top = m.ranking.slice(0, 3);
   const order = [top[1], top[0], top[2]].map((p, k) => [p, [2, 1, 3][k]]).filter(([p]) => p); // 2e · 1er · 3e
   $("tPodium").replaceChildren(...order.map(([p, rank]) => {
-    const d = document.createElement("div"); d.className = `step p${rank}`;
-    const nm = document.createElement("span"); nm.textContent = p.name;
-    const sc = document.createElement("small"); sc.textContent = fmt(p);
-    const bl = document.createElement("div"); bl.className = "block"; bl.textContent = rank;
-    d.append(avatarEl(p.name, p.photo || photo(p.id)), nm, sc, bl);
+    const d = el("div", `step p${rank}`);
+    d.append(avatarEl(p.name, p.photo || photo(p.id)), el("span", null, p.name), el("small", null, fmt(p)), el("div", "block", rank));
     return d;
   }));
   $("tRest").replaceChildren(...m.ranking.slice(3, 8).map((p, i) => {
-    const li = document.createElement("li");
-    const pos = document.createElement("span"); pos.className = "pos"; pos.textContent = i + 4;
-    const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = p.name;
-    const sc = document.createElement("span"); sc.textContent = fmt(p);
-    li.append(pos, avatarEl(p.name, p.photo || photo(p.id)), nm, sc);
+    const li = el("li");
+    li.append(el("span", "pos", i + 4), avatarEl(p.name, p.photo || photo(p.id)), el("span", "nm", p.name), el("span", null, fmt(p)));
     return li;
   }));
   show("tEnd");
+  confetti();
+}
+function confetti() {
+  const cols = ["#ffe14d", "#34e3b0", "#ff6b8b", "#62c7ff", "#f6f3ff"];
+  for (let i = 0; i < 90; i++) {
+    const c = el("div", "conf");
+    c.style.left = `${Math.random() * 100}vw`; c.style.background = cols[i % cols.length];
+    c.style.animationDuration = `${2.2 + Math.random() * 2}s`; c.style.animationDelay = `${Math.random() * 0.8}s`;
+    document.body.append(c); setTimeout(() => c.remove(), 5000);
+  }
+}
+
+/* ---------- réactions et messages des joueurs ---------- */
+function bubble(name, text, cls) {
+  const d = el("div", `bubble ${cls}`);
+  d.append(el("b", null, name), document.createTextNode(` ${text}`));
+  d.style.left = `${6 + Math.random() * 50}vw`;
+  d.onanimationend = () => d.remove();
+  document.body.append(d);
 }
