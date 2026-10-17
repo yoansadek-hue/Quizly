@@ -1,4 +1,5 @@
 import { euros } from "./local.js";
+import { setFrame } from "./million.js";
 // Jeu en ligne : le serveur mène la partie, ce fichier affiche ce qu'il envoie.
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
 const PALETTE = ["#ffe14d", "#34e3b0", "#ff6b8b", "#62c7ff", "#c4b8ff", "#ffb36b", "#f6f3ff", "#9df0d4"]; // couleurs des jetons
@@ -175,6 +176,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     const ul = $("lobbyList");
     ul.replaceChildren();
     O.pl = Object.fromEntries(m.players.map((p) => [p.id, p])); // pour afficher les photos pendant la partie
+    m.players.forEach((p) => setFrame(p.name, (p.cos || {}).frame)); // le cadre de chacun
     m.players.forEach((p, i) => {
       const li = document.createElement("li");
       li.className = "chip";
@@ -439,7 +441,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
   document.addEventListener("pointerdown", (e) => { if (!menu.hidden && !menu.contains(e.target) && !fab.contains(e.target)) closeReacts(); });
   function showChat(m) {
     const d = document.createElement("div");
-    d.className = "bubble chat";
+    d.className = `bubble chat ${m.sk || ""}`;
     const n = document.createElement("b"); n.textContent = m.id === O.you ? "Vous" : m.name;
     d.append(n, document.createTextNode(` ${m.text}`));
     d.style.left = `${6 + Math.random() * 40}vw`;
@@ -468,7 +470,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
   }
   function showReact(m) {
     const d = document.createElement("div");
-    d.className = `bubble r${m.r}`;
+    d.className = `bubble r${m.r} ${m.sk || ""}`;
     const n = document.createElement("b"); n.textContent = m.id === O.you ? "Vous" : m.name;
     d.append(n, document.createTextNode(` ${REACTS[m.r] || ""}`));
     d.style.left = `${8 + Math.random() * 62}vw`;
