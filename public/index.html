@@ -47,6 +47,7 @@ addEventListener("error", function (e) {
 
 <div id="fx"></div>
 <div id="gameToast" class="gtoast" role="status" hidden></div>
+<div id="achToast" class="achtoast" role="status" hidden><span class="achk">Succès débloqué</span><b id="achToastName"></b></div>
 <!-- demande d'ami reçue -->
 <div id="reqToast" class="toast" role="alert" hidden>
   <div class="toastTop"><span id="reqAv"></span><span id="reqText"></span></div>
@@ -149,7 +150,7 @@ addEventListener("error", function (e) {
       <button class="btn sun sm" id="btnMenuPush">Activer</button>
       <button class="fx light" id="btnMenuPushNo" aria-label="Plus tard">×</button>
     </div>
-    <button class="daily" id="btnDaily"><span class="dk">Défi du jour</span><strong id="dailyTitle">10 questions, une seule tentative</strong><span class="dsub" id="dailySub">Les mêmes pour tout le monde. Battez vos amis.</span></button>
+    <button class="daily" id="btnDaily"><span class="dk">Défi du jour</span><span class="streak" id="dailyStreak" hidden></span><strong id="dailyTitle">10 questions, une seule tentative</strong><span class="dsub" id="dailySub">Les mêmes pour tout le monde. Battez vos amis.</span></button>
     <div id="modes"></div>
     <p class="version ver"></p>
   </section>
@@ -259,6 +260,8 @@ addEventListener("error", function (e) {
     <div class="profhead"><span id="frAv"></span><h2 id="frName"></h2></div>
     <div class="profgrid" id="frRecords"></div>
     <div class="bubbles" id="frStats"></div>
+    <h3 class="profh">Ses succès <span class="achcount" id="frAchCount"></span></h3>
+    <div class="achgrid" id="frAch"></div>
     <button class="btn ghost" id="btnFrRemove">Retirer de mes amis</button>
   </section>
 
@@ -342,6 +345,8 @@ addEventListener("error", function (e) {
     <div class="profgrid" id="profRecords"></div>
     <div class="bubbles" id="profStats"></div>
     <div class="duo" id="profSum"></div>
+    <h3 class="profh">Succès <span class="achcount" id="achCount"></span></h3>
+    <div class="achgrid" id="achGrid"></div>
     <h3 class="profh">Par thème</h3>
     <p class="lead small" id="profEmpty">Aucune question jouée pour l'instant.</p>
     <ol class="profthemes" id="profThemes"></ol>
