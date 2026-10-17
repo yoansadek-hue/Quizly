@@ -195,9 +195,13 @@ export function millionLocal({ $, show, flash, ask, ui, getQ, onEnd, stat, photo
 }
 
 /* ---------- Photo de profil (ou initiale colorée) ---------- */
+// cadre équipé par chaque joueur (cosmétique), retrouvé par son nom
+const FRAMES = new Map();
+export function setFrame(name, frame) { if (name) { if (frame && frame !== "fr-ink") FRAMES.set(String(name), String(frame).replace(/[^a-z-]/g, "")); else FRAMES.delete(String(name)); } }
 const AV_COLORS = ["#ffe14d", "#34e3b0", "#ff6b8b", "#62c7ff", "#c4b8ff", "#ffb36b"];
 export function avatarEl(name, photo, big) {
-  const cls = "avatar" + (big ? " big" : "");
+  const fr = FRAMES.get(String(name || ""));
+  const cls = "avatar" + (big ? " big" : "") + (fr ? ` ${fr}` : "");
   if (photo) {
     const im = document.createElement("img");
     im.className = cls; im.alt = ""; im.referrerPolicy = "no-referrer"; im.src = photo;
