@@ -889,3 +889,22 @@ html{background-color:var(--bg);background-image:radial-gradient(rgba(255,255,25
 #setDiffRow .seg{flex:1 1 auto;margin-left:52px}
 #setDiffRow .seg button{flex:1;padding:9px 10px;font-size:13px}
 .setacct .btn.sm{min-height:42px;padding:6px 14px;font-size:14px}
+
+/* ---------- 2.13 : succès et série ---------- */
+.achcount{font:800 14px var(--display);color:var(--sun);margin-left:6px}
+.achgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:0 0 6px}
+.ach{display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;padding:10px 4px;border-radius:18px;min-width:0}
+.ach .pin{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;font:800 15px var(--display);color:var(--ink);border:3px solid var(--ink);box-shadow:0 3px 0 var(--ink)}
+.ach b{font:800 11px var(--display);line-height:1.15;color:var(--paper)}
+.ach small{font:600 10px var(--font);line-height:1.2;color:var(--lilac)}
+.ach.on.sun .pin{background:var(--sun)} .ach.on.mint .pin{background:var(--mint)} .ach.on.coral .pin{background:var(--coral)} .ach.on.sky .pin{background:var(--sky)} .ach.on.peach .pin{background:var(--peach)}
+.ach.off .pin{background:transparent;color:var(--lilac);border:2px dashed rgba(196,184,255,.5);box-shadow:none}
+.ach.off b{color:var(--lilac)}
+.ach:nth-child(3n+2) .pin{border-radius:16px;transform:rotate(-6deg)} /* des formes variées : rond, carré penché, galet */
+.ach:nth-child(3n) .pin{border-radius:40% 60% 55% 45% / 50% 45% 55% 50%}
+.achtoast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:60;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:240px;padding:12px 20px;background:var(--sun);color:var(--ink);border:3px solid var(--ink);border-radius:22px;box-shadow:var(--edge);text-align:center}
+.achtoast.show{animation:pop .4s cubic-bezier(.2,1.4,.4,1)}
+.achk{font:800 11px var(--display);text-transform:uppercase;letter-spacing:.08em;opacity:.7}
+.achtoast b{font:800 20px var(--display)}
+.streak{position:absolute;top:14px;right:14px;z-index:1;padding:4px 10px;border-radius:99px;background:var(--coral);color:var(--ink);border:2px solid var(--ink);font:800 12px var(--display)}
+@media (min-width:700px){.achgrid{grid-template-columns:repeat(8,1fr)}}
