@@ -2,7 +2,7 @@
 // Les comptes locaux restent sur l'appareil. Si Firestore n'est pas activé, rien ne casse : tout reste sur l'appareil.
 import { firebaseApp, googleUid } from "./auth.js";
 
-const KEYS = ["me", "daily", "dailyHist", "ach", "customThemes", "notifStart", "profiles", "roster", "history", "recent", "stats", "best2", "bestChrono", "bestMillion"]; // ce qui est sauvegardé
+const KEYS = ["me", "coins", "owned", "cos", "club", "daily", "dailyHist", "ach", "customThemes", "notifStart", "profiles", "roster", "history", "recent", "stats", "best2", "bestChrono", "bestMillion"]; // ce qui est sauvegardé
 const RECORDS = ["best2", "bestChrono", "bestMillion"]; // pour un record, on garde toujours le plus grand
 let fs = null, ref = null, uid = null, dirty = new Set(), timer = null, state = "local";
 const k = (name) => `quizly:${uid}:${name}`;
