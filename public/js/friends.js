@@ -40,6 +40,7 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
     $("tabFriendsBadge").hidden = true; $("notifBadge").hidden = true; $("reqToast").hidden = true; $("inviteToast").hidden = true;
   }
   const ready = () => !!F.uid;
+  const subId = async (endpoint) => { const h = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(endpoint)); return [...new Uint8Array(h)].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 40); };
 
   // profil public : nom, photo, code ami, records (rien d'autre n'est visible par les amis)
   async function publish() {
@@ -515,9 +516,13 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
     // cet appareil, enregistré dans Firestore : le serveur le retrouve même après s'être endormi
     async saveSub(sub) {
       if (!ready() || !sub || !sub.endpoint || !sub.keys) return;
-      const h = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(sub.endpoint));
-      const id = [...new Uint8Array(h)].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 40);
+      const id = await subId(sub.endpoint);
       try { await F.fs.setDoc(ref("pushsubs", id), { uid: F.uid, endpoint: sub.endpoint, p256dh: sub.keys.p256dh, auth: sub.keys.auth, at: Date.now() }); } catch {}
+    },
+    // notifications coupées sur cet appareil : on le retire de Firestore
+    async removeSub(endpoint) {
+      if (!ready() || !endpoint) return;
+      try { await F.fs.deleteDoc(ref("pushsubs", await subId(endpoint))); } catch {}
     },
     // classement du défi du jour : vous et vos amis qui l'ont fait aujourd'hui
     dailyBoard(day) {

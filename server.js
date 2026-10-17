@@ -27,6 +27,14 @@ app.post("/api/push/subscribe", (req, res) => {
   pushSubs.set(uid, m);
   res.json({ ok: true });
 });
+// notifications coupées sur un appareil (Réglages) : on ne lui envoie plus rien
+app.post("/api/push/unsubscribe", (req, res) => {
+  const endpoint = req.body && req.body.endpoint;
+  if (typeof endpoint !== "string" || !endpoint.startsWith("https://")) return res.status(400).json({ ok: false });
+  deadSubs.add(endpoint);
+  for (const m of pushSubs.values()) m.delete(endpoint);
+  res.json({ ok: true });
+});
 // les appareils inscrits sont aussi enregistrés dans Firestore (collection « pushsubs », lisible par le serveur)
 let fsSubs = { at: 0, list: [] };
 const deadSubs = new Set(); // appareils désinscrits (le téléphone a retiré l'autorisation)
@@ -194,7 +202,8 @@ app.get("/icons/icon-:n.png", (req, res) => {
   if (!b) return res.sendStatus(404);
   res.type("png").set("Cache-Control", "public, max-age=3600").send(Buffer.from(b, "base64"));
 });
-app.use(express.static("public"));
+// pages, scripts et styles : toujours revérifiés auprès du serveur (sinon l'iPhone peut mélanger une ancienne page et un nouveau script)
+app.use(express.static("public", { setHeaders: (res, file) => { if (/\.(html|js|css|webmanifest)$/.test(file)) res.set("Cache-Control", "no-cache"); } }));
 
 /* ====================== Génération des questions ====================== */
 const SYSTEM = `Quiz en français. Réponds uniquement par un tableau JSON compact, sans texte ni Markdown :
