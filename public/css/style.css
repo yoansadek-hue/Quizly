@@ -908,3 +908,21 @@ html{background-color:var(--bg);background-image:radial-gradient(rgba(255,255,25
 .achtoast b{font:800 20px var(--display)}
 .streak{position:absolute;top:14px;right:14px;z-index:1;padding:4px 10px;border-radius:99px;background:var(--coral);color:var(--ink);border:2px solid var(--ink);font:800 12px var(--display)}
 @media (min-width:700px){.achgrid{grid-template-columns:repeat(8,1fr)}}
+
+/* ---------- 2.14 : thèmes personnalisés et classement mondial ---------- */
+.custom{margin:0 0 16px;padding:14px;background:var(--bg-deep);border:2px dashed rgba(255,225,77,.55);border-radius:22px}
+.custom .row{margin:0}
+.custom .msg{margin:8px 0 0;min-height:0}
+.custom .chips{margin-top:10px}
+.custom-chip{padding:0;gap:0;overflow:hidden;background:transparent;border-color:var(--sun)}
+.custom-chip .ctog{min-height:40px;padding:6px 6px 6px 14px;border:0;background:transparent;color:var(--sun);font:800 14px var(--font);cursor:pointer}
+.custom-chip .ctog[aria-pressed=true]{background:var(--sun);color:var(--ink)}
+.custom-chip:has(.ctog[aria-pressed=true]){background:var(--sun)}
+.custom-chip .cdel{min-height:40px;padding:0 12px 0 6px;border:0;background:transparent;color:inherit;font:800 18px var(--font);cursor:pointer;color:var(--lilac)}
+.custom-chip:has(.ctog[aria-pressed=true]) .cdel{color:var(--ink)}
+#themes.dim ~ .custom,.custom:has(.ctog:disabled) .custom-chip{opacity:.4}
+.scope{display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:5px;margin:10px 0 10px;background:var(--bg-deep);border-radius:16px}
+.scope button{min-height:40px;border:0;border-radius:12px;background:transparent;color:var(--lilac);font:800 13px var(--display);cursor:pointer}
+.scope button[aria-pressed=true]{background:var(--sun);color:var(--ink);box-shadow:0 3px 0 var(--ink)}
+.myrank{margin:0 0 10px;text-align:center;color:var(--sun);font-weight:800}
+.rk.mine{outline:3px solid var(--mint);outline-offset:2px}
