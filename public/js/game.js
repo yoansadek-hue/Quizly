@@ -9,7 +9,7 @@ import { initFriends, friendCodeFrom } from "./friends.js";
 import { enablePush, pushState, currentSub } from "./push.js";
 import { initCosmetics } from "./cosmetics.js";
 
-const VERSION = "2.17.1"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.17.2"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
