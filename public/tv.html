@@ -9,34 +9,39 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@500;700;800&family=Unbounded:wght@700;800&display=swap" rel="stylesheet">
 <style>
-  /* Quizly TV — identité « jeton » : un plateau myrtille, des jetons épais, des pièces lettrées A B C D */
+  /* =====================================================================
+     Quizly TV — refonte : un plateau de jeu télévisé aux couleurs « jeton »
+     ===================================================================== */
   :root{
     --bg:#3b1d8f; --bg-deep:#2c136f; --ink:#1e0f45; --paper:#f6f3ff; --white:#fff;
-    --sun:#ffe14d; --mint:#34e3b0; --coral:#ff6b8b; --sky:#62c7ff; --lilac:#c4b8ff; --muted:#5b4a8f;
+    --sun:#ffe14d; --mint:#34e3b0; --coral:#ff6b8b; --sky:#62c7ff; --lilac:#c4b8ff; --muted:#5b4a8f; --peach:#ff9f45;
     --font:"Figtree",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
     --display:"Unbounded","Figtree",system-ui,sans-serif;
   }
   *{box-sizing:border-box}
   [hidden]{display:none!important}
   html,body{margin:0;height:100%}
-  body{font-family:var(--font);font-weight:500;color:var(--paper);overflow:hidden;
-    background-color:var(--bg);background-image:radial-gradient(rgba(255,255,255,.075) 1.6px,transparent 1.8px);background-size:30px 30px}
-  .screen{position:fixed;inset:0;display:flex;flex-direction:column;padding:4vh 4vw}
+  body{font-family:var(--font);font-weight:500;color:var(--paper);overflow:hidden;background-color:var(--bg);
+    background-image:radial-gradient(rgba(255,255,255,.075) 1.6px,transparent 1.8px);background-size:30px 30px}
+  .screen{position:fixed;inset:0;display:flex;flex-direction:column;padding:3.5vh 3.5vw}
   .center{align-items:center;justify-content:center;text-align:center}
-  .logo{font:800 clamp(24px,3.2vh,44px) var(--display);margin:0;line-height:1}
+  .logo{font:800 clamp(22px,3vh,40px) var(--display);margin:0;line-height:1}
   .logo small{display:block;margin-top:.5vh;font:700 .42em var(--font);color:var(--sun)}
   .big{font:800 clamp(34px,7vh,96px) var(--display);line-height:1.05;margin:0;letter-spacing:-.02em}
   .lead{font-size:clamp(16px,2.6vh,32px);color:var(--lilac);margin:1.5vh 0}
   .msg{color:var(--sun);font-weight:800;font-size:clamp(16px,2.6vh,30px);min-height:1.3em}
   .btn{font:800 clamp(16px,2.4vh,28px) var(--display);padding:1.4vh 2.4vw;margin-top:2vh;border:4px solid var(--ink);border-radius:22px;background:var(--sun);color:var(--ink);box-shadow:0 7px 0 var(--ink);cursor:pointer}
-  .btn:active{transform:translateY(5px);box-shadow:0 2px 0 var(--ink)}
   .btn.small{font-size:clamp(13px,1.8vh,20px);padding:1vh 1.6vw;margin:0;box-shadow:0 5px 0 var(--ink)}
   .back{position:fixed;left:2vw;bottom:2vh;color:var(--lilac);font:700 clamp(13px,1.6vh,20px) var(--font);text-decoration:none}
-  .chip{display:inline-flex;align-items:center;gap:.5em;padding:.35em 1em;border:3px solid var(--ink);border-radius:99px;background:var(--paper);color:var(--ink);font:800 clamp(14px,2.2vh,26px) var(--font);box-shadow:0 4px 0 var(--ink)}
+  .chip{display:inline-flex;align-items:center;gap:.5em;padding:.35em 1em;border:3px solid var(--ink);border-radius:99px;background:var(--paper);color:var(--ink);font:800 clamp(14px,2.1vh,26px) var(--font);box-shadow:0 4px 0 var(--ink);white-space:nowrap}
+  .chip.sky{background:var(--sky)} .chip.sun{background:var(--sun)}
   .avatar{width:1.6em;height:1.6em;border-radius:50%;object-fit:cover;border:3px solid var(--ink);display:inline-grid;place-items:center;font:800 .75em var(--display);color:var(--ink);background:var(--sun);flex:none}
   .avatar.big{width:2.1em;height:2.1em}
+  @keyframes pop{0%{transform:scale(.6);opacity:0}70%{transform:scale(1.05)}100%{transform:scale(1);opacity:1}}
+  @keyframes rise{from{transform:translateY(4vh);opacity:0}to{transform:none;opacity:1}}
+  @keyframes shake{0%,100%{transform:none}20%{transform:translateX(-1vw)}40%{transform:translateX(1vw)}60%{transform:translateX(-.6vw)}80%{transform:translateX(.6vw)}}
 
-  /* salon : à gauche le QR code dans un jeton, à droite les joueurs */
+  /* ---------- salon ---------- */
   .lobby{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:5vw;padding:5vh 6vw}
   .lobbyL{display:flex;flex-direction:column;align-items:center;gap:2.6vh;text-align:center}
   .ttl{font:800 clamp(24px,5.4vh,68px) var(--display);margin:0;line-height:1;letter-spacing:-.02em}
@@ -47,58 +52,128 @@
   .lobbyR{display:flex;flex-direction:column;align-items:flex-start;gap:2.6vh;min-width:0;max-height:90vh;overflow:hidden}
   .info{font:800 clamp(16px,2.8vh,34px) var(--display);margin:0}
   .players{display:flex;flex-wrap:wrap;gap:12px;max-height:46vh;overflow:hidden}
+  .players .chip{animation:pop .45s backwards}
   .players .chip:nth-child(4n+1){background:var(--sun)} .players .chip:nth-child(4n+2){background:var(--mint)}
   .players .chip:nth-child(4n+3){background:var(--coral)} .players .chip:nth-child(4n+4){background:var(--sky)}
-  @media (max-aspect-ratio:1/1){.lobby{grid-template-columns:1fr;justify-items:center;text-align:center}.lobbyR{align-items:center}.players{justify-content:center}}
 
-  /* question : une grande carte, puis 4 jetons lettrés */
-  .top{display:flex;justify-content:space-between;align-items:center;gap:2vw}
-  .who{display:flex;align-items:center;gap:.6em;font:800 clamp(20px,4vh,52px) var(--display);letter-spacing:-.01em}
-  .top .chip{background:var(--sky)}
-  .bar{height:2vh;background:var(--bg-deep);border:3px solid var(--ink);border-radius:99px;overflow:hidden;margin:2vh 0 0}
-  .bar i{display:block;height:100%;background:var(--mint);transform-origin:left}
-  .qbox{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:2vh;margin:3vh 0 3.5vh;padding:3vh 4vw;background:var(--paper);color:var(--ink);border:5px solid var(--ink);border-radius:40px;box-shadow:0 12px 0 var(--ink);min-height:0}
-  .qtext{font:800 clamp(24px,5.4vh,72px)/1.18 var(--display);white-space:pre-line;margin:0;letter-spacing:-.015em}
-  .qimg{max-height:26vh;max-width:60%;object-fit:contain;border-radius:16px;border:4px solid var(--ink);background:var(--white)}
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:2.2vh 2vw;counter-reset:opt}
-  .opt{display:flex;align-items:center;gap:1.4vw;min-height:10vh;padding:1.2vh 1.6vw;background:var(--paper);color:var(--ink);border:4px solid var(--ink);border-radius:28px;box-shadow:0 8px 0 var(--ink);font:700 clamp(18px,3.4vh,44px)/1.15 var(--font);transition:opacity .35s,transform .35s,background .35s}
+  /* ---------- chargement ---------- */
+  .dots{display:flex;gap:2vw;margin-top:4vh}
+  .dots i{width:3vh;height:3vh;border-radius:50%;background:var(--sun);border:4px solid var(--ink);animation:bounce .8s infinite}
+  .dots i:nth-child(2){animation-delay:.15s;background:var(--mint)} .dots i:nth-child(3){animation-delay:.3s;background:var(--coral)}
+  @keyframes bounce{50%{transform:translateY(-3vh)}}
+
+  /* ---------- plateau de jeu ---------- */
+  .ghead{display:flex;align-items:center;justify-content:space-between;gap:2vw;margin-bottom:2.4vh}
+  .gwho{display:flex;align-items:center;gap:.7em;font:800 clamp(20px,3.8vh,50px) var(--display);min-width:0}
+  .gwho .avatar{font-size:clamp(28px,5vh,62px)}
+  .gwho span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gmeta{display:flex;gap:1vw;flex:none}
+  .gbody{flex:1;display:grid;grid-template-columns:1fr minmax(260px,27vw);gap:2.6vw;min-height:0}
+  .stage{position:relative;display:flex;flex-direction:column;gap:2.6vh;min-height:0}
+  .qcard{position:relative;flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:2vh;text-align:center;min-height:0;padding:3vh 5vw;background:var(--paper);color:var(--ink);border:5px solid var(--ink);border-radius:40px;box-shadow:0 12px 0 var(--ink)}
+  .qcard.enter{animation:rise .45s cubic-bezier(.2,.8,.2,1)}
+  .qtext{font:800 clamp(24px,5vh,68px)/1.16 var(--display);white-space:pre-line;margin:0;letter-spacing:-.015em}
+  .qimg{max-height:24vh;max-width:60%;object-fit:contain;border-radius:16px;border:4px solid var(--ink);background:var(--white)}
+  /* minuteur : un anneau */
+  .ring{position:absolute;top:-3vh;right:-1.5vw;width:12vh;height:12vh;border-radius:50%;background:var(--ink);display:grid;place-items:center;box-shadow:0 6px 0 rgba(30,15,69,.5)}
+  .ring svg{position:absolute;inset:0;transform:rotate(-90deg)}
+  .ring circle{fill:none;stroke-width:9}
+  .ring .rt{stroke:rgba(255,255,255,.15)} .ring .ra{stroke:var(--mint);stroke-linecap:round;transition:stroke .3s}
+  .ring b{position:relative;font:800 clamp(22px,4.6vh,56px) var(--display);color:var(--paper)}
+  .ring.urgent .ra{stroke:var(--coral)} .ring.urgent b{color:var(--coral);animation:pop .5s infinite alternate}
+  /* réponses : 4 jetons lettrés */
+  .answers{display:grid;grid-template-columns:1fr 1fr;gap:2vh 1.6vw;counter-reset:opt}
+  .opt{display:flex;align-items:center;gap:1.2vw;min-height:10vh;padding:1.2vh 1.4vw;background:var(--paper);color:var(--ink);border:4px solid var(--ink);border-radius:26px;box-shadow:0 8px 0 var(--ink);font:700 clamp(18px,3.1vh,40px)/1.15 var(--font);transition:opacity .4s,transform .4s,background .4s;animation:rise .4s backwards}
+  .opt:nth-child(2){animation-delay:.06s} .opt:nth-child(3){animation-delay:.12s} .opt:nth-child(4){animation-delay:.18s}
   .opt::before{counter-increment:opt;content:counter(opt,upper-alpha);flex:none;width:1.9em;height:1.9em;border-radius:50%;display:grid;place-items:center;border:4px solid var(--ink);font:800 .9em var(--display);background:var(--sun)}
   .opt.o1::before{background:var(--mint)} .opt.o2::before{background:var(--coral)} .opt.o3::before{background:var(--sky)}
-  .opt.dim{opacity:.3;transform:scale(.97)}
-  .opt.right{background:var(--mint);transform:translateY(-6px);box-shadow:0 14px 0 var(--ink)}
-  .status{font:800 clamp(16px,3vh,36px) var(--display);color:var(--sun);text-align:center;min-height:1.3em;margin:2vh 0 0}
-  .live{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:1.5vh}
-  .live .chip.ok{background:var(--mint)}
+  .opt.dim{opacity:.25;transform:scale(.97)}
+  .opt.right{background:var(--mint);transform:translateY(-6px) scale(1.02);box-shadow:0 14px 0 var(--ink)}
+  .opt.wrong{background:var(--coral);animation:shake .5s}
+  /* verdict après la réponse */
+  .verdict{position:absolute;left:50%;bottom:-1vh;transform:translateX(-50%);z-index:3;padding:1.4vh 3vw;border:5px solid var(--ink);border-radius:99px;box-shadow:0 8px 0 var(--ink);font:800 clamp(20px,4vh,48px) var(--display);color:var(--ink);white-space:nowrap;animation:pop .45s cubic-bezier(.2,1.4,.4,1)}
+  .verdict.ok{background:var(--mint)} .verdict.ko{background:var(--coral)} .verdict.info{background:var(--sun);font-size:clamp(16px,2.6vh,30px);white-space:normal;max-width:90%;text-align:center}
+  .mlive{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+  .mlive .chip.ok{background:var(--mint)} .mlive .chip.out{opacity:.45}
+  /* colonne de droite */
+  .side{display:flex;flex-direction:column;gap:1.4vh;min-height:0;overflow:hidden}
+  .side h3{margin:0 0 .4vh;font:800 clamp(13px,1.9vh,22px) var(--display);text-transform:uppercase;letter-spacing:.08em;color:var(--lilac)}
+  .prow{display:flex;align-items:center;gap:.7em;padding:1vh 1vw;background:rgba(0,0,0,.18);border:3px solid transparent;border-radius:20px;font:800 clamp(15px,2.3vh,28px) var(--display);transition:background .3s,transform .3s}
+  .prow .avatar{font-size:clamp(18px,3vh,34px)}
+  .prow .pn{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .prow .pv{color:var(--sun);white-space:nowrap}
+  .prow.cur{background:var(--sun);color:var(--ink);border-color:var(--ink);transform:translateX(-.6vw)}
+  .prow.cur .pv{color:var(--ink)}
+  .prow.dead{opacity:.4}
+  .prow.dead .pn{text-decoration:line-through}
+  .hearts{letter-spacing:.1em}
+  /* équipes */
+  .team{padding:1.4vh 1.2vw;border:4px solid var(--ink);border-radius:24px;color:var(--ink);box-shadow:0 6px 0 var(--ink)}
+  .team .th{display:flex;justify-content:space-between;align-items:baseline;font:800 clamp(18px,3vh,36px) var(--display)}
+  .team .tp{font-size:1.2em}
+  .team .tm{display:flex;flex-wrap:wrap;gap:6px;margin-top:1vh;font:700 clamp(12px,1.8vh,20px) var(--font)}
+  .team .tm span{padding:2px 10px;border-radius:99px;background:rgba(255,255,255,.55)}
+  .team .tm span.cur{background:var(--ink);color:var(--paper)}
+  .team.t0{background:var(--coral)} .team.t1{background:var(--sky)} .team.t2{background:var(--mint)} .team.t3{background:var(--sun)}
+  /* Millionnaire : l'échelle */
+  .ladder{list-style:none;margin:0;padding:0;display:flex;flex-direction:column-reverse;gap:.5vh}
+  .ladder li{display:flex;justify-content:space-between;padding:.45vh 1vw;border-radius:12px;font:800 clamp(12px,1.9vh,22px) var(--display);color:var(--lilac)}
+  .ladder li .n{opacity:.6}
+  .ladder li.safe{color:var(--sun)}
+  .ladder li.done{color:var(--mint)}
+  .ladder li.now{background:var(--sun);color:var(--ink);transform:scale(1.04)}
+  /* écran « au tour de… » */
+  .splash{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(44,19,111,.92);animation:fadeout 1.4s forwards}
+  .splash .avatar{font-size:clamp(60px,14vh,170px);animation:pop .5s cubic-bezier(.2,1.4,.4,1)}
+  .splash p{margin:1vh 0 0;font:800 clamp(18px,3vh,36px) var(--display);color:var(--lilac)}
+  .splash .nm{font-size:clamp(40px,9vh,120px);color:var(--sun);margin:0;animation:pop .5s .1s backwards}
+  @keyframes fadeout{0%,75%{opacity:1}100%{opacity:0;visibility:hidden}}
 
-  /* classements */
+  /* ---------- Chrono : la course ---------- */
+  .chead{display:flex;align-items:center;justify-content:space-between;margin-bottom:3vh}
+  .chead .ring{position:relative;top:auto;right:auto}
+  .race{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:1.4vh}
+  .race li{display:grid;grid-template-columns:auto auto 1fr auto;align-items:center;gap:1.2vw;padding:1.2vh 1.4vw;background:var(--paper);color:var(--ink);border:4px solid var(--ink);border-radius:24px;box-shadow:0 6px 0 var(--ink);font:800 clamp(16px,2.8vh,34px) var(--display);transition:transform .5s cubic-bezier(.2,.8,.2,1)}
+  .race li:first-child{background:var(--sun)}
+  .race .pos{width:1.7em;height:1.7em;display:grid;place-items:center;border-radius:50%;background:var(--ink);color:var(--paper);font-size:.8em}
+  .race .track{position:relative;height:2.2vh;background:rgba(30,15,69,.12);border-radius:99px;overflow:hidden}
+  .race .track i{position:absolute;inset:0 auto 0 0;background:var(--mint);border-radius:99px;transition:width .5s}
+  .race .done{opacity:.6}
+  .race .mid{display:flex;flex-direction:column;gap:.8vh;min-width:0}
+  .race .rn{font-size:.75em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  /* ---------- fin du tour ---------- */
+  .levels{display:flex;gap:1.4vw;margin:4vh 0 2vh}
+  .levels span{width:9vh;height:9vh;display:grid;place-items:center;border-radius:50%;border:4px solid var(--ink);background:rgba(255,255,255,.15);color:var(--lilac);font:800 clamp(18px,3.4vh,40px) var(--display)}
+  .levels span.on{background:var(--sun);color:var(--ink);box-shadow:0 6px 0 var(--ink);animation:pop .5s backwards}
+
+  /* ---------- podium ---------- */
   .board{list-style:none;padding:0;margin:3vh auto 0;width:min(1100px,90vw);display:grid;gap:1.4vh}
   .board li{display:flex;align-items:center;gap:1em;padding:1.1vh 1.6vw;background:var(--paper);color:var(--ink);border:4px solid var(--ink);border-radius:24px;box-shadow:0 6px 0 var(--ink);font:800 clamp(18px,3.2vh,40px) var(--display)}
-  .board li.first{background:var(--sun)}
   .board .pos{width:1.7em;height:1.7em;display:grid;place-items:center;border-radius:50%;background:var(--ink);color:var(--paper);flex:none;font-size:.8em}
   .board .nm{flex:1;font-family:var(--font)}
-  .board .done{opacity:.6}
-
-  /* podium : des piles de jetons */
   .podium{display:flex;align-items:flex-end;justify-content:center;gap:3vw;margin-top:3vh}
-  .step{display:flex;flex-direction:column;align-items:center;gap:1vh;font:800 clamp(18px,3vh,40px) var(--display)}
+  .step{display:flex;flex-direction:column;align-items:center;gap:1vh;font:800 clamp(18px,3vh,40px) var(--display);animation:rise .6s backwards}
   .step .avatar{font-size:clamp(34px,6.5vh,90px)}
   .step small{font:700 .6em var(--font);color:var(--lilac)}
   .step .block{width:clamp(110px,13vw,250px);border:5px solid var(--ink);border-radius:26px;display:grid;place-items:start center;padding-top:1.4vh;color:var(--ink);font:800 clamp(28px,5vh,70px) var(--display);box-shadow:0 10px 0 var(--ink)}
+  .step.p1{animation-delay:.6s} .step.p2{animation-delay:.3s}
   .step.p1 .block{height:34vh;background:repeating-linear-gradient(to bottom,var(--sun) 0 3.2vh,#e6c52a 3.2vh 3.7vh)}
   .step.p2 .block{height:24vh;background:repeating-linear-gradient(to bottom,var(--mint) 0 3.2vh,#22c697 3.2vh 3.7vh)}
   .step.p3 .block{height:16vh;background:repeating-linear-gradient(to bottom,var(--coral) 0 3.2vh,#e85676 3.2vh 3.7vh)}
   #tRest{width:min(900px,80vw)}
   #tRest li{font-size:clamp(16px,2.6vh,30px);padding:.8vh 1.4vw}
+  .conf{position:fixed;top:-4vh;width:2vh;height:2vh;border-radius:50%;z-index:20;animation:fall linear forwards}
+  @keyframes fall{to{transform:translateY(110vh) rotate(540deg)}}
 
-  /* réactions des joueurs */
-  .bubble{position:fixed;bottom:6vh;z-index:20;display:flex;gap:.4em;align-items:center;padding:.5em 1.1em;border:4px solid var(--ink);border-radius:999px;box-shadow:0 6px 0 var(--ink);color:var(--ink);font:800 clamp(18px,3vh,36px) var(--display);pointer-events:none;animation:floatup 3s ease-out forwards}
+  /* réactions et messages des joueurs */
+  .bubble{position:fixed;bottom:6vh;z-index:20;display:flex;gap:.4em;align-items:center;max-width:60vw;padding:.5em 1.1em;border:4px solid var(--ink);border-radius:999px;box-shadow:0 6px 0 var(--ink);color:var(--ink);font:800 clamp(18px,3vh,36px) var(--display);pointer-events:none;animation:floatup 3.4s ease-out forwards}
   .bubble b{font-family:var(--font)}
-  .bubble.r0{background:var(--sun)} .bubble.r1{background:var(--mint)} .bubble.r2{background:var(--coral)} .bubble.r3{background:var(--sky)} .bubble.r4{background:var(--paper)} .bubble.r5{background:#ff9f45}
+  .bubble.r0{background:var(--sun)} .bubble.r1{background:var(--mint)} .bubble.r2{background:var(--coral)} .bubble.r3{background:var(--sky)} .bubble.r4{background:var(--paper)} .bubble.r5{background:var(--peach)}
   @keyframes floatup{0%{transform:translateY(20px) scale(.6);opacity:0}12%{transform:none;opacity:1}100%{transform:translateY(-55vh) rotate(-6deg);opacity:0}}
-  @keyframes pop{0%{transform:scale(.6);opacity:0}70%{transform:scale(1.05)}100%{transform:scale(1);opacity:1}}
-  .screen:not([hidden]) .qbox,.screen:not([hidden]) .step,.players .chip{animation:pop .45s backwards}
-  .step.p1{animation-delay:.5s} .step.p2{animation-delay:.25s}
+  @media (max-aspect-ratio:1/1){.lobby{grid-template-columns:1fr;justify-items:center;text-align:center}.lobbyR{align-items:center}.players{justify-content:center}.gbody{grid-template-columns:1fr}.side{display:none}}
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
 </style>
 </head>
 <body>
@@ -112,7 +187,6 @@
 
 <!-- 2. Salle d'attente -->
 <section id="tLobby" class="screen lobby" hidden>
-  <!-- à gauche : le QR code ; à droite : les joueurs -->
   <div class="lobbyL">
     <p class="ttl">Scannez pour jouer</p>
     <img id="tQr" class="qr big" alt="QR code pour rejoindre">
@@ -122,45 +196,55 @@
     <p class="logo">Quizly<small>par YoskanGame</small></p>
     <p class="info" id="tLobbyInfo"></p>
     <div class="players" id="tPlayers"></div>
-    <p class="msg" id="tWait">En attente du premier joueur…</p>
+    <p class="msg" id="tWait">Le premier qui scanne choisit le mode et lance la partie.</p>
     <button class="btn small" id="tSound">Activer le son</button>
   </div>
   <a class="back" href="./">← Retour à Quizly</a>
 </section>
 
-<!-- 3. Chargement / messages -->
+<!-- 3. Chargement -->
 <section id="tLoad" class="screen center" hidden>
   <p class="big" id="tLoadText">Préparation…</p>
+  <div class="dots"><i></i><i></i><i></i></div>
 </section>
 
-<!-- 4. Question (Survie et Millionnaire) -->
-<section id="tQuestion" class="screen" hidden>
-  <div class="top">
-    <div class="who" id="tWho"></div>
-    <span class="chip" id="tTag"></span>
+<!-- 4. Plateau : Survie, Équipes, Millionnaire -->
+<section id="tGame" class="screen" hidden>
+  <div class="ghead">
+    <div class="gwho" id="gWho"></div>
+    <div class="gmeta"><span class="chip sky" id="gTag"></span><span class="chip" id="gCount"></span></div>
   </div>
-  <div class="bar" id="tBarBox"><i id="tBar"></i></div>
-  <div class="qbox">
-    <img id="tImg" class="qimg" alt="" hidden>
-    <p class="qtext" id="tText"></p>
-    <audio id="tAudio" preload="auto"></audio>
+  <div class="gbody">
+    <div class="stage">
+      <div class="qcard" id="gCard">
+        <div class="ring" id="gRing"><svg viewBox="0 0 100 100"><circle class="rt" cx="50" cy="50" r="42"/><circle class="ra" id="gArc" cx="50" cy="50" r="42" stroke-dasharray="264" stroke-dashoffset="0"/></svg><b id="gClock"></b></div>
+        <img id="gImg" class="qimg" alt="" hidden>
+        <p class="qtext" id="gText"></p>
+        <audio id="tAudio" preload="auto"></audio>
+      </div>
+      <div class="answers" id="gOpts"></div>
+      <div class="mlive" id="gLive"></div>
+      <div class="verdict" id="gVerdict" hidden></div>
+    </div>
+    <aside class="side" id="gSide"></aside>
   </div>
-  <div class="grid" id="tOpts"></div>
-  <p class="status" id="tStatus"></p>
-  <div class="live" id="tLive"></div>
 </section>
 
-<!-- 5. Chrono : classement en direct -->
+<!-- 5. Chrono : la course -->
 <section id="tChrono" class="screen" hidden>
-  <div class="top"><p class="big">Chrono 60 s</p><span class="chip" id="tChronoInfo"></span></div>
-  <ol class="board" id="tBoard"></ol>
+  <div class="chead">
+    <div><p class="big">Chrono 60 s</p><p class="lead" id="cInfo">Tout le monde joue en même temps</p></div>
+    <div class="ring" id="cRing"><svg viewBox="0 0 100 100"><circle class="rt" cx="50" cy="50" r="42"/><circle class="ra" id="cArc" cx="50" cy="50" r="42" stroke-dasharray="264" stroke-dashoffset="0"/></svg><b id="cClock"></b></div>
+  </div>
+  <ol class="race" id="cRace"></ol>
 </section>
 
-<!-- 6. Choix du niveau -->
+<!-- 6. Fin du tour -->
 <section id="tLevel" class="screen center" hidden>
   <p class="lead">Fin du tour</p>
   <p class="big" id="tLevelText"></p>
-  <p class="msg">L'hôte choisit la suite…</p>
+  <div class="levels" id="tLevels"></div>
+  <p class="msg" id="tLevelWait">L'hôte choisit la suite…</p>
 </section>
 
 <!-- 7. Podium -->
@@ -170,6 +254,8 @@
   <div class="podium" id="tPodium"></div>
   <ol class="board" id="tRest"></ol>
 </section>
+
+<div class="splash" id="gSplash" hidden><span id="gSplashAv"></span><p>Au tour de</p><p class="nm" id="gSplashName"></p></div>
 
 <script type="module" src="js/tv.js"></script>
 </body>
