@@ -6,7 +6,7 @@ import { sendPush } from "./push.js";
 const ALPHA = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // sans I, O, 0, 1 : pas de confusion à la lecture
 const INVITE_TTL = 10 * 60 * 1000; // une invitation de plus de 10 minutes est ignorée
 
-export function initFriends({ $, ask, avatarEl, euros, me, records, summary, daily, joinRoom, roomInfo, openFriends, openNotifs, showScreen }) {
+export function initFriends({ $, ask, avatarEl, euros, me, records, summary, daily, achs, joinRoom, roomInfo, openFriends, openNotifs, showScreen }) {
   const F = { uid: null, fs: null, code: "", friends: [], unsub: [], tab: "best2", inv: null, panel: null };
   // onglets de l'écran Amis
   function setPanel(p) {
@@ -47,7 +47,7 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
     if (!code) code = await newCode();
     F.code = code;
     const m = me();
-    await F.fs.setDoc(pref, { name: m.name, photo: m.photo || "", code, records: records(), summary: summary(), daily: daily() || null, at: Date.now() }, { merge: true });
+    await F.fs.setDoc(pref, { name: m.name, photo: m.photo || "", code, records: records(), summary: summary(), daily: daily() || null, achs: achs(), at: Date.now() }, { merge: true });
   }
   async function newCode() {
     for (let t = 0; t < 8; t++) {
@@ -62,7 +62,7 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
   // les records changent : on met à jour le profil public (appelé à l'ouverture du profil et en fin de partie)
   async function syncRecords() {
     if (!ready()) return;
-    try { await F.fs.setDoc(ref("profiles", F.uid), { records: records(), summary: summary(), daily: daily() || null, name: me().name, photo: me().photo || "", at: Date.now() }, { merge: true }); } catch {}
+    try { await F.fs.setDoc(ref("profiles", F.uid), { records: records(), summary: summary(), daily: daily() || null, achs: achs(), name: me().name, photo: me().photo || "", at: Date.now() }, { merge: true }); } catch {}
   }
 
   /* ---------- en direct : demandes reçues et invitations ---------- */
@@ -148,6 +148,7 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
       const s = document.createElement("span"); s.textContent = k;
       d.append(b, s); return d;
     }));
+    if (window.__renderAch) window.__renderAch($("frAch"), $("frAchCount"), f.achs || []);
     showScreen("s-friend");
   }
   $("btnFrRemove").onclick = () => F.cur && remove(F.cur, () => showScreen("s-friends"));
@@ -346,6 +347,9 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
   return {
     start, stop, ready, render, syncRecords, addByCode, openInvites, renderNotifs,
     isFriend: (uid) => F.friends.some((f) => f.uid === uid),
+    count: () => F.friends.length,
+    // défi du jour terminé : noté pour le rappel du soir (le serveur ne prévient que ceux qui ne l'ont pas fait)
+    async dailyDone(day) { if (ready()) try { await F.fs.setDoc(ref("dailydone", day, "users", F.uid), { uid: F.uid, at: Date.now() }); } catch {} },
     // ajouter quelqu'un rencontré dans un salon (sans son code)
     async addByUid(to, name) {
       if (!ready()) return "Connectez-vous au cloud pour ajouter des amis.";
