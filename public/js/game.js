@@ -8,7 +8,7 @@ import { startCloud, cloudState } from "./cloud.js";
 import { initFriends, friendCodeFrom } from "./friends.js";
 import { enablePush, pushState, currentSub } from "./push.js";
 
-const VERSION = "2.12.5"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.13.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -781,13 +781,17 @@ function statAnswer(theme, ok) {
   const st = getStats();
   const t = (st.themes[theme] ||= { ok: 0, n: 0 });
   t.n++; if (ok) t.ok++;
+  st.run = ok ? (st.run || 0) + 1 : 0; // bonnes réponses d'affilée (toutes parties confondues)
+  st.bestRun = Math.max(st.bestRun || 0, st.run);
   saveStats(st);
+  checkAch();
 }
 function statGame(kind) {
   if (!S.uid) return;
   const st = getStats();
   st.games[kind] = (st.games[kind] || 0) + 1;
   saveStats(st);
+  checkAch();
 }
 const GAME_NAMES = { classic: "Classique", qcm: "QCM", solo: "Solo", teams: "Équipes", million: "Millionnaire", online: "En ligne", chrono: "Chrono", omillion: "Millionnaire en ligne" };
 function renderProfile() {
@@ -842,6 +846,7 @@ function renderProfile() {
     li.append(nm, bar, v); return li;
   }));
   $("profEmpty").hidden = themes.length > 0;
+  renderAch($("achGrid"), $("achCount"), Object.keys(getAch()));
   friends.syncRecords();
   const cs = cloudState();
   $("profCloud").textContent = cs === "cloud" ? "Sauvegardé" : cs === "error" ? "Hors ligne" : "Connexion…"; // petite pastille d'état
@@ -1033,6 +1038,7 @@ const friends = initFriends({
   summary: () => { const st = getStats(), t = Object.values(st.themes || {}); const n = t.reduce((a, x) => a + x.n, 0), ok = t.reduce((a, x) => a + x.ok, 0);
     return { games: Object.values(st.games || {}).reduce((a, b) => a + b, 0), questions: n, pct: n ? Math.round((100 * ok) / n) : 0 }; },
   daily: () => getDaily(),
+  achs: () => Object.keys(getAch()),
   showScreen: (id) => { if (id === "s-friends") friends.render(); show(id); }
 });
 function openNotifs() { friends.renderNotifs(); adminUI(); show("s-notifs"); }
@@ -1338,6 +1344,9 @@ function dailyCard() {
   $("btnDaily").classList.toggle("done", !!d);
   $("dailyTitle").textContent = d ? `Fait : ${d.score} / 10` : "10 questions, une seule tentative";
   $("dailySub").textContent = d ? "Voir le classement du jour" : "Les mêmes pour tout le monde. Battez vos amis.";
+  const sk = dailyStreak();
+  $("dailyStreak").hidden = sk < 2;
+  $("dailyStreak").textContent = `Série : ${sk} jours`;
 }
 const D = { set: null, i: 0, score: 0, ms: 0, t0: 0, tid: null, lock: false };
 const DAILY_SEC = 20;
@@ -1389,9 +1398,11 @@ function dailyEnd(fresh) {
   S.inGame = false; clearInterval(D.tid);
   const d = getDaily() || { score: 0, ms: 0 };
   if (d.done === false) setDaily({ ...d, done: true });
+  noteDailyDay(d);
   $("dPlay").hidden = true; $("dEnd").hidden = false;
   $("dFinal").textContent = d.score;
-  $("dNote").textContent = `Temps total : ${Math.round(d.ms / 1000)} s · revenez demain pour un nouveau défi.`;
+  const sk = dailyStreak();
+  $("dNote").textContent = `Temps total : ${Math.round(d.ms / 1000)} s · série : ${sk} jour${sk > 1 ? "s" : ""} · revenez demain.`;
   friends.syncRecords(); // votre résultat devient visible par vos amis
   const board = friends.ready() ? friends.dailyBoard(today()) : [];
   $("dRank").replaceChildren(...(board.length ? board : [{ ...{ name: S.firstName, photo: S.photo }, you: true, daily: d }]).map((p, i) => {
@@ -1522,3 +1533,85 @@ async function refreshScreen() {
     default: break;
   }
 }
+
+/* ---------- Série du Défi du jour ---------- */
+const dHistKey = () => `quizly:${S.uid}:dailyHist`;
+function dailyDays() { try { return JSON.parse(localStorage.getItem(dHistKey()) || "[]"); } catch { return []; } }
+function noteDailyDay(d) {
+  const days = dailyDays();
+  if (!days.includes(d.day)) { days.push(d.day); try { localStorage.setItem(dHistKey(), JSON.stringify(days.slice(-120))); } catch {} }
+  friends.dailyDone(d.day); // le serveur sait que vous l'avez fait (pas de rappel du soir)
+  checkAch();
+}
+// jours consécutifs, jusqu'à aujourd'hui (ou hier si le défi du jour n'est pas encore fait)
+function dailyStreak() {
+  const days = new Set(dailyDays());
+  const dayOf = (offset) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(Date.now() - offset * 86400000);
+  let k = days.has(dayOf(0)) ? 0 : 1, n = 0;
+  while (days.has(dayOf(k))) { n++; k++; }
+  return n;
+}
+
+/* ---------- Succès ---------- */
+// id : [titre, comment l'obtenir, pastille, couleur, condition]
+const ACH = [
+  ["first", "Premiers pas", "Jouer une partie", "1", "sun", (x) => x.games >= 1],
+  ["regular", "Habitué", "Jouer 25 parties", "25", "mint", (x) => x.games >= 25],
+  ["addict", "Accro", "Jouer 100 parties", "100", "coral", (x) => x.games >= 100],
+  ["brain", "Cerveau", "100 bonnes réponses", "100", "sky", (x) => x.good >= 100],
+  ["encyclo", "Encyclopédie", "500 bonnes réponses", "500", "peach", (x) => x.good >= 500],
+  ["run10", "Inarrêtable", "10 bonnes réponses d'affilée", "10×", "sun", (x) => x.bestRun >= 10],
+  ["run25", "Machine", "25 bonnes réponses d'affilée", "25×", "coral", (x) => x.bestRun >= 25],
+  ["themes", "Curieux", "Jouer 10 thèmes différents", "10", "mint", (x) => x.themes >= 10],
+  ["solo200", "Survivant", "Record Solo de 200 points", "200", "sky", (x) => x.best2 >= 200],
+  ["chrono300", "Éclair", "Record Chrono de 300 points", "300", "peach", (x) => x.bestChrono >= 300],
+  ["safe", "Palier en poche", "Gagner 48 000 € au Millionnaire", "48k", "mint", (x) => x.bestMillion >= 48000],
+  ["million", "Millionnaire", "Gagner 1 000 000 €", "1M", "sun", (x) => x.bestMillion >= 1000000],
+  ["perfect", "Sans faute", "10 / 10 au Défi du jour", "10", "coral", (x) => x.perfect],
+  ["streak7", "Régulier", "7 défis du jour d'affilée", "7j", "sky", (x) => x.streak >= 7],
+  ["online", "Connecté", "10 parties en ligne", "10", "peach", (x) => x.onlineGames >= 10],
+  ["social", "Sociable", "Avoir 5 amis", "5", "mint", (x) => x.friends >= 5]
+];
+const achKey = () => `quizly:${S.uid}:ach`;
+function getAch() { try { return JSON.parse(localStorage.getItem(achKey()) || "{}"); } catch { return {}; } }
+function achFacts() {
+  const st = getStats(), t = Object.values(st.themes || {}), b = (k) => { try { return +localStorage.getItem(`quizly:${S.uid}:${k}`) || 0; } catch { return 0; } };
+  const g = st.games || {}, d = getDaily();
+  return {
+    games: Object.values(g).reduce((a, v) => a + v, 0), good: t.reduce((a, x) => a + x.ok, 0), themes: Object.keys(st.themes || {}).length,
+    bestRun: st.bestRun || 0, best2: b("best2"), bestChrono: b("bestChrono"), bestMillion: b("bestMillion"),
+    perfect: !!(d && d.done !== false && d.score === 10) || !!getAch().perfect, streak: dailyStreak(),
+    onlineGames: (g.online || 0) + (g.chrono || 0) + (g.omillion || 0) + (g.oteams || 0), friends: friends.ready() ? friends.count() : 0
+  };
+}
+let achT = null;
+function checkAch() { clearTimeout(achT); achT = setTimeout(checkAchNow, 300); } // regroupé : une vérification après une rafale de réponses
+function checkAchNow() {
+  if (!S.uid) return;
+  const have = getAch(), x = achFacts(), fresh = ACH.filter(([id, , , , , ok]) => !have[id] && ok(x));
+  if (!fresh.length) return;
+  fresh.forEach(([id]) => (have[id] = Date.now()));
+  try { localStorage.setItem(achKey(), JSON.stringify(have)); } catch {}
+  fresh.forEach(([, title], i) => setTimeout(() => achToast(title), i * 2200)); // une annonce par succès
+  friends.syncRecords(); // vos amis voient vos succès
+}
+function achToast(title) {
+  const el = $("achToast");
+  $("achToastName").textContent = title;
+  el.hidden = false; el.classList.remove("show"); void el.offsetWidth; el.classList.add("show");
+  confetti();
+  clearTimeout(el._t); el._t = setTimeout(() => (el.hidden = true), 3200);
+}
+// la grille des succès (le vôtre ou celui d'un ami)
+function renderAch(box, countEl, owned) {
+  const have = new Set(owned || []);
+  countEl.textContent = `${have.size} / ${ACH.length}`;
+  box.replaceChildren(...ACH.map(([id, title, how, pin, color]) => {
+    const d = document.createElement("div"); d.className = `ach ${have.has(id) ? "on " + color : "off"}`;
+    const p = document.createElement("span"); p.className = "pin"; p.textContent = have.has(id) ? pin : "?";
+    const t = document.createElement("b"); t.textContent = title;
+    const s = document.createElement("small"); s.textContent = how;
+    d.append(p, t, s); return d;
+  }));
+}
+window.__renderAch = renderAch; // utilisé par le profil d'un ami
