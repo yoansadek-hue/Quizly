@@ -8,7 +8,7 @@ import { startCloud, cloudState } from "./cloud.js";
 import { initFriends, friendCodeFrom } from "./friends.js";
 import { enablePush, pushState, currentSub } from "./push.js";
 
-const VERSION = "2.13.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.14.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -186,6 +186,7 @@ function validateNames() {
 
 /* ---------- Thèmes & réglages ---------- */
 function renderThemes() {
+  try { renderCustom(); $("customMsg").textContent = ""; } catch {} // thèmes personnalisés au-dessus
   const box = $("themes");
   box.replaceChildren();
   box.classList.toggle("dim", S.rand);
@@ -194,7 +195,7 @@ function renderThemes() {
   r.setAttribute("aria-pressed", S.rand);
   // Aléatoire : les autres thèmes sont verrouillés tant qu'il est actif
   const lock = () => { box.classList.toggle("dim", S.rand); box.querySelectorAll(".chip:not(.rand)").forEach((c) => (c.disabled = S.rand)); };
-  r.onclick = () => { S.rand = !S.rand; r.setAttribute("aria-pressed", S.rand); lock(); };
+  r.onclick = () => { S.rand = !S.rand; r.setAttribute("aria-pressed", S.rand); lock(); renderCustom(); };
   box.append(r);
   THEMES.forEach((t, i) => {
     const b = document.createElement("button");
@@ -1404,14 +1405,8 @@ function dailyEnd(fresh) {
   const sk = dailyStreak();
   $("dNote").textContent = `Temps total : ${Math.round(d.ms / 1000)} s · série : ${sk} jour${sk > 1 ? "s" : ""} · revenez demain.`;
   friends.syncRecords(); // votre résultat devient visible par vos amis
-  const board = friends.ready() ? friends.dailyBoard(today()) : [];
-  $("dRank").replaceChildren(...(board.length ? board : [{ ...{ name: S.firstName, photo: S.photo }, you: true, daily: d }]).map((p, i) => {
-    const li = document.createElement("li"); li.className = "rk" + (i === 0 ? " first" : "");
-    const pos = document.createElement("span"); pos.className = "pos"; pos.textContent = i + 1;
-    const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = p.you ? `${p.name} (vous)` : p.name;
-    const st = document.createElement("span"); st.className = "st"; st.textContent = `${p.daily.score} / 10 · ${Math.round(p.daily.ms / 1000)} s`;
-    li.append(pos, avatarEl(p.name, p.photo), nm, st); return li;
-  }));
+  D.scope = D.scope || "friends";
+  renderDailyBoard(d);
   show("s-daily");
   if (fresh && d.score >= 7) confetti();
 }
@@ -1540,7 +1535,7 @@ function dailyDays() { try { return JSON.parse(localStorage.getItem(dHistKey()) 
 function noteDailyDay(d) {
   const days = dailyDays();
   if (!days.includes(d.day)) { days.push(d.day); try { localStorage.setItem(dHistKey(), JSON.stringify(days.slice(-120))); } catch {} }
-  friends.dailyDone(d.day); // le serveur sait que vous l'avez fait (pas de rappel du soir)
+  friends.dailyDone(d.day, d); // pour le rappel du soir et le classement mondial
   checkAch();
 }
 // jours consécutifs, jusqu'à aujourd'hui (ou hier si le défi du jour n'est pas encore fait)
@@ -1615,3 +1610,63 @@ function renderAch(box, countEl, owned) {
   }));
 }
 window.__renderAch = renderAch; // utilisé par le profil d'un ami
+
+/* ---------- classement du défi : entre amis ou mondial ---------- */
+function rankRow(p, i, txt) {
+  const li = document.createElement("li"); li.className = "rk" + (i === 0 ? " first" : "") + (p.you ? " mine" : "");
+  const pos = document.createElement("span"); pos.className = "pos"; pos.textContent = i + 1;
+  const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = p.you ? `${p.name} (vous)` : p.name;
+  const st = document.createElement("span"); st.className = "st"; st.textContent = txt;
+  li.append(pos, avatarEl(p.name, p.photo), nm, st); return li;
+}
+async function renderDailyBoard(d) {
+  const scope = D.scope, day = today();
+  document.querySelectorAll("#dScope button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.s === scope)));
+  const fmt = (p) => `${p.daily.score} / 10 · ${Math.round(p.daily.ms / 1000)} s`;
+  let list;
+  if (scope === "world") {
+    $("dRank").replaceChildren(Object.assign(document.createElement("p"), { className: "lead small", textContent: "Chargement du classement mondial…" }));
+    try { list = await friends.worldDaily(day); } catch { list = []; }
+    if (D.scope !== "world") return;
+    const i = list.findIndex((p) => p.you);
+    $("dMyRank").textContent = list.length ? (i >= 0 ? `Votre place : ${i + 1}e sur ${list.length} joueur${list.length > 1 ? "s" : ""}` : "Vous n'êtes pas dans les 100 premiers.") : "Personne n'a encore fait le défi aujourd'hui.";
+  } else {
+    list = friends.ready() ? friends.dailyBoard(day) : [];
+    if (!list.length) list = [{ name: S.firstName, photo: S.photo, you: true, daily: d || getDaily() || { score: 0, ms: 0 } }];
+    $("dMyRank").textContent = "";
+  }
+  $("dRank").replaceChildren(...list.map((p, i) => rankRow(p, i, fmt(p))));
+}
+document.querySelectorAll("#dScope button").forEach((b) => (b.onclick = () => { D.scope = b.dataset.s; renderDailyBoard(getDaily()); }));
+
+/* ---------- thèmes personnalisés : n'importe quel sujet, l'IA crée les questions ---------- */
+const customKey = () => `quizly:${S.uid}:customThemes`;
+function customThemes() { try { return JSON.parse(localStorage.getItem(customKey()) || "[]"); } catch { return []; } }
+function saveCustom(list) { try { localStorage.setItem(customKey(), JSON.stringify(list.slice(-12))); } catch {} }
+const cleanTheme = (t) => String(t || "").replace(/[,;"«»\n\r<>]/g, " ").replace(/\s+/g, " ").trim().slice(0, 30); // pas de virgule : elle séparerait les thèmes
+function renderCustom() {
+  const box = $("customList");
+  box.replaceChildren(...customThemes().map((t) => {
+    const c = document.createElement("span"); c.className = "chip custom-chip";
+    const b = document.createElement("button"); b.className = "ctog"; b.textContent = t;
+    b.setAttribute("aria-pressed", S.themes.has(t)); b.disabled = S.rand;
+    b.onclick = () => { if (S.rand) return; S.themes.has(t) ? S.themes.delete(t) : S.themes.add(t); b.setAttribute("aria-pressed", S.themes.has(t)); };
+    const x = document.createElement("button"); x.className = "cdel"; x.textContent = "×"; x.setAttribute("aria-label", `Supprimer le thème ${t}`);
+    x.onclick = () => { saveCustom(customThemes().filter((y) => y !== t)); S.themes.delete(t); renderCustom(); };
+    c.append(b, x); return c;
+  }));
+}
+function addCustom() {
+  const t = cleanTheme($("customIn").value);
+  if (t.length < 3) { $("customMsg").textContent = "Écrivez un thème d'au moins 3 lettres."; return; }
+  if (THEMES.some((x) => x.toLowerCase() === t.toLowerCase())) { // il existe déjà : on le sélectionne
+    const known = THEMES.find((x) => x.toLowerCase() === t.toLowerCase());
+    S.themes.add(known); renderThemes(); $("customMsg").textContent = `« ${known} » existe déjà : il est sélectionné.`; $("customIn").value = ""; return;
+  }
+  const list = customThemes().filter((x) => x.toLowerCase() !== t.toLowerCase());
+  saveCustom([...list, t]); S.themes.add(t); // ajouté et sélectionné
+  $("customIn").value = ""; $("customMsg").textContent = `« ${t} » ajouté : l'IA créera des questions sur ce sujet.`;
+  renderCustom();
+}
+$("btnCustomAdd").onclick = addCustom;
+$("customIn").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); addCustom(); } });
