@@ -9,7 +9,7 @@ import { initFriends, friendCodeFrom } from "./friends.js";
 import { enablePush, disablePush, pushMuted, pushState, currentSub } from "./push.js";
 import { initCosmetics } from "./cosmetics.js";
 
-const VERSION = "2.17.3"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.17.4"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -37,7 +37,7 @@ const S = {
 const M = () => MODES[S.mode];
 document.querySelectorAll(".ver").forEach((e) => (e.textContent = `Quizly v${VERSION} · par YoskanGame`));
 const online = initOnline({ $, show, flash, confetti, me: () => ({ name: S.firstName || "Joueur", photo: S.photo || "", uid: S.uid || "", cos: cosm.get() }),
-  addFriend: (uid, name) => friends.addByUid(uid, name), isFriend: (uid) => friends.isFriend(uid), record: chronoRecord, millionUI, avatarEl, setAudio, noteQ: noteRecent, recent: () => getRecent().arr.slice(-300), setMode: (kind) => (S.mode = KIND_MODE[kind] || "online"), stat: { answer: (t, ok) => statAnswer(t, ok), game: (k) => statGame(k) } });
+  addFriend: (uid, name) => friends.addByUid(uid, name), isFriend: (uid) => friends.isFriend(uid), record: chronoRecord, millionUI, avatarEl, setAudio, noteQ: noteRecent, recent: () => getRecent().arr.slice(-300).map((x) => String(x).slice(0, 220)), setMode: (kind) => (S.mode = KIND_MODE[kind] || "online"), stat: { answer: (t, ok) => statAnswer(t, ok), game: (k) => statGame(k) } });
 // record personnel du Chrono en ligne (gardé sur l'appareil, par compte)
 function chronoRecord(points) {
   const key = `quizly:${S.uid}:bestChrono`;
@@ -1142,6 +1142,19 @@ bar.addEventListener("pointerup", (e) => dragEnd(e));
 bar.addEventListener("pointercancel", (e) => dragEnd(e, true));
 TABS.forEach((t) => (t.onclick = (e) => { if (e.detail === 0) goTab(t); })); // clavier (au doigt ou à la souris : géré ci-dessus)
 addEventListener("resize", () => { if (!bar.hidden) pillTo(bar.querySelector(".tab.on")); });
+// clavier ouvert : la barre se cache (comme sur iPhone) ; à sa fermeture, on la remet bien en bas
+// (sinon l'iPhone peut laisser la barre fixée remontée après la saisie du code d'un salon)
+const typing = (el) => el && el.matches && el.matches("input:not([type=checkbox]):not([type=radio]),textarea,[contenteditable]");
+document.addEventListener("focusin", (e) => { if (typing(e.target)) document.body.classList.add("typing"); });
+document.addEventListener("focusout", (e) => {
+  if (!typing(e.target)) return;
+  setTimeout(() => {
+    if (typing(document.activeElement)) return; // on passe d'un champ à l'autre
+    document.body.classList.remove("typing");
+    window.scrollTo(window.scrollX, window.scrollY); // recale les éléments fixés
+    if (!bar.hidden) pillTo(bar.querySelector(".tab.on"));
+  }, 120);
+});
 // petite animation d'appui sur les boutons du haut (et :active fonctionne aussi sur iPhone)
 document.addEventListener("touchstart", () => {}, { passive: true });
 ["btnUser", "btnNotifs"].forEach((id) => $(id).addEventListener("pointerdown", (e) => {
