@@ -28,10 +28,6 @@ addEventListener("error", function (e) {
 <header id="bar" hidden>
   <span class="logo">Quizly<small>par YoskanGame</small></span>
   <div class="barR">
-    <button id="btnFriends" class="iconbtn" aria-label="Amis" hidden>
-      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-3.3 0-7 1.7-7 4.5V20h14v-2.5C16 14.7 12.3 13 9 13zm8-2a3.5 3.5 0 1 0-2.1-6.3 5.9 5.9 0 0 1 0 5.6A3.5 3.5 0 0 0 17 11zm1.2 2.1c1.6 1 2.8 2.5 2.8 4.4V20h3v-2.5c0-2.1-2.6-3.8-5.8-4.4z"/></svg>
-      <span class="nbadge" id="friendsBadge" hidden></span>
-    </button>
     <button id="btnNotifs" class="iconbtn" aria-label="Notifications" hidden>
       <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22zm7-6V11a7 7 0 0 0-5.5-6.84V3.5a1.5 1.5 0 0 0-3 0v.66A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2z"/></svg>
       <span class="nbadge" id="notifBadge" hidden></span>
@@ -202,12 +198,22 @@ addEventListener("error", function (e) {
 
   <!-- Boutique -->
   <section id="s-shop" class="screen" hidden>
-    <button class="goback" data-back="s-profile">← Retour</button>
     <div class="shophead"><h2>Boutique</h2><span class="shopcoins"><span class="coin"></span><b id="shopCoins">0</b></span></div>
-    <p class="lead small">Gagnez des jetons en jouant : 1 par bonne réponse, 2 par partie, 10 par Défi du jour, 25 par succès.</p>
+    <!-- aperçu en direct : vous, avec l'article choisi -->
+    <div class="tryon" id="tryOn">
+      <div class="tryban" id="tryBan"><span id="tryAv"></span><b id="tryName"></b><span class="trybub" id="tryBub">Trop facile</span></div>
+      <div class="trybar">
+        <div class="tryinfo"><span class="rar" id="tryRar"></span><b id="tryItem">Touchez un article pour l'essayer</b><small id="tryHow"></small></div>
+        <button class="btn sun sm" id="tryBtn" hidden></button>
+      </div>
+    </div>
+    <!-- offre du jour -->
+    <button class="deal" id="dealCard"><span class="dk">Offre du jour</span><span id="dealPv"></span><span class="dtx"><b id="dealName"></b><small><s id="dealOld"></s> <b id="dealNew"></b> jetons · <span id="dealLeft"></span></small></span></button>
     <div class="scope three" id="shopTabs"></div>
+    <p class="owned" id="shopOwned"></p>
     <div class="shopgrid" id="shopGrid"></div>
     <p class="msg" id="shopMsg"></p>
+    <div class="earn"><b>Gagner des jetons</b><span>+1 bonne réponse</span><span>+2 partie</span><span>+10 Défi du jour</span><span>+25 succès</span></div>
   </section>
 
   <!-- Paramètres -->
@@ -537,6 +543,14 @@ addEventListener("error", function (e) {
     <div class="stack"><button class="btn sun" id="btnAgain">Rejouer</button></div>
   </section>
 </main>
+<!-- barre d'onglets en bas (écrans principaux) -->
+<nav class="tabbar" id="tabbar" hidden>
+  <button class="tab" data-go="s-mode"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M12 3.2 2.5 11h2.7v9.3h5.3v-6h3v6h5.3V11h2.7z"/></svg><span>Accueil</span></button>
+  <button class="tab" data-go="s-friends"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-3.3 0-7 1.7-7 4.5V20h14v-2.5C16 14.7 12.3 13 9 13zm8-2a3.5 3.5 0 1 0-2.1-6.3 5.9 5.9 0 0 1 0 5.6A3.5 3.5 0 0 0 17 11zm1.2 2.1c1.6 1 2.8 2.5 2.8 4.4V20h3v-2.5c0-2.1-2.6-3.8-5.8-4.4z"/></svg><span>Amis</span><span class="nbadge small" id="tabFriendsBadge" hidden></span></button>
+  <button class="tab" data-go="s-shop"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M7 7V6a5 5 0 0 1 10 0v1h3l-1.2 13.2A2 2 0 0 1 16.8 22H7.2a2 2 0 0 1-2-1.8L4 7h3zm2 0h6V6a3 3 0 0 0-6 0v1zm-1 4a1 1 0 1 0 2 0 1 1 0 0 0-2 0zm6 0a1 1 0 1 0 2 0 1 1 0 0 0-2 0z"/></svg><span>Boutique</span></button>
+  <button class="tab" data-go="s-profile"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0 2c-4.4 0-8 2.2-8 5v2h16v-2c0-2.8-3.6-5-8-5z"/></svg><span>Profil</span></button>
+  <button class="tab" data-go="s-settings"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.03 7.03 0 0 0-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.47.47 0 0 0-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87a.47.47 0 0 0 .12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.48.48 0 0 0-.12-.61l-2.01-1.58zM12 15.6a3.6 3.6 0 1 1 0-7.2 3.6 3.6 0 0 1 0 7.2z"/></svg><span>Réglages</span></button>
+</nav>
 
 <div id="confirm" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="cfTitle">
   <div class="box">

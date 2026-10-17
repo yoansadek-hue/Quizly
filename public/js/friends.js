@@ -37,7 +37,7 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
   }
   function stop() {
     F.unsub.forEach((u) => { try { u(); } catch {} }); F.unsub = []; F.uid = null; F.fs = null; F.friends = []; F.first = false;
-    $("friendsBadge").hidden = true; $("notifBadge").hidden = true; $("reqToast").hidden = true; $("inviteToast").hidden = true;
+    $("tabFriendsBadge").hidden = true; $("notifBadge").hidden = true; $("reqToast").hidden = true; $("inviteToast").hidden = true;
   }
   const ready = () => !!F.uid;
 
@@ -73,8 +73,8 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
     F.unsub.push(onSnapshot(collection(F.fs.db, "requests", F.uid, "from"), (snap) => {
       F.requests = snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
       // pastille sur le bouton Amis : le nombre de demandes en attente
-      $("friendsBadge").hidden = $("fTabBadge").hidden = !F.requests.length;
-      $("friendsBadge").textContent = $("fTabBadge").textContent = F.requests.length > 9 ? "9+" : F.requests.length;
+      $("tabFriendsBadge").hidden = $("fTabBadge").hidden = !F.requests.length;
+      $("tabFriendsBadge").textContent = $("fTabBadge").textContent = F.requests.length > 9 ? "9+" : F.requests.length;
       // notification pour une nouvelle demande (une seule fois par personne)
       F.notified ||= new Set();
       const fresh = F.requests.find((r) => !F.notified.has(r.uid));
