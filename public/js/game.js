@@ -9,7 +9,7 @@ import { initFriends, friendCodeFrom } from "./friends.js";
 import { enablePush, pushState, currentSub } from "./push.js";
 import { initCosmetics } from "./cosmetics.js";
 
-const VERSION = "2.16.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.17.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -65,7 +65,8 @@ function show(id) {
   curScreen = id;
   if (id === "s-lobby") { $("btnInvite").hidden = !friends.ready(); friends.hideInvitePanel(); } // inviter ses amis dans le salon
   if (id === "s-mode") try { menuPushUI(); dailyCard(); } catch {}
-  $("btnFriends").hidden = $("btnNotifs").hidden = id === "s-login" || PLAYING.includes(id) || id === "s-lobby"; // Amis et cloche, hors partie
+  $("btnNotifs").hidden = id === "s-login" || PLAYING.includes(id) || id === "s-lobby"; // la cloche, hors partie
+  tabbar(id); // la barre d'onglets du bas
   if (id === "s-end") setTimeout(() => friends.syncRecords(), 800); // nouveaux records visibles par les amis
   // rond des réactions : seulement pendant une partie en ligne
   let onl = false; try { onl = online.active(); online.closeReacts(); } catch {}
@@ -1073,10 +1074,25 @@ function pushUI(st) {
 async function askPush() { const st = await enablePush(S.uid, true); pushUI(st); if (st === "granted") saveDevice(); return st; }
 async function saveDevice() { const sub = await currentSub(); if (sub) friends.saveSub(sub.toJSON()); } // le serveur le retrouve même après s'être endormi
 $("btnPush").onclick = async () => { $("btnPush").disabled = true; await askPush(); $("btnPush").disabled = false; };
-$("btnFriends").onclick = openFriends;
+// barre d'onglets du bas : visible sur les écrans principaux, cachée en partie et sur les écrans à bouton fixe
+const TAB_OF = { "s-mode": "s-mode", "s-sub": "s-mode", "s-online": "s-mode", "s-friends": "s-friends", "s-friend": "s-friends", "s-shop": "s-shop", "s-profile": "s-profile", "s-settings": "s-settings", "s-notifs": "" };
+function tabbar(id) {
+  const bar = $("tabbar"), on = id in TAB_OF;
+  bar.hidden = !on;
+  document.body.classList.toggle("withtabs", on);
+  bar.querySelectorAll(".tab").forEach((t) => t.classList.toggle("on", t.dataset.go === TAB_OF[id]));
+}
+document.querySelectorAll("#tabbar .tab").forEach((t) => (t.onclick = () => {
+  const go = t.dataset.go;
+  if (go === "s-friends") return openFriends();
+  if (go === "s-shop") { cosm.render(); return show("s-shop"); }
+  if (go === "s-profile") { renderProfile(); return show("s-profile"); }
+  if (go === "s-settings") { renderSettings(); return show("s-settings"); }
+  show("s-mode");
+}));
 // petite animation d'appui sur les boutons du haut (et :active fonctionne aussi sur iPhone)
 document.addEventListener("touchstart", () => {}, { passive: true });
-["btnUser", "btnFriends", "btnNotifs"].forEach((id) => $(id).addEventListener("pointerdown", (e) => {
+["btnUser", "btnNotifs"].forEach((id) => $(id).addEventListener("pointerdown", (e) => {
   const b = e.currentTarget; b.classList.remove("tap"); void b.offsetWidth; b.classList.add("tap");
   setTimeout(() => b.classList.remove("tap"), 400);
 }));
