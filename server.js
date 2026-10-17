@@ -463,7 +463,7 @@ const shuffle = (a) => a.map((x) => [Math.random(), x]).sort((p, q) => p[0] - q[
 function lobbyMsg(room, p) {
   return {
     t: "lobby", code: room.code, host: room.hostId, you: p.id, tok: p.tok, phase: room.phase, cfg: room.cfg, tv: tvs(room).size > 0, tvRoom: !!room.tvRoom,
-    players: players(room).filter((x) => !x.left).map(({ id, name, photo, ci, uid }) => ({ id, name, photo, ci, uid }))
+    players: players(room).filter((x) => !x.left).map(({ id, name, photo, ci, uid, cos }) => ({ id, name, photo, ci, uid, cos }))
   };
 }
 const castLobby = (room) => {
@@ -477,7 +477,11 @@ function okPhoto(s) {
   return /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(s) && s.length <= 12000 ? s : ""; // photo personnalisée (réduite)
 }
 
-function join(ws, room, name, photo, hist, uid) {
+const cleanCos = (c) => { // cosmétiques équipés (cadre, bulle, bannière) : de simples noms
+  const ok = (v, p) => (typeof v === "string" && v.startsWith(p) && /^[a-z-]{3,20}$/.test(v) ? v : undefined);
+  return c && typeof c === "object" ? { frame: ok(c.frame, "fr-"), bubble: ok(c.bubble, "sk-"), banner: ok(c.banner, "bn-") } : {};
+};
+function join(ws, room, name, photo, hist, uid, cos) {
   const base = clean(name) || "Joueur";
   let n = base, k = 2;
   while (players(room).some((p) => !p.left && p.name.toLowerCase() === n.toLowerCase())) n = `${base} ${k++}`;
@@ -487,7 +491,8 @@ function join(ws, room, name, photo, hist, uid) {
     photo: okPhoto(photo),
     lives: 0, score: 0, points: 0, dead: false, outAt: 0, left: false, ci: room.nextCi++,
     hist: (Array.isArray(hist) ? hist : []).slice(-300).map((x) => String(x).slice(0, 220)), // questions vues récemment par ce joueur
-    uid: cleanUid(uid) // compte Google : permet aux autres de l'ajouter en ami
+    uid: cleanUid(uid), // compte Google : permet aux autres de l'ajouter en ami
+    cos: cleanCos(cos)
   };
   room.players.set(p.id, p); ws.room = room; ws.pid = p.id;
   if (!room.hostId || !room.players.has(room.hostId)) room.hostId = p.id; // salon télé : le premier qui scanne est l'hôte
@@ -1100,7 +1105,7 @@ function handle(ws, m) {
       diff: 1, buf: [], asked: [], played: new Set(), i: -1, elim: 0, q: null, timer: null, loads: new Map(), nextCi: 0
     };
     rooms.set(room.code, room);
-    room.hostId = join(ws, room, m.name, m.photo, m.hist, m.uid).id;
+    room.hostId = join(ws, room, m.name, m.photo, m.hist, m.uid, m.cos).id;
     return castLobby(room);
   }
   if (m.t === "join") {
@@ -1109,7 +1114,7 @@ function handle(ws, m) {
     if (room.phase !== "lobby") return send(ws, { t: "error", msg: "La partie a déjà commencé." });
     if (players(room).length >= 20) return send(ws, { t: "error", msg: "Salle pleine (20 joueurs)." });
     if (ws.room) leave(ws);
-    join(ws, room, m.name, m.photo, m.hist, m.uid);
+    join(ws, room, m.name, m.photo, m.hist, m.uid, m.cos);
     if (room.chat && room.chat.length) send(ws, { t: "chatlog", list: room.chat });
     return castLobby(room);
   }
@@ -1152,7 +1157,7 @@ function handle(ws, m) {
     const now = Date.now(), text = clean(m.text, 80);
     if (!text || now - (me.lastReact || 0) < 1500) return;
     me.lastReact = now;
-    const msg = { t: "chat", text, id: me.id, name: me.name, at: now };
+    const msg = { t: "chat", text, id: me.id, name: me.name, at: now, sk: (me.cos || {}).bubble };
     room.chat = [...(room.chat || []), msg].slice(-40); // les 40 derniers messages du salon
     cast(room, msg);
   }
@@ -1160,7 +1165,7 @@ function handle(ws, m) {
     const now = Date.now(), r = Number(m.r);
     if (now - (me.lastReact || 0) < 800 || !Number.isInteger(r) || r < 0 || r > 5) return;
     me.lastReact = now;
-    cast(room, { t: "react", r, id: me.id, name: me.name });
+    cast(room, { t: "react", r, id: me.id, name: me.name, sk: (me.cos || {}).bubble });
   }
 }
 
