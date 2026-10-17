@@ -202,14 +202,30 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
   }
   // classement entre amis : vous + vos amis, mode par mode
   const TABS = [["best2", "Solo"], ["bestChrono", "Chrono"], ["bestMillion", "Millionnaire"]];
-  function renderRanking() {
+  F.scope = "friends";
+  document.querySelectorAll("#rankScope button").forEach((b) => (b.onclick = () => {
+    F.scope = b.dataset.s;
+    document.querySelectorAll("#rankScope button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    renderRanking();
+  }));
+  async function renderRanking() {
     $("rankTabs").replaceChildren(...TABS.map(([k, label]) => {
       const c = document.createElement("button"); c.className = "chip"; c.textContent = label;
       c.setAttribute("aria-pressed", F.tab === k);
       c.onclick = () => { F.tab = k; renderRanking(); };
       return c;
     }));
-    const people = [{ ...me(), uid: F.uid, records: records(), you: true }, ...F.friends];
+    let people = [{ ...me(), uid: F.uid, records: records(), you: true }, ...F.friends];
+    $("rankMine").hidden = F.scope !== "world";
+    if (F.scope === "world") { // tous les joueurs de Quizly
+      const k0 = F.tab;
+      $("rankList").replaceChildren(Object.assign(document.createElement("p"), { className: "lead small", textContent: "Chargement du classement mondial…" }));
+      try { people = await api.worldRecords(k0); } catch { people = []; }
+      if (F.scope !== "world" || F.tab !== k0) return; // l'utilisateur a changé d'onglet entre-temps
+      const i = people.findIndex((p) => p.you);
+      $("rankMine").textContent = i >= 0 ? `Votre place : ${i + 1}e sur les ${people.length} meilleurs` : "Vous n'êtes pas encore dans les 50 meilleurs.";
+      $("rankEmpty").hidden = true; $("rankList").hidden = false; $("rankTabs").hidden = false;
+    }
     const k = F.tab, fmt = (v) => (k === "bestMillion" ? euros(v || 0) : `${v || 0} pts`);
     const sorted = people.sort((a, b) => ((b.records || {})[k] || 0) - ((a.records || {})[k] || 0));
     $("rankList").replaceChildren(...sorted.map((p, i) => {
@@ -220,8 +236,10 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
       li.append(pos, avatarEl(p.name, p.photo), nm, st);
       return li;
     }));
-    $("rankList").hidden = !F.friends.length; $("rankTabs").hidden = !F.friends.length;
-    $("rankEmpty").hidden = !!F.friends.length;
+    if (F.scope !== "world") {
+      $("rankList").hidden = !F.friends.length; $("rankTabs").hidden = !F.friends.length;
+      $("rankEmpty").hidden = !!F.friends.length;
+    }
   }
 
   /* ---------- la cloche : vos notifications (amis, invitations, annonces) ---------- */
@@ -344,12 +362,31 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
   $("myCode").onclick = () => { try { navigator.clipboard.writeText(F.code); say("Code copié."); } catch {} };
   $("btnInvite").onclick = openInvites;
 
-  return {
+  const api = {
     start, stop, ready, render, syncRecords, addByCode, openInvites, renderNotifs,
     isFriend: (uid) => F.friends.some((f) => f.uid === uid),
     count: () => F.friends.length,
     // défi du jour terminé : noté pour le rappel du soir (le serveur ne prévient que ceux qui ne l'ont pas fait)
-    async dailyDone(day) { if (ready()) try { await F.fs.setDoc(ref("dailydone", day, "users", F.uid), { uid: F.uid, at: Date.now() }); } catch {} },
+    async dailyDone(day, d) {
+      if (!ready()) return;
+      const m = me();
+      try { await F.fs.setDoc(ref("dailydone", day, "users", F.uid), { uid: F.uid, name: m.name, photo: m.photo || "", score: d ? d.score : 0, ms: d ? d.ms : 0, at: Date.now() }); } catch {}
+    },
+    // classement mondial du défi du jour (les 100 meilleurs scores)
+    async worldDaily(day) {
+      if (!ready()) return [];
+      const { getDocs, collection, query, orderBy, limit } = F.fs;
+      const snap = await getDocs(query(collection(F.fs.db, "dailydone", day, "users"), orderBy("score", "desc"), limit(100)));
+      return snap.docs.map((d) => ({ uid: d.id, ...d.data(), you: d.id === F.uid, daily: { score: d.data().score || 0, ms: d.data().ms || 0 } }))
+        .filter((p) => p.name).sort((a, b) => b.daily.score - a.daily.score || a.daily.ms - b.daily.ms);
+    },
+    // classement mondial des records (les 50 meilleurs)
+    async worldRecords(k) {
+      if (!ready()) return [];
+      const { getDocs, collection, query, orderBy, limit } = F.fs;
+      const snap = await getDocs(query(collection(F.fs.db, "profiles"), orderBy(`records.${k}`, "desc"), limit(50)));
+      return snap.docs.map((d) => ({ uid: d.id, ...d.data(), you: d.id === F.uid })).filter((p) => p.name && (p.records || {})[k] > 0);
+    },
     // ajouter quelqu'un rencontré dans un salon (sans son code)
     async addByUid(to, name) {
       if (!ready()) return "Connectez-vous au cloud pour ajouter des amis.";
@@ -389,6 +426,7 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
     hideInvitePanel: () => ($("invitePanel").hidden = true),
     refresh: () => (ready() ? loadFriends() : render())
   };
+  return api;
 }
 
 // « https://…/?ami=ABC123 » → « ABC123 »
