@@ -248,7 +248,8 @@ addEventListener("error", function (e) {
       <p class="lead">Défi du jour</p>
       <p class="dbig"><strong id="dFinal"></strong><span>/ 10</span></p>
       <p class="lead small" id="dNote"></p>
-      <h3 class="fsub">Classement du jour entre amis</h3>
+      <div class="scope" id="dScope"><button data-s="friends" aria-pressed="true">Amis</button><button data-s="world" aria-pressed="false">Monde</button></div>
+      <p class="lead small myrank" id="dMyRank"></p>
       <ol class="rank" id="dRank"></ol>
       <div class="stack"><button class="btn sun" id="btnDailyBack">Retour au menu</button></div>
     </div>
@@ -317,7 +318,9 @@ addEventListener("error", function (e) {
         </div>
       </div>
       <div class="fpanel" id="fpRank" hidden>
+        <div class="scope" id="rankScope"><button data-s="friends" aria-pressed="true">Amis</button><button data-s="world" aria-pressed="false">Monde</button></div>
         <div class="chips opts" id="rankTabs"></div>
+        <p class="lead small myrank" id="rankMine" hidden></p>
         <ol id="rankList" class="rank"></ol>
         <p class="lead small" id="rankEmpty" hidden>Ajoutez des amis pour voir le classement.</p>
       </div>
@@ -358,6 +361,15 @@ addEventListener("error", function (e) {
     <button class="goback" data-back="auto">← Retour</button>
     <h2>Thèmes</h2>
     <p class="lead small">Touchez les thèmes que vous voulez jouer.</p>
+    <!-- thème personnalisé : n'importe quel sujet, l'IA crée les questions -->
+    <div class="custom">
+      <div class="row">
+        <input id="customIn" type="text" maxlength="30" placeholder="Votre thème : Harry Potter, Rap FR…" autocomplete="off" enterkeyhint="done">
+        <button class="btn sun sm" id="btnCustomAdd">Ajouter</button>
+      </div>
+      <p class="msg" id="customMsg"></p>
+      <div id="customList" class="chips"></div>
+    </div>
     <div id="themes" class="chips"></div>
     <p id="setupMsg" class="msg" role="alert"></p>
     <div class="dock"><button class="btn sun" id="btnThemes">Continuer</button></div>
