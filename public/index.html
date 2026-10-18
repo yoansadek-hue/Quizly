@@ -201,24 +201,23 @@ addEventListener("error", function (e) {
     <div class="shophead"><h2>Boutique</h2><span class="shopcoins"><span class="coin"></span><b id="shopCoins">0</b></span></div>
     <!-- aperçu en direct : vous, avec l'article choisi -->
     <div class="tryon" id="tryOn">
-      <div class="tryban" id="tryBan"><span id="tryAv"></span><b id="tryName"></b><span class="trybub" id="tryBub">Trop facile</span></div>
+      <div class="tryban" id="tryBan"><span id="tryAv"></span><span class="trywho"><b id="tryName"></b><small class="ptitle" id="tryTitle" hidden></small></span><span class="trybub" id="tryBub">Trop facile</span></div>
       <div class="trybar">
         <div class="tryinfo"><span class="rar" id="tryRar"></span><b id="tryItem">Touchez un article pour l'essayer</b><small id="tryHow"></small></div>
         <button class="btn sun sm" id="tryBtn" hidden></button>
       </div>
     </div>
     <!-- offre du jour -->
-    <button class="deal" id="dealCard"><span class="dk">Offre du jour</span><span id="dealPv"></span><span class="dtx"><b id="dealName"></b><small><s id="dealOld"></s> <b id="dealNew"></b> jetons · <span id="dealLeft"></span></small></span></button>
+    <button class="deal" id="dealCard"><span class="dk">Offre du jour</span><span id="dealPv"></span><span class="dtx"><b id="dealName"></b><small><s id="dealOld"></s> <b id="dealNew"></b> Q-Bucks · <span id="dealLeft"></span></small></span></button>
     <div class="scope three" id="shopTabs"></div>
     <p class="owned" id="shopOwned"></p>
     <div class="shopgrid" id="shopGrid"></div>
     <p class="msg" id="shopMsg"></p>
-    <div class="earn"><b>Gagner des jetons</b><span>+1 bonne réponse</span><span>+2 partie</span><span>+10 Défi du jour</span><span>+25 succès</span></div>
+    <div class="earn"><b>Gagner des Q-Bucks</b><span>+1 bonne réponse</span><span>+2 partie</span><span>+10 Défi du jour</span><span>+25 succès</span></div>
   </section>
 
   <!-- Paramètres -->
   <section id="s-settings" class="screen" hidden>
-    <button class="goback" data-back="s-profile">← Retour</button>
     <h2>Paramètres</h2>
     <!-- le compte, en tête -->
     <div class="setacct">
@@ -275,7 +274,7 @@ addEventListener("error", function (e) {
   <!-- Profil d'un ami -->
   <section id="s-friend" class="screen" hidden>
     <button class="goback" data-back="s-friends">← Retour</button>
-    <div class="profhead"><span id="frAv"></span><h2 id="frName"></h2></div>
+    <div class="profhead"><span id="frAv"></span><div class="frwho"><h2 id="frName"></h2><small class="ptitle" id="frTitle" hidden></small></div></div>
     <div class="profgrid" id="frRecords"></div>
     <div class="bubbles" id="frStats"></div>
     <h3 class="profh">Ses succès <span class="achcount" id="frAchCount"></span></h3>
@@ -295,6 +294,11 @@ addEventListener("error", function (e) {
       <textarea id="adminText" maxlength="160" rows="3" placeholder="Description (160 caractères)"></textarea>
       <button class="btn sun" id="btnAdminSend">Envoyer à tout le monde</button>
       <p class="msg" id="adminMsg" role="alert"></p>
+      <p class="fhint" id="adminPush">État des notifications…</p>
+      <pre class="adminrule" id="adminRule" hidden>match /pushsubs/{id} {
+  allow read: if true;
+  allow write: if request.auth != null;
+}</pre>
       <p class="fhint">Votre identifiant : <b id="adminUid"></b> <button class="btn ghost sm" id="btnCopyUid">Copier</button></p>
     </div>
     <button class="link devlink" id="btnDev">Mode développeur</button>
@@ -302,7 +306,6 @@ addEventListener("error", function (e) {
 
   <!-- Amis -->
   <section id="s-friends" class="screen" hidden>
-    <button class="goback" data-back="s-mode">← Retour</button>
     <h2>Amis</h2>
     <div id="friendsBox" class="friends" hidden>
       <!-- trois onglets : Mes amis · Ajouter · Classement -->
@@ -348,15 +351,33 @@ addEventListener("error", function (e) {
           </div>
         </div>
         <div id="clubIn" hidden>
-          <div class="clubcard">
-            <span class="dk">Club</span>
-            <b id="clubTitle"></b>
-            <small id="clubInfo"></small>
-            <div class="clubcode"><span>Code</span><b id="clubShowCode"></b></div>
+          <div class="clubcard" id="clubCard">
+            <span class="clubemb" id="clubEmb"></span>
+            <div class="clubtxt">
+              <span class="dk">Club</span>
+              <b id="clubTitle"></b>
+              <p class="clubdesc" id="clubDesc"></p>
+              <small id="clubInfo"></small>
+            </div>
+            <button class="clubcode" id="clubShowCodeBtn" aria-label="Copier le code du club"><span>Code</span><b id="clubShowCode"></b></button>
           </div>
+          <button class="btn white sm clubedit" id="btnClubEdit" hidden>Personnaliser le club</button>
+          <div class="clubbox" id="clubEditBox" hidden>
+            <h4 class="fsub">Emblème</h4><div class="embpick" id="clubEmbPick"></div>
+            <h4 class="fsub">Couleur</h4><div class="colpick" id="clubColPick"></div>
+            <h4 class="fsub">Description</h4><input id="clubDescIn" type="text" maxlength="80" placeholder="Ex. : la 3e B, les rois du quiz" autocomplete="off">
+            <button class="btn sun sm" id="btnClubSave">Enregistrer</button>
+          </div>
+          <div class="clubstats" id="clubStats"></div>
+          <h3 class="clubh">Classement</h3>
           <div class="chips opts" id="clubTabs"></div>
           <ol class="rank" id="clubRank"></ol>
-          <div class="two"><button class="btn sun sm" id="btnClubShare">Inviter (code)</button><button class="btn ghost sm" id="btnClubLeave">Quitter le club</button></div>
+          <h3 class="clubh">Mur du club</h3>
+          <div class="clubwall" id="clubWall"></div>
+          <div class="row"><input id="clubWallIn" type="text" maxlength="120" placeholder="Un message pour le club…" autocomplete="off" enterkeyhint="send"><button class="btn mint sm" id="btnClubPost">Envoyer</button></div>
+          <h3 class="clubh">Inviter des amis</h3>
+          <div class="flist" id="clubInvite"></div>
+          <div class="two"><button class="btn sun sm" id="btnClubShare">Partager le code</button><button class="btn ghost sm" id="btnClubLeave">Quitter le club</button></div>
         </div>
         <p class="msg" id="clubMsg"></p>
       </div>
@@ -373,12 +394,12 @@ addEventListener("error", function (e) {
 
   <!-- Profil -->
   <section id="s-profile" class="screen" hidden>
-    <button class="goback" data-back="s-mode">← Retour</button>
     <div class="profhead">
       <label class="avedit" for="mePhoto" aria-label="Changer ma photo"><span id="profAv"></span><span class="pen"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm17.7-10.2a1 1 0 0 0 0-1.42l-2.33-2.33a1 1 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></span></label>
       <input id="mePhoto" type="file" accept="image/*" hidden>
       <div class="profwho">
         <div class="profline"><h2 id="profName">Profil</h2><button class="penbtn" id="btnEditName" aria-label="Modifier mon nom"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm17.7-10.2a1 1 0 0 0 0-1.42l-2.33-2.33a1 1 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button></div>
+        <small class="ptitle" id="profTitle" hidden></small>
         <span class="cloudchip" id="profCloud"></span>
       </div>
       <button class="gearbtn" id="btnSettings" aria-label="Paramètres"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.03 7.03 0 0 0-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.47.47 0 0 0-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87a.47.47 0 0 0 .12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.48.48 0 0 0-.12-.61l-2.01-1.58zM12 15.6a3.6 3.6 0 1 1 0-7.2 3.6 3.6 0 0 1 0 7.2z"/></svg></button>
@@ -388,7 +409,7 @@ addEventListener("error", function (e) {
       <div class="two"><button class="btn sun sm" id="btnMeSave">Enregistrer</button><button class="btn ghost sm" id="btnMeReset">Reprendre Google</button></div>
       <p id="meMsg" class="msg" role="alert"></p>
     </div>
-    <button class="shopbar" id="btnShop"><span class="coin"></span><b id="coinCount">0</b><span>jetons</span><span class="go">Boutique ›</span></button>
+    <button class="shopbar" id="btnShop"><span class="coin"></span><b id="coinCount">0</b><span>Q-Bucks</span><span class="go">Boutique ›</span></button>
     <div class="profgrid" id="profRecords"></div>
     <div class="bubbles" id="profStats"></div>
     <div class="duo" id="profSum"></div>
@@ -408,7 +429,7 @@ addEventListener("error", function (e) {
     <!-- thème personnalisé : n'importe quel sujet, l'IA crée les questions -->
     <div class="custom">
       <div class="row">
-        <input id="customIn" type="text" maxlength="30" placeholder="Votre thème : Harry Potter, Rap FR…" autocomplete="off" enterkeyhint="done">
+        <input id="customIn" type="text" maxlength="50" placeholder="Votre thème : Harry Potter, Rap FR…" autocomplete="off" enterkeyhint="done">
         <button class="btn sun sm" id="btnCustomAdd">Ajouter</button>
       </div>
       <p class="msg" id="customMsg"></p>
@@ -545,7 +566,7 @@ addEventListener("error", function (e) {
 </main>
 <!-- barre d'onglets en bas (écrans principaux) -->
 <nav class="tabbar" id="tabbar" hidden>
-  <span class="tabpill" id="tabPill" aria-hidden="true"></span>
+  <span class="tabpill" id="tabPill" aria-hidden="true"><i></i></span>
   <button class="tab" data-go="s-mode"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M12 3.2 2.5 11h2.7v9.3h5.3v-6h3v6h5.3V11h2.7z"/></svg><span>Accueil</span></button>
   <button class="tab" data-go="s-friends"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-3.3 0-7 1.7-7 4.5V20h14v-2.5C16 14.7 12.3 13 9 13zm8-2a3.5 3.5 0 1 0-2.1-6.3 5.9 5.9 0 0 1 0 5.6A3.5 3.5 0 0 0 17 11zm1.2 2.1c1.6 1 2.8 2.5 2.8 4.4V20h3v-2.5c0-2.1-2.6-3.8-5.8-4.4z"/></svg><span>Amis</span><span class="nbadge small" id="tabFriendsBadge" hidden></span></button>
   <button class="tab" data-go="s-shop"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M7 7V6a5 5 0 0 1 10 0v1h3l-1.2 13.2A2 2 0 0 1 16.8 22H7.2a2 2 0 0 1-2-1.8L4 7h3zm2 0h6V6a3 3 0 0 0-6 0v1zm-1 4a1 1 0 1 0 2 0 1 1 0 0 0-2 0zm6 0a1 1 0 1 0 2 0 1 1 0 0 0-2 0z"/></svg><span>Boutique</span></button>

@@ -1,5 +1,6 @@
 import { euros } from "./local.js";
 import { setFrame } from "./million.js";
+import { styleName, titleEl } from "./cosmetics.js";
 // Jeu en ligne : le serveur mène la partie, ce fichier affiche ce qu'il envoie.
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
 const PALETTE = ["#ffe14d", "#34e3b0", "#ff6b8b", "#62c7ff", "#c4b8ff", "#ffb36b", "#f6f3ff", "#9df0d4"]; // couleurs des jetons
@@ -190,7 +191,8 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
       }
       const s = document.createElement("span");
       s.textContent = p.name + (p.id === m.host ? " · hôte" : "");
-      li.append(s);
+      styleName(s, p.cos); li.append(s); // sa couleur de pseudo
+      const ti = titleEl(p.cos); if (ti) li.append(ti); // et son titre
       ul.append(li);
     });
     const host = m.host === m.you;
