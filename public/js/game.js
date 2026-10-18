@@ -10,7 +10,7 @@ import { enablePush, disablePush, pushMuted, pushState, currentSub } from "./pus
 import { initCosmetics, styleName, titleOf } from "./cosmetics.js";
 import { initQuests } from "./quests.js";
 
-const VERSION = "2.20.2"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.20.3"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -1094,6 +1094,7 @@ function tabbar(id) {
   document.body.classList.toggle("withtabs", on);
   bar.querySelectorAll(".tab").forEach((t) => t.classList.toggle("on", t.dataset.go === TAB_OF[id]));
   if (on) pillTo(bar.querySelector(".tab.on"));
+  if (TAB_ORDER.includes(id)) prepAround(id); // prépare les onglets voisins pour un balayage fluide
 }
 function goTab(t) {
   const go = t.dataset.go || t;
@@ -1180,10 +1181,27 @@ const PREP = { "s-mode": () => { menuPushUI(); dailyCard(); }, "s-friends": () =
 // une ancienne règle (#main>.screen{transform:none!important}) bloquait le déplacement des écrans : d'où les écrans superposés.
 // Pendant un geste, on déplace donc avec la même priorité.
 function slideTo(el, x, ease) { if (!el) return; if (ease !== undefined) el.style.setProperty("transition", ease, "important"); el.style.setProperty("transform", `translate3d(${x}px,0,0)`, "important"); }
-function swipeClean(el) { if (!el) return; ["transform", "transition", "top", "left", "width"].forEach((k) => el.style.removeProperty(k)); el.classList.remove("peek", "swiping"); }
+function swipeClean(el) { if (!el) return; ["transform", "transition", "top", "left", "width", "height", "overflow"].forEach((k) => el.style.removeProperty(k)); el.classList.remove("peek", "swiping", "parked"); }
 function swipeReset() { // remet tous les écrans en place : seul l'écran courant est visible
+  document.body.classList.remove("swipe");
   document.querySelectorAll(".screen").forEach((el) => { swipeClean(el); el.hidden = el.id !== curScreen; });
   swipeClean($("bar")); document.querySelectorAll(".barclone").forEach((el) => el.remove());
+}
+// les onglets voisins sont préparés à l'avance, quand rien ne bouge : le geste démarre sans à-coup
+const prepped = {};
+function prepTab(id) { try { PREP[id](); prepped[id] = Date.now(); } catch {} }
+// un voisin « garé » : déjà mis en page à sa place, mais invisible ; le balayage n'a plus qu'à l'afficher (comme Instagram)
+function park(id) {
+  const el = $(id), cur = $(curScreen), main = $("main");
+  if (!el || !cur || !el.hidden || !TAB_ORDER.includes(curScreen)) return;
+  el.classList.add("parked", "noanim");
+  Object.assign(el.style, { top: `${cur.offsetTop}px`, left: `${cur.offsetLeft}px`, width: `${cur.offsetWidth}px`, height: `${Math.max(200, innerHeight - main.getBoundingClientRect().top - scrollY - cur.offsetTop)}px`, overflow: "hidden" });
+  el.hidden = false;
+}
+function prepAround(id) {
+  const i = TAB_ORDER.indexOf(id); if (i < 0) return;
+  const later = window.requestIdleCallback || ((f) => setTimeout(f, 250));
+  [TAB_ORDER[i - 1], TAB_ORDER[i + 1]].filter(Boolean).forEach((n) => later(() => { if (curScreen === id && $(n).hidden) { prepTab(n); park(n); } }));
 }
 (() => {
   let sw = null, pend = null; // pend : la fin d'un geste en train de se caler
@@ -1201,11 +1219,14 @@ function swipeReset() { // remet tous les écrans en place : seul l'écran coura
     const id = TAB_ORDER[TAB_ORDER.indexOf(sw.from) + dir];
     sw.dir = dir; sw.next = id || null;
     if (!id) return;
-    try { PREP[id](); } catch {}
-    const el = $(id);
-    el.classList.add("peek", "noanim");
-    Object.assign(el.style, { top: `${sw.cur.offsetTop + scrollY}px`, left: `${sw.cur.offsetLeft}px`, width: `${sw.cur.offsetWidth}px` });
+    const el = $(id), top = sw.cur.offsetTop + scrollY;
+    if (!el.classList.contains("parked") && Date.now() - (prepped[id] || 0) > 20000) prepTab(id); // d'habitude déjà prêt et garé (prepAround)
+    el.classList.remove("parked"); el.classList.add("peek", "noanim");
+    // seule la partie visible de l'écran qui arrive est dessinée (moins de travail pour le téléphone)
+    Object.assign(el.style, { top: `${top}px`, left: `${sw.cur.offsetLeft}px`, width: `${sw.cur.offsetWidth}px`, height: `${Math.max(200, innerHeight + scrollY - top - $("main").getBoundingClientRect().top - scrollY)}px`, overflow: "hidden" });
     el.hidden = false; sw.nextEl = el;
+    const ta = TABS.find((b) => b.dataset.go === sw.from), tb = TABS.find((t) => t.dataset.go === id); // positions de la bulle, mesurées une fois
+    sw.pa = ta ? ta.offsetLeft : null; sw.pb = tb ? tb.offsetLeft : null;
     if (!sw.hdr) { // comme sur Instagram, toute la page glisse, en-tête compris : l'onglet qui arrive a le sien
       const real = $("bar"), r = real.getBoundingClientRect(), h = real.cloneNode(true);
       // la copie garde les mêmes id (pour ses styles) : ajoutée en fin de page, $("…") trouve toujours d'abord le vrai en-tête
@@ -1214,13 +1235,12 @@ function swipeReset() { // remet tous les écrans en place : seul l'écran coura
       document.body.append(h); sw.hdr = h;
     }
   }
-  function paint(dx) {
-    const W = $("main").clientWidth; // un écran entier : l'onglet voisin arrive avec ses marges
-    slideTo(sw.cur, dx); slideTo($("bar"), dx);
+  function paint(dx) { // une image : rien n'est relu dans la page, on ne fait qu'écrire des déplacements
+    const W = sw.W;
+    slideTo(sw.cur, dx); slideTo(sw.bar, dx);
     if (sw.nextEl) slideTo(sw.nextEl, dx + sw.dir * W);
     if (sw.hdr) { sw.hdr.hidden = !sw.nextEl; slideTo(sw.hdr, dx + sw.dir * W); }
-    const a = TABS.find((b) => b.dataset.go === sw.from), b = sw.next && TABS.find((t) => t.dataset.go === sw.next); // la bulle suit le geste
-    if (a && b) { if (P.anim) { P.anim.cancel(); P.anim = null; } place(a.offsetLeft + (b.offsetLeft - a.offsetLeft) * Math.min(1, Math.abs(dx) / W)); }
+    if (sw.next && sw.pa != null && sw.pb != null) { if (P.anim) { P.anim.cancel(); P.anim = null; } place(sw.pa + (sw.pb - sw.pa) * Math.min(1, Math.abs(dx) / W)); } // la bulle suit le geste
   }
   function move(e) {
     if (!sw) return;
@@ -1230,19 +1250,22 @@ function swipeReset() { // remet tous les écrans en place : seul l'écran coura
       if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
       if (Math.abs(dx) < Math.abs(dy) * 1.2 || !e.cancelable) { sw = null; return; } // geste vertical (ou défilement déjà lancé) : on laisse défiler
       sw.lock = true; sw.cur.classList.add("swiping");
+      sw.W = $("main").clientWidth; sw.bar = $("bar"); // mesuré une fois pour tout le geste
+      document.body.classList.add("swipe"); // la barre du bas arrête son flou pendant le geste (très coûteux sur iPhone)
     }
     if (e.cancelable) e.preventDefault();
     const dir = dx < 0 ? 1 : -1;
     if (dir !== sw.dir) neighbor(dir);
     const now = performance.now(); sw.v = (t.clientX - sw.lx) / Math.max(1, now - sw.lt); sw.lx = t.clientX; sw.lt = now;
     sw.dx = sw.next ? dx : dx * 0.28; // au bout (Accueil, Réglages) : ça résiste
-    paint(sw.dx);
+    if (!sw.raf) sw.raf = requestAnimationFrame(() => { if (sw) { sw.raf = 0; paint(sw.dx); } }); // au plus un dessin par image
   }
   function finish(go) {
     const s = sw; sw = null;
     removeEventListener("touchmove", move, { passive: false });
     if (!s || !s.lock) return;
-    const W = $("main").clientWidth, ease = "transform .28s cubic-bezier(.2,.85,.25,1)";
+    cancelAnimationFrame(s.raf);
+    const W = s.W, ease = "transform .28s cubic-bezier(.2,.85,.25,1)";
     slideTo(s.cur, go ? -s.dir * W : 0, ease); slideTo($("bar"), go ? -s.dir * W : 0, ease);
     slideTo(s.nextEl, go ? 0 : s.dir * W, ease); slideTo(s.hdr, go ? 0 : s.dir * W, ease);
     if (!go) pillTo(TABS.find((b) => b.dataset.go === s.from));
@@ -1252,13 +1275,13 @@ function swipeReset() { // remet tous les écrans en place : seul l'écran coura
   function end(e) {
     if (e.touches && e.touches.length) return; // un doigt reste posé : le geste continue
     if (!sw || !sw.lock) { sw = null; removeEventListener("touchmove", move, { passive: false }); return; }
-    const W = $("main").clientWidth;
+    const W = sw.W;
     finish(!!sw.next && (Math.abs(sw.dx) > W * 0.3 || (Math.abs(sw.v) > 0.45 && Math.sign(sw.v) === -sw.dir)));
   }
   addEventListener("touchstart", (e) => {
     if (sw) { if (e.touches.length > 1) abort(); return; } // un geste est déjà en cours
     settle(); // le geste précédent se termine d'abord
-    if (document.querySelector(".screen.peek,.screen.swiping,.barclone") || $("bar").style.getPropertyValue("transform") || document.querySelectorAll(".screen:not([hidden])").length > 1) swipeReset(); // filet de sécurité
+    if (document.querySelector(".screen.peek,.screen.swiping,.barclone") || $("bar").style.getPropertyValue("transform") || document.querySelectorAll(".screen:not([hidden]):not(.parked)").length > 1) { swipeReset(); prepAround(curScreen); } // filet de sécurité
     if (e.touches.length !== 1 || !TAB_ORDER.includes(curScreen) || bar.hidden || e.target.closest("#tabbar,.modal,#confirm") || scrollsX(e.target)) return;
     const p = e.touches[0];
     sw = { x: p.clientX, y: p.clientY, lx: p.clientX, lt: performance.now(), v: 0, dx: 0, dir: 0, from: curScreen, cur: $(curScreen), lock: false, next: null, nextEl: null, hdr: null };

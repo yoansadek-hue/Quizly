@@ -1223,3 +1223,8 @@ svg.qchico{width:30px;height:30px;flex:none;color:var(--coral)}
 /* en-tête de l'onglet qui arrive pendant un balayage (copie de l'en-tête, comme sur Instagram) */
 .barclone{z-index:3;pointer-events:none;will-change:transform}
 #bar{will-change:auto}
+/* pendant un balayage : la barre du bas ne recalcule pas son flou à chaque image (fluidité sur iPhone) */
+body.swipe .tabbar{-webkit-backdrop-filter:none;backdrop-filter:none;background:rgba(18,9,44,.95)}
+/* onglet voisin garé : mis en page à l'avance, invisible, prêt pour un balayage sans à-coup */
+.screen.parked{position:absolute;visibility:hidden;pointer-events:none;z-index:-1}
+.screen.parked>*{animation:none!important}
