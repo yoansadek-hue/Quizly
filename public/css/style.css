@@ -1220,3 +1220,6 @@ svg.qchico{width:30px;height:30px;flex:none;color:var(--coral)}
 .qchest.ready svg.qchico{color:var(--ink)}
 .qchest.open svg.qchico{color:var(--mint)}
 .qbtn.wait:disabled{opacity:1;color:var(--muted);background:#ece8ff;box-shadow:none}
+/* en-tête de l'onglet qui arrive pendant un balayage (copie de l'en-tête, comme sur Instagram) */
+.barclone{z-index:3;pointer-events:none;will-change:transform}
+#bar{will-change:auto}

@@ -10,7 +10,7 @@ import { enablePush, disablePush, pushMuted, pushState, currentSub } from "./pus
 import { initCosmetics, styleName, titleOf } from "./cosmetics.js";
 import { initQuests } from "./quests.js";
 
-const VERSION = "2.20.1"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.20.2"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -1177,9 +1177,13 @@ addEventListener("resize", () => { if (!bar.hidden) { P.shown = false; pillTo(ba
 // balayer l'écran (comme Instagram) : l'écran suit le doigt et l'onglet voisin glisse à côté ; on le lâche, il se cale.
 // Règle de sûreté : en dehors d'un geste, un seul écran est visible et aucun n'est déplacé (voir swipeReset).
 const PREP = { "s-mode": () => { menuPushUI(); dailyCard(); }, "s-friends": () => friends.render(), "s-shop": () => cosm.render(), "s-profile": () => renderProfile(), "s-settings": () => renderSettings() };
-function swipeClean(el) { if (!el) return; el.style.transform = el.style.transition = el.style.top = el.style.left = el.style.width = ""; el.classList.remove("peek", "swiping"); }
+// une ancienne règle (#main>.screen{transform:none!important}) bloquait le déplacement des écrans : d'où les écrans superposés.
+// Pendant un geste, on déplace donc avec la même priorité.
+function slideTo(el, x, ease) { if (!el) return; if (ease !== undefined) el.style.setProperty("transition", ease, "important"); el.style.setProperty("transform", `translate3d(${x}px,0,0)`, "important"); }
+function swipeClean(el) { if (!el) return; ["transform", "transition", "top", "left", "width"].forEach((k) => el.style.removeProperty(k)); el.classList.remove("peek", "swiping"); }
 function swipeReset() { // remet tous les écrans en place : seul l'écran courant est visible
   document.querySelectorAll(".screen").forEach((el) => { swipeClean(el); el.hidden = el.id !== curScreen; });
+  swipeClean($("bar")); document.querySelectorAll(".barclone").forEach((el) => el.remove());
 }
 (() => {
   let sw = null, pend = null; // pend : la fin d'un geste en train de se caler
@@ -1202,11 +1206,19 @@ function swipeReset() { // remet tous les écrans en place : seul l'écran coura
     el.classList.add("peek", "noanim");
     Object.assign(el.style, { top: `${sw.cur.offsetTop + scrollY}px`, left: `${sw.cur.offsetLeft}px`, width: `${sw.cur.offsetWidth}px` });
     el.hidden = false; sw.nextEl = el;
+    if (!sw.hdr) { // comme sur Instagram, toute la page glisse, en-tête compris : l'onglet qui arrive a le sien
+      const real = $("bar"), r = real.getBoundingClientRect(), h = real.cloneNode(true);
+      // la copie garde les mêmes id (pour ses styles) : ajoutée en fin de page, $("…") trouve toujours d'abord le vrai en-tête
+      h.classList.add("barclone"); h.setAttribute("aria-hidden", "true");
+      Object.assign(h.style, { position: "absolute", top: `${r.top + scrollY}px`, left: `${r.left}px`, width: `${r.width}px`, margin: "0" });
+      document.body.append(h); sw.hdr = h;
+    }
   }
   function paint(dx) {
     const W = $("main").clientWidth; // un écran entier : l'onglet voisin arrive avec ses marges
-    sw.cur.style.transform = `translate3d(${dx}px,0,0)`;
-    if (sw.nextEl) sw.nextEl.style.transform = `translate3d(${dx + sw.dir * W}px,0,0)`;
+    slideTo(sw.cur, dx); slideTo($("bar"), dx);
+    if (sw.nextEl) slideTo(sw.nextEl, dx + sw.dir * W);
+    if (sw.hdr) { sw.hdr.hidden = !sw.nextEl; slideTo(sw.hdr, dx + sw.dir * W); }
     const a = TABS.find((b) => b.dataset.go === sw.from), b = sw.next && TABS.find((t) => t.dataset.go === sw.next); // la bulle suit le geste
     if (a && b) { if (P.anim) { P.anim.cancel(); P.anim = null; } place(a.offsetLeft + (b.offsetLeft - a.offsetLeft) * Math.min(1, Math.abs(dx) / W)); }
   }
@@ -1231,13 +1243,12 @@ function swipeReset() { // remet tous les écrans en place : seul l'écran coura
     removeEventListener("touchmove", move, { passive: false });
     if (!s || !s.lock) return;
     const W = $("main").clientWidth, ease = "transform .28s cubic-bezier(.2,.85,.25,1)";
-    s.cur.style.transition = ease; if (s.nextEl) s.nextEl.style.transition = ease;
-    s.cur.style.transform = `translate3d(${go ? -s.dir * W : 0}px,0,0)`;
-    if (s.nextEl) s.nextEl.style.transform = `translate3d(${go ? 0 : s.dir * W}px,0,0)`;
+    slideTo(s.cur, go ? -s.dir * W : 0, ease); slideTo($("bar"), go ? -s.dir * W : 0, ease);
+    slideTo(s.nextEl, go ? 0 : s.dir * W, ease); slideTo(s.hdr, go ? 0 : s.dir * W, ease);
     if (!go) pillTo(TABS.find((b) => b.dataset.go === s.from));
     pend = { run: () => { if (go) show(s.next); swipeReset(); }, t: setTimeout(() => settle(), 290) };
   }
-  function abort() { if (sw && sw.lock) finish(false); else { sw = null; removeEventListener("touchmove", move, { passive: false }); } }
+  function abort() { if (sw && sw.lock) finish(false); else { if (sw && sw.hdr) sw.hdr.remove(); sw = null; removeEventListener("touchmove", move, { passive: false }); } }
   function end(e) {
     if (e.touches && e.touches.length) return; // un doigt reste posé : le geste continue
     if (!sw || !sw.lock) { sw = null; removeEventListener("touchmove", move, { passive: false }); return; }
@@ -1247,10 +1258,10 @@ function swipeReset() { // remet tous les écrans en place : seul l'écran coura
   addEventListener("touchstart", (e) => {
     if (sw) { if (e.touches.length > 1) abort(); return; } // un geste est déjà en cours
     settle(); // le geste précédent se termine d'abord
-    if (document.querySelector(".screen.peek,.screen.swiping") || document.querySelectorAll(".screen:not([hidden])").length > 1) swipeReset(); // filet de sécurité
+    if (document.querySelector(".screen.peek,.screen.swiping,.barclone") || $("bar").style.getPropertyValue("transform") || document.querySelectorAll(".screen:not([hidden])").length > 1) swipeReset(); // filet de sécurité
     if (e.touches.length !== 1 || !TAB_ORDER.includes(curScreen) || bar.hidden || e.target.closest("#tabbar,.modal,#confirm") || scrollsX(e.target)) return;
     const p = e.touches[0];
-    sw = { x: p.clientX, y: p.clientY, lx: p.clientX, lt: performance.now(), v: 0, dx: 0, dir: 0, from: curScreen, cur: $(curScreen), lock: false, next: null, nextEl: null };
+    sw = { x: p.clientX, y: p.clientY, lx: p.clientX, lt: performance.now(), v: 0, dx: 0, dir: 0, from: curScreen, cur: $(curScreen), lock: false, next: null, nextEl: null, hdr: null };
     addEventListener("touchmove", move, { passive: false });
   }, { passive: true });
   addEventListener("touchend", end, { passive: true });
