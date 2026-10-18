@@ -141,7 +141,12 @@ function dailySet(day) {
   if (dailyCache.size > 4) dailyCache.delete(dailyCache.keys().next().value);
   return set;
 }
-app.get("/api/daily", (req, res) => res.json(dailySet(parisDay())));
+// le défi d'aujourd'hui, ou celui d'un des 7 jours précédents (pour revoir ses réponses)
+app.get("/api/daily", (req, res) => {
+  const today = parisDay(), day = String(req.query.day || today);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || day > today || Date.parse(today) - Date.parse(day) > 7 * 86400000) return res.json(dailySet(today));
+  res.json(dailySet(day));
+});
 // chaque jour à 10 h (heure de Paris), le serveur prévient tout le monde que le défi est prêt.
 // Il ne s'endort pas grâce à UptimeRobot ; une seule fois par jour, même s'il redémarre ensuite.
 let dailyPushedOn = "";
@@ -702,7 +707,7 @@ function endGame(room) {
   const order = [...players(room)].sort((a, b) => (b === w) - (a === w) || b.outAt - a.outAt);
   cast(room, {
     t: "end", winner: w ? w.name : null,
-    ranking: order.map((p) => ({ name: p.name, score: p.score, points: p.points, lives: Math.max(p.lives, 0), photo: p.photo }))
+    ranking: order.map((p) => ({ id: p.id, name: p.name, score: p.score, points: p.points, lives: Math.max(p.lives, 0), photo: p.photo }))
   });
 }
 
