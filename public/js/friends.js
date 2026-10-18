@@ -3,6 +3,7 @@
 import { cloudFs } from "./cloud.js";
 import { sendPush } from "./push.js";
 import { setFrame } from "./million.js";
+import { styleName, titleEl, titleOf } from "./cosmetics.js";
 
 const ALPHA = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // sans I, O, 0, 1 : pas de confusion à la lecture
 const INVITE_TTL = 10 * 60 * 1000; // une invitation de plus de 10 minutes est ignorée
@@ -135,6 +136,7 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
   function openFriend(f) {
     F.cur = f;
     $("frName").textContent = f.name;
+    styleName($("frName"), f.cos); $("frTitle").textContent = titleOf(f.cos); $("frTitle").hidden = !titleOf(f.cos);
     $("frAv").replaceChildren(avatarEl(f.name, f.photo, true));
     const x = f.records || {};
     const short = (v) => (v >= 1000000 ? "1 M€" : v >= 1000 ? `${Math.round(v / 1000)} k€` : `${v} €`);
@@ -174,7 +176,9 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
   function row(person, buttons) {
     const r = document.createElement("div"); r.className = "frow";
     const nm = document.createElement("span"); nm.className = "fname"; nm.textContent = person.name;
-    r.append(avatarEl(person.name, person.photo), nm, ...buttons);
+    styleName(nm, person.cos); const ti = titleEl(person.cos); // sa couleur de pseudo et son titre
+    if (ti) { const w = document.createElement("span"); w.className = "fwho"; w.append(nm, ti); r.append(avatarEl(person.name, person.photo), w, ...buttons); }
+    else r.append(avatarEl(person.name, person.photo), nm, ...buttons);
     return r;
   }
   function btn(label, look, fn) { const b = document.createElement("button"); b.className = `btn ${look} sm`; b.textContent = label; b.onclick = fn; return b; }
@@ -249,7 +253,7 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
 
   /* ---------- la cloche : vos notifications (amis, invitations, annonces) ---------- */
   // envoie une notification : sur tous les appareils de l'ami (push) et dans sa cloche
-  const TITLES = { demande: "Demande d'ami", accepte: "Nouvel ami", invite: "Invitation à jouer" };
+  const TITLES = { demande: "Demande d'ami", accepte: "Nouvel ami", invite: "Invitation à jouer", club: "Invitation au club" };
   async function notify(to, type, text, url) {
     sendPush(to, TITLES[type] || "", text, url);
     try { const m = me(); await F.fs.addDoc(F.fs.collection(F.fs.db, "notifs", to, "list"), { from: F.uid, name: m.name, photo: m.photo || "", type, text, url, at: Date.now() }); } catch {}
@@ -306,6 +310,7 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
       t.append(document.createTextNode(n.text || ""));
       const w = document.createElement("span"); w.className = "frec"; w.textContent = ago(n.at); t.append(w);
       const act = n.type === "invite" ? btn("Rejoindre", "sun", () => { const c = (String(n.url).match(/tv=([A-Z0-9]+)/) || [])[1]; if (c) joinRoom(c); })
+        : n.type === "club" ? btn("Rejoindre", "sun", () => clubInvite((String(n.url).match(/club=([A-Z0-9]+)/) || [])[1]))
         : n.type === "demande" || n.type === "accepte" ? btn("Voir", "ghost", () => openFriends()) : null;
       const x = document.createElement("button"); x.className = "fx"; x.textContent = "×"; x.setAttribute("aria-label", "Supprimer cette notification"); x.onclick = () => dismiss(n);
       r.append(avatarEl(n.name || "Quizly", n.photo), t, ...(act ? [act] : []), x);
@@ -443,30 +448,107 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
   }
   F.ctab = "daily";
   const CTABS = [["daily", "Défi du jour"], ["best2", "Solo"], ["bestChrono", "Chrono"], ["bestMillion", "Millionnaire"], ["achs", "Succès"]];
+  const EMBLEMS = ["🦉", "🔥", "⚡", "🚀", "🧠", "👑", "🐺", "🦊", "🐉", "🎯", "🌟", "🍀"];
+  const CCOLORS = ["mint", "sun", "coral", "sky", "peach", "lilac"];
+  const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(Date.now());
   function renderClub() {
     const c = F.club;
     $("clubNone").hidden = !!c; $("clubIn").hidden = !c;
     if (!c) return;
+    const owner = c.owner === F.uid, day = today();
+    $("clubCard").className = `clubcard cc-${CCOLORS.includes(c.color) ? c.color : "mint"}`;
+    $("clubEmb").textContent = EMBLEMS.includes(c.emb) ? c.emb : "🦉";
     $("clubTitle").textContent = c.name;
+    $("clubDesc").textContent = c.desc || ""; $("clubDesc").hidden = !c.desc;
     $("clubShowCode").textContent = c.code;
-    $("clubInfo").textContent = `${c.members.length} membre${c.members.length > 1 ? "s" : ""} sur ${CLUB_MAX}${c.owner === F.uid ? " · vous l'avez créé" : ""}`;
+    $("clubInfo").textContent = `${c.members.length} membre${c.members.length > 1 ? "s" : ""} sur ${CLUB_MAX}${owner ? " · vous l'avez créé" : ""}`;
+    $("btnClubEdit").hidden = !owner;
+    // chiffres du club
+    const doneToday = c.members.filter((p) => p.daily && p.daily.day === day).length;
+    const achTotal = c.members.reduce((a, p) => a + (p.achs || []).length, 0);
+    $("clubStats").replaceChildren(...[[`${doneToday}/${c.members.length}`, "défi du jour fait"], [achTotal, "succès au total"], [c.members.reduce((a, p) => a + ((p.summary || {}).games || 0), 0), "parties jouées"]].map(([v, k]) => {
+      const d = document.createElement("div"); const b = document.createElement("strong"); b.textContent = v; const t = document.createElement("span"); t.textContent = k; d.append(b, t); return d;
+    }));
+    // classement
     $("clubTabs").replaceChildren(...CTABS.map(([k, label]) => {
       const b = document.createElement("button"); b.className = "chip"; b.textContent = label; b.setAttribute("aria-pressed", String(F.ctab === k));
       b.onclick = () => { F.ctab = k; renderClub(); }; return b;
     }));
-    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(Date.now());
     const k = F.ctab;
-    const val = (p) => k === "daily" ? (p.daily && p.daily.day === today ? p.daily.score * 1e6 - (p.daily.ms || 0) : -1) : k === "achs" ? (p.achs || []).length : ((p.records || {})[k] || 0);
-    const txt = (p) => k === "daily" ? (p.daily && p.daily.day === today ? `${p.daily.score} / 10` : "pas encore") : k === "achs" ? `${(p.achs || []).length} succès` : k === "bestMillion" ? euros((p.records || {})[k] || 0) : `${(p.records || {})[k] || 0} pts`;
+    const val = (p) => k === "daily" ? (p.daily && p.daily.day === day ? p.daily.score * 1e6 - (p.daily.ms || 0) : -1) : k === "achs" ? (p.achs || []).length : ((p.records || {})[k] || 0);
+    const txt = (p) => k === "daily" ? (p.daily && p.daily.day === day ? `${p.daily.score} / 10` : "pas encore") : k === "achs" ? `${(p.achs || []).length} succès` : k === "bestMillion" ? euros((p.records || {})[k] || 0) : `${(p.records || {})[k] || 0} pts`;
     const list = [...c.members].sort((a, b) => val(b) - val(a));
     $("clubRank").replaceChildren(...list.map((p, i) => {
       const li = document.createElement("li"); li.className = "rk" + (i === 0 && val(p) > 0 ? " first" : "") + (p.you ? " mine" : "");
       const pos = document.createElement("span"); pos.className = "pos"; pos.textContent = i + 1;
-      const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = p.you ? `${p.name} (vous)` : p.name;
+      const who = document.createElement("span"); who.className = "nm clubwho";
+      const nm = document.createElement("span"); nm.textContent = p.you ? `${p.name} (vous)` : p.name; styleName(nm, p.cos);
+      who.append(nm); const ti = titleEl(p.cos); if (ti) who.append(ti);
+      if (p.uid === c.owner) { const o = document.createElement("small"); o.className = "ownr"; o.textContent = "créateur"; who.append(o); }
       const st = document.createElement("span"); st.className = "st"; st.textContent = txt(p);
-      li.append(pos, avatarEl(p.name, p.photo), nm, st); return li;
+      li.append(pos, avatarEl(p.name, p.photo), who, st);
+      if (owner && !p.you) { // le créateur peut retirer un membre
+        const x = document.createElement("button"); x.className = "fx"; x.textContent = "×"; x.setAttribute("aria-label", `Retirer ${p.name} du club`);
+        x.onclick = () => ask(`Retirer ${p.name} ?`, "Il pourra revenir seulement avec le code du club.", "Retirer", () => kickMember(p));
+        li.append(x);
+      }
+      return li;
     }));
+    // le mur : les derniers messages de chaque membre, du plus récent au plus ancien
+    const wall = c.members.flatMap((p) => (Array.isArray(p.wall) ? p.wall : []).map((w) => ({ ...w, p }))).filter((w) => w && w.text).sort((a, b) => b.at - a.at).slice(0, 30);
+    $("clubWall").replaceChildren(...(wall.length ? wall.map((w) => {
+      const r = document.createElement("div"); r.className = "wmsg" + (w.p.you ? " mine" : "");
+      const t = document.createElement("div"); t.className = "wtxt";
+      const n = document.createElement("b"); n.textContent = w.p.you ? "Vous" : w.p.name; styleName(n, w.p.cos);
+      const tx = document.createElement("span"); tx.textContent = w.text;
+      const ag = document.createElement("small"); ag.textContent = ago(w.at);
+      t.append(n, tx, ag); r.append(avatarEl(w.p.name, w.p.photo), t); return r;
+    }) : [Object.assign(document.createElement("p"), { className: "fhint", textContent: "Aucun message pour l'instant. Lancez la discussion !" })]));
+    // inviter ses amis qui ne sont pas encore dans le club
+    const inClub = new Set(c.members.map((p) => p.uid));
+    const friends = F.friends.filter((f) => !inClub.has(f.uid));
+    F.invited ||= new Set();
+    $("clubInvite").replaceChildren(...(friends.length ? friends.map((f) => {
+      const sent = F.invited.has(`${c.code}:${f.uid}`);
+      const b = btn(sent ? "Invité" : "Inviter", sent ? "white" : "sun", () => inviteToClub(f, b));
+      b.disabled = sent || c.members.length >= CLUB_MAX;
+      return row(f, [b]);
+    }) : [Object.assign(document.createElement("p"), { className: "fhint", textContent: F.friends.length ? "Tous vos amis sont déjà dans le club." : "Ajoutez des amis pour pouvoir les inviter ici." })]));
+    // personnalisation (créateur)
+    $("clubEmbPick").replaceChildren(...EMBLEMS.map((e) => { const b = document.createElement("button"); b.textContent = e; b.setAttribute("aria-pressed", String((c.emb || "🦉") === e)); b.onclick = () => { F.cEdit.emb = e; [...$("clubEmbPick").children].forEach((x) => x.setAttribute("aria-pressed", String(x === b))); }; return b; }));
+    $("clubColPick").replaceChildren(...CCOLORS.map((col) => { const b = document.createElement("button"); b.className = `cc-${col}`; b.setAttribute("aria-label", col); b.setAttribute("aria-pressed", String((c.color || "mint") === col)); b.onclick = () => { F.cEdit.color = col; [...$("clubColPick").children].forEach((x) => x.setAttribute("aria-pressed", String(x === b))); }; return b; }));
   }
+  async function inviteToClub(f, b) {
+    const c = F.club; if (!c) return;
+    b.disabled = true;
+    notify(f.uid, "club", `${me().name} vous invite dans le club « ${c.name} ».`, `/?club=${c.code}`);
+    F.invited.add(`${c.code}:${f.uid}`); b.textContent = "Invité"; b.className = "btn white sm";
+    cmsg(`Invitation envoyée à ${f.name}.`);
+  }
+  async function kickMember(p) {
+    const c = F.club; if (!c) return;
+    try { await F.fs.deleteDoc(ref("clubs", c.code, "members", p.uid)); cmsg(`${p.name} a été retiré du club.`); }
+    catch { cmsg("Impossible de retirer ce membre : la règle Firestore « clubs » ne le permet pas encore au créateur."); }
+    loadClub();
+  }
+  async function postWall() {
+    const c = F.club, text = $("clubWallIn").value.replace(/[<>]/g, "").replace(/\s+/g, " ").trim().slice(0, 120);
+    if (!c || !text) return;
+    const mine = c.members.find((p) => p.you), wall = [...(Array.isArray(mine && mine.wall) ? mine.wall : []), { text, at: Date.now() }].slice(-5); // vos 5 derniers messages
+    try { await F.fs.setDoc(ref("clubs", c.code, "members", F.uid), { wall }, { merge: true }); $("clubWallIn").value = ""; if (mine) mine.wall = wall; renderClub(); }
+    catch { cmsg("Message non envoyé, réessayez."); }
+  }
+  F.cEdit = {};
+  $("btnClubEdit").onclick = () => { const c = F.club; if (!c) return; F.cEdit = { emb: c.emb, color: c.color }; $("clubDescIn").value = c.desc || ""; $("clubEditBox").hidden = !$("clubEditBox").hidden; };
+  $("btnClubSave").onclick = async () => {
+    const c = F.club; if (!c || c.owner !== F.uid) return;
+    const patch = { emb: F.cEdit.emb || c.emb || "🦉", color: F.cEdit.color || c.color || "mint", desc: $("clubDescIn").value.replace(/[<>]/g, "").replace(/\s+/g, " ").trim().slice(0, 80) };
+    try { await F.fs.setDoc(ref("clubs", c.code), patch, { merge: true }); Object.assign(c, patch); $("clubEditBox").hidden = true; renderClub(); cmsg("Club mis à jour."); }
+    catch { cmsg("Impossible d'enregistrer pour le moment."); }
+  };
+  $("btnClubPost").onclick = postWall;
+  $("clubWallIn").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); postWall(); } });
+  $("clubShowCodeBtn").onclick = () => { const c = F.club; if (!c) return; try { navigator.clipboard.writeText(c.code); cmsg("Code copié."); } catch {} };
   $("btnClubCreate").onclick = () => createClub($("clubName").value);
   $("btnClubJoin").onclick = () => joinClub($("clubCode").value);
   $("btnClubLeave").onclick = () => ask("Quitter le club ?", "Vous pourrez le rejoindre à nouveau avec son code.", "Quitter", () => leaveClub());
@@ -475,9 +557,17 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
     const text = `Rejoins mon club Quizly « ${c.name} » avec le code ${c.code} (Amis › Club).`;
     try { if (navigator.share) await navigator.share({ title: "Quizly", text }); else { await navigator.clipboard.writeText(c.code); cmsg("Code copié."); } } catch {}
   };
+  // invitation reçue (notification ou lien /?club=CODE) : on ouvre l'onglet Club et on propose de rejoindre
+  function clubInvite(code) {
+    code = String(code || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
+    if (code.length !== 6) return;
+    openFriends(); setPanel("club");
+    if (myClub() === code) return;
+    ask("Rejoindre ce club ?", myClub() ? "Vous quitterez votre club actuel (un seul club à la fois)." : "Vous verrez son classement et son mur.", "Rejoindre", () => joinClub(code));
+  }
 
   const api = {
-    start, stop, ready, loadClub, render, syncRecords, addByCode, openInvites, renderNotifs,
+    start, stop, ready, loadClub, render, syncRecords, addByCode, openInvites, renderNotifs, clubInvite,
     isFriend: (uid) => F.friends.some((f) => f.uid === uid),
     count: () => F.friends.length,
     // défi du jour terminé : noté pour le rappel du soir (le serveur ne prévient que ceux qui ne l'ont pas fait)

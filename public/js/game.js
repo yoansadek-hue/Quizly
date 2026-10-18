@@ -7,9 +7,9 @@ import { startScan, stopScan, tvCodeFrom } from "./scan.js";
 import { startCloud, cloudState } from "./cloud.js";
 import { initFriends, friendCodeFrom } from "./friends.js";
 import { enablePush, disablePush, pushMuted, pushState, currentSub } from "./push.js";
-import { initCosmetics } from "./cosmetics.js";
+import { initCosmetics, styleName, titleOf } from "./cosmetics.js";
 
-const VERSION = "2.17.4"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.18.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -804,6 +804,7 @@ function renderProfile() {
   const st = getStats();
   const best = (k) => { try { return +localStorage.getItem(`quizly:${S.uid}:${k}`) || 0; } catch { return 0; } };
   $("profName").textContent = S.firstName || "Profil";
+  styleName($("profName"), cosm.get()); $("profTitle").textContent = titleOf(cosm.get()); $("profTitle").hidden = !titleOf(cosm.get()); // votre couleur de pseudo et votre titre
   $("coinCount").textContent = cosm.coins();
   $("s-profile").querySelector(".profhead").className = `profhead banner ${cosm.get().banner}`; // votre bannière
   $("meEdit").hidden = true;
@@ -1075,8 +1076,9 @@ function pushUI(st) {
 async function askPush() { const st = await enablePush(S.uid, true); pushUI(st); if (st === "granted") saveDevice(); return st; }
 async function saveDevice() { const sub = await currentSub(); if (sub) friends.saveSub(sub.toJSON()); } // le serveur le retrouve même après s'être endormi
 $("btnPush").onclick = async () => { $("btnPush").disabled = true; await askPush(); $("btnPush").disabled = false; };
-// barre d'onglets du bas : visible sur les écrans principaux, cachée en partie et sur les écrans à bouton fixe
+// barre d'onglets du bas (comme Instagram) : visible sur les écrans principaux, cachée en partie et sur les écrans à bouton fixe
 const TAB_OF = { "s-mode": "s-mode", "s-sub": "s-mode", "s-online": "s-mode", "s-friends": "s-friends", "s-friend": "s-friends", "s-shop": "s-shop", "s-profile": "s-profile", "s-settings": "s-settings", "s-notifs": "" };
+const TAB_ORDER = ["s-mode", "s-friends", "s-shop", "s-profile", "s-settings"];
 function tabbar(id) {
   const bar = $("tabbar"), on = id in TAB_OF;
   bar.hidden = !on;
@@ -1085,75 +1087,132 @@ function tabbar(id) {
   if (on) pillTo(bar.querySelector(".tab.on"));
 }
 function goTab(t) {
-  const go = t.dataset.go;
+  const go = t.dataset.go || t;
   if (go === "s-friends") return openFriends();
   if (go === "s-shop") { cosm.render(); return show("s-shop"); }
   if (go === "s-profile") { renderProfile(); return show("s-profile"); }
   if (go === "s-settings") { renderSettings(); return show("s-settings"); }
   show("s-mode");
 }
-// la bulle de verre sous l'onglet choisi : elle glisse d'un onglet à l'autre, et on peut la faire glisser du doigt (comme sur iPhone)
+// la bulle de verre : elle s'étire en glissant d'un onglet à l'autre puis reprend sa forme (verre liquide d'iOS),
+// grossit comme une loupe sous le doigt, et suit le doigt quand on la fait glisser
 const bar = $("tabbar"), pill = $("tabPill"), TABS = [...bar.querySelectorAll(".tab")];
-let geo = null; // positions des onglets, mesurées une fois par appui (pas de mesure pendant le glissement)
-const measure = () => (geo = TABS.map((t) => ({ t, x: t.offsetLeft, w: t.offsetWidth })));
-function pillTo(t) {
-  if (!t) { pill.classList.remove("show"); return; }
-  const first = !pill.classList.contains("show");
-  if (first) pill.classList.add("now"); // première apparition : sans glisser depuis le bord
-  pill.style.width = t.offsetWidth + "px";
-  pill.style.transform = `translate3d(${t.offsetLeft}px,0,0)`;
-  pill.classList.add("show");
-  if (first) requestAnimationFrame(() => requestAnimationFrame(() => pill.classList.remove("now")));
+const P = { x: 0, shown: false, anim: null };
+const still = () => matchMedia("(prefers-reduced-motion: reduce)").matches || setting("calm");
+const place = (x, sx = 1, sy = 1) => { P.x = x; pill.style.transform = `translate3d(${x}px,0,0) scale(${sx},${sy})`; };
+function pillTo(t, from) {
+  if (!t) { pill.classList.remove("show"); P.shown = false; return; }
+  const x = t.offsetLeft, w = t.offsetWidth, x0 = from ?? P.x;
+  pill.style.width = w + "px";
+  if (P.anim) { P.anim.cancel(); P.anim = null; }
+  if (P.shown && Math.abs(x - x0) > 1 && !still()) {
+    const d = Math.abs(x - x0), k = Math.min(0.55, d / (w * 2.6));
+    P.anim = pill.animate([
+      { transform: `translate3d(${x0}px,0,0) scale(1,1)` },
+      { offset: 0.42, transform: `translate3d(${x0 + (x - x0) * 0.58}px,0,0) scale(${1 + k},${1 - k * 0.32})` },
+      { offset: 0.8, transform: `translate3d(${x + (x - x0) * 0.02}px,0,0) scale(${1 - k * 0.08},${1 + k * 0.06})` },
+      { transform: `translate3d(${x}px,0,0) scale(1,1)` }
+    ], { duration: 380 + Math.min(180, d * 0.5), easing: "cubic-bezier(.22,.8,.3,1)" });
+    P.anim.onfinish = () => (P.anim = null);
+  }
+  place(x);
+  pill.classList.add("show"); P.shown = true;
 }
-// on montre d'abord la bulle qui part, puis on prépare l'écran (sinon le calcul de l'écran retarde l'animation)
+// on lance d'abord la bulle, puis on prépare l'écran (sinon le calcul de l'écran retarde l'animation)
 const goSoon = (t) => requestAnimationFrame(() => setTimeout(() => goTab(t), 0));
-let drag = null, raf = 0;
+let drag = null;
+function dragLoop() { // une image sur deux n'attend pas : la bulle suit le doigt et s'étire selon la vitesse
+  if (!drag) return;
+  if (drag.moved) {
+    const w = pill.offsetWidth, g = drag.geo, x = Math.max(g[0].x, Math.min(g[g.length - 1].x, drag.cx - drag.left - w / 2));
+    drag.v *= 0.82; // l'étirement retombe quand le doigt ralentit
+    const k = Math.min(0.4, Math.abs(drag.v) * 0.09);
+    place(x, 1 + k, 1 - k * 0.3);
+    const mid = x + w / 2, over = g.reduce((a, b) => (Math.abs(mid - (b.x + b.w / 2)) < Math.abs(mid - (a.x + a.w / 2)) ? b : a)).t;
+    if (over !== drag.over) { drag.over.classList.remove("over"); over.classList.add("over"); drag.over = over; }
+  }
+  requestAnimationFrame(dragLoop);
+}
 bar.addEventListener("pointerdown", (e) => {
   const t = e.target.closest(".tab"); if (!t || (e.pointerType === "mouse" && e.button !== 0)) return;
-  measure();
-  const br = bar.getBoundingClientRect();
-  drag = { id: e.pointerId, x0: e.clientX, left: br.left, moved: false, t, over: t };
+  drag = { id: e.pointerId, x0: e.clientX, cx: e.clientX, t: performance.now(), v: 0, left: bar.getBoundingClientRect().left, moved: false, tab: t, over: t, geo: TABS.map((b) => ({ t: b, x: b.offsetLeft, w: b.offsetWidth })) };
   try { bar.setPointerCapture(e.pointerId); } catch {}
   bar.classList.add("press");
-  pillTo(t); // la bulle vient sous le doigt et grossit
+  pillTo(t); // la bulle file sous le doigt et devient une loupe
+  requestAnimationFrame(dragLoop);
 });
 bar.addEventListener("pointermove", (e) => {
   if (!drag || e.pointerId !== drag.id) return;
   if (!drag.moved && Math.abs(e.clientX - drag.x0) < 5) return;
-  if (!drag.moved) { drag.moved = true; bar.classList.add("drag"); }
-  drag.cx = e.clientX;
-  if (raf) return;
-  raf = requestAnimationFrame(() => { // une mise à jour par image, sans relire la mise en page
-    raf = 0; if (!drag) return;
-    const w = pill.offsetWidth, x = drag.cx - drag.left, pad = geo[0].x, max = geo[geo.length - 1].x + geo[geo.length - 1].w - w;
-    pill.style.transform = `translate3d(${Math.max(pad, Math.min(max, x - w / 2))}px,0,0)`;
-    const over = geo.reduce((a, g) => (Math.abs(x - (g.x + g.w / 2)) < Math.abs(x - (a.x + a.w / 2)) ? g : a)).t;
-    if (over !== drag.over) { drag.over.classList.remove("over"); over.classList.add("over"); drag.over = over; }
-  });
+  if (!drag.moved) { drag.moved = true; bar.classList.add("drag"); if (P.anim) { P.anim.cancel(); P.anim = null; } }
+  const now = performance.now(), dt = Math.max(1, now - drag.t);
+  drag.v = drag.v * 0.4 + ((e.clientX - drag.cx) / dt) * 0.6; drag.cx = e.clientX; drag.t = now;
 });
 function dragEnd(e, cancel) {
   if (!drag || e.pointerId !== drag.id) return;
-  const t = cancel ? null : drag.moved ? drag.over : drag.t;
-  drag = null; cancelAnimationFrame(raf); raf = 0;
+  const t = cancel ? null : drag.moved ? drag.over : drag.tab;
+  drag = null;
   bar.classList.remove("press", "drag"); TABS.forEach((b) => b.classList.remove("over"));
-  if (t) { pillTo(t); TABS.forEach((b) => b.classList.toggle("on", b === t)); goSoon(t); } else pillTo(bar.querySelector(".tab.on"));
+  if (t) { TABS.forEach((b) => b.classList.toggle("on", b === t)); pillTo(t, P.x); goSoon(t); } else pillTo(bar.querySelector(".tab.on"), P.x);
 }
 bar.addEventListener("pointerup", (e) => dragEnd(e));
 bar.addEventListener("pointercancel", (e) => dragEnd(e, true));
 TABS.forEach((t) => (t.onclick = (e) => { if (e.detail === 0) goTab(t); })); // clavier (au doigt ou à la souris : géré ci-dessus)
-addEventListener("resize", () => { if (!bar.hidden) pillTo(bar.querySelector(".tab.on")); });
+addEventListener("resize", () => { if (!bar.hidden) { P.shown = false; pillTo(bar.querySelector(".tab.on")); } });
+// balayer l'écran vers la gauche ou la droite : onglet suivant ou précédent (comme Instagram)
+(() => {
+  let sw = null;
+  const scrollsX = (el) => { // le geste appartient à un élément qui défile de côté (onglets, carrousels…)
+    for (; el && el !== document.body; el = el.parentElement) {
+      if (el.matches("input,textarea,select,[data-noswipe]")) return true;
+      const ox = getComputedStyle(el).overflowX;
+      if ((ox === "auto" || ox === "scroll") && el.scrollWidth > el.clientWidth + 2) return true;
+    }
+    return false;
+  };
+  addEventListener("touchstart", (e) => {
+    sw = null;
+    if (e.touches.length !== 1 || !TAB_ORDER.includes(curScreen) || $("tabbar").hidden || e.target.closest("#tabbar,.modal,#confirm") || scrollsX(e.target)) return;
+    const p = e.touches[0];
+    sw = { x: p.clientX, y: p.clientY, t: Date.now() };
+  }, { passive: true });
+  addEventListener("touchend", (e) => {
+    if (!sw) return;
+    const p = e.changedTouches[0], dx = p.clientX - sw.x, dy = p.clientY - sw.y, dt = Date.now() - sw.t;
+    sw = null;
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.6 || (dt > 700 && Math.abs(dx) < innerWidth * 0.4)) return;
+    const i = TAB_ORDER.indexOf(curScreen), j = i + (dx < 0 ? 1 : -1);
+    if (i < 0 || j < 0 || j >= TAB_ORDER.length) return;
+    const t = TABS.find((b) => b.dataset.go === TAB_ORDER[j]);
+    $("main").dataset.from = dx < 0 ? "r" : "l"; // l'écran arrive du côté du geste
+    setTimeout(() => delete $("main").dataset.from, 400);
+    TABS.forEach((b) => b.classList.toggle("on", b === t)); pillTo(t); goSoon(t);
+  }, { passive: true });
+})();
 // clavier ouvert : la barre se cache (comme sur iPhone) ; à sa fermeture, on la remet bien en bas
 // (sinon l'iPhone peut laisser la barre fixée remontée après la saisie du code d'un salon)
 const typing = (el) => el && el.matches && el.matches("input:not([type=checkbox]):not([type=radio]),textarea,[contenteditable]");
-document.addEventListener("focusin", (e) => { if (typing(e.target)) document.body.classList.add("typing"); });
+document.addEventListener("focusin", (e) => { if (typing(e.target)) document.body.classList.add("kbd"); });
+let touching = false; // la barre ne revient pas sous un doigt encore posé (elle volerait l'appui sur un bouton du bas)
+addEventListener("pointerdown", () => (touching = true), true);
+addEventListener("pointerup", () => setTimeout(() => (touching = false), 50), true);
+addEventListener("pointercancel", () => (touching = false), true);
+let backT = 0;
+function barBack() {
+  clearTimeout(backT);
+  if (!document.body.classList.contains("kbd") || typing(document.activeElement)) return; // on passe d'un champ à l'autre
+  if (touching) { backT = setTimeout(barBack, 150); return; }
+  document.body.classList.remove("kbd");
+  window.scrollTo(window.scrollX, window.scrollY); // recale les éléments fixés
+  if (!bar.hidden) { P.shown = false; pillTo(bar.querySelector(".tab.on")); }
+}
 document.addEventListener("focusout", (e) => {
   if (!typing(e.target)) return;
-  setTimeout(() => {
-    if (typing(document.activeElement)) return; // on passe d'un champ à l'autre
-    document.body.classList.remove("typing");
-    window.scrollTo(window.scrollX, window.scrollY); // recale les éléments fixés
-    if (!bar.hidden) pillTo(bar.querySelector(".tab.on"));
-  }, 120);
+  clearTimeout(backT); backT = setTimeout(barBack, 900); // filet : si le clavier ne prévient pas de sa fermeture
+});
+// le clavier se referme : la zone visible retrouve sa hauteur (on attend la fin de l'appui en cours)
+if (window.visualViewport) visualViewport.addEventListener("resize", () => {
+  if (visualViewport.height > innerHeight * 0.85 && !typing(document.activeElement)) { clearTimeout(backT); backT = setTimeout(barBack, 120); }
 });
 // petite animation d'appui sur les boutons du haut (et :active fonctionne aussi sur iPhone)
 document.addEventListener("touchstart", () => {}, { passive: true });
@@ -1171,6 +1230,8 @@ async function afterCloud() {
   if (new URLSearchParams(location.search).get("defi")) { try { history.replaceState(null, "", location.pathname); } catch {} openDaily(); } // notification de 10 h touchée
   if (new URLSearchParams(location.search).get("notifs")) { try { history.replaceState(null, "", location.pathname); } catch {} openNotifs(); } // annonce touchée
   if (new URLSearchParams(location.search).get("amis")) { try { history.replaceState(null, "", location.pathname); } catch {} openFriends(); } // ouvert depuis une notification
+  const clubParam = new URLSearchParams(location.search).get("club"); // invitation dans un club touchée
+  if (clubParam) { try { history.replaceState(null, "", location.pathname); } catch {} friends.clubInvite(clubParam); }
   if (curScreen === "s-friends") friends.render();
   if (pendingAmi && friends.ready()) { // on ajoute l'ami du lien, puis on montre l'onglet Amis
     const c = pendingAmi; pendingAmi = null;
@@ -1704,7 +1765,7 @@ function coinBackpayNow() {
   const x = achFacts();
   const owed = x.good + 2 * x.games + 10 * dailyDays().length + 25 * Object.keys(getAch()).length;
   const gift = cosm.backpay(owed);
-  if (gift > 0) setTimeout(() => ask("Cadeau !", `Vous recevez ${gift} jetons pour vos parties d'avant la Boutique : bonnes réponses, parties, Défis du jour et succès.`, "Merci !", () => {}, false), 600);
+  if (gift > 0) setTimeout(() => ask("Cadeau !", `Vous recevez ${gift} Q-Bucks pour vos parties d'avant la Boutique : bonnes réponses, parties, Défis du jour et succès.`, "Merci !", () => {}, false), 600);
 }
 let achT = null;
 function checkAch() { clearTimeout(achT); achT = setTimeout(checkAchNow, 300); } // regroupé : une vérification après une rafale de réponses

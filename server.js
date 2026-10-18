@@ -551,7 +551,7 @@ function okPhoto(s) {
 
 const cleanCos = (c) => { // cosmétiques équipés (cadre, bulle, bannière) : de simples noms
   const ok = (v, p) => (typeof v === "string" && v.startsWith(p) && /^[a-z-]{3,20}$/.test(v) ? v : undefined);
-  return c && typeof c === "object" ? { frame: ok(c.frame, "fr-"), bubble: ok(c.bubble, "sk-"), banner: ok(c.banner, "bn-") } : {};
+  return c && typeof c === "object" ? { frame: ok(c.frame, "fr-"), bubble: ok(c.bubble, "sk-"), banner: ok(c.banner, "bn-"), title: ok(c.title, "ti-"), name: ok(c.name, "nc-") } : {};
 };
 function join(ws, room, name, photo, hist, uid, cos) {
   const base = clean(name) || "Joueur";
