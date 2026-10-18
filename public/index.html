@@ -28,6 +28,10 @@ addEventListener("error", function (e) {
 <header id="bar" hidden>
   <span class="logo">Quizly<small>par YoskanGame</small></span>
   <div class="barR">
+    <button id="btnQuests" class="iconbtn" aria-label="Défis" hidden>
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M7 3h10v2h3v3a5 5 0 0 1-4.3 4.95A5 5 0 0 1 13 15.9V18h3v3H8v-3h3v-2.1a5 5 0 0 1-2.7-2.95A5 5 0 0 1 4 8V5h3V3zm0 4H6v1a3 3 0 0 0 1.4 2.53A5 5 0 0 1 7 9V7zm10 0v2c0 .53-.08 1.04-.24 1.53A3 3 0 0 0 18 8V7h-1z"/></svg>
+      <span class="nbadge" id="questBadge" hidden></span>
+    </button>
     <button id="btnNotifs" class="iconbtn" aria-label="Notifications" hidden>
       <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22zm7-6V11a7 7 0 0 0-5.5-6.84V3.5a1.5 1.5 0 0 0-3 0v.66A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2z"/></svg>
       <span class="nbadge" id="notifBadge" hidden></span>
@@ -280,6 +284,20 @@ addEventListener("error", function (e) {
     <h3 class="profh">Ses succès <span class="achcount" id="frAchCount"></span></h3>
     <div class="achgrid" id="frAch"></div>
     <button class="btn ghost" id="btnFrRemove">Retirer de mes amis</button>
+  </section>
+
+  <!-- Défis : défi du jour, défis quotidiens et hebdomadaires, la veille -->
+  <section id="s-quests" class="screen" hidden>
+    <button class="goback" data-back="s-mode">← Retour</button>
+    <h2>Défis</h2>
+    <div class="qdaily" id="qDaily"></div>
+    <h3 class="qh">Défis du jour <small id="qDayLeft"></small></h3>
+    <div class="qlist" id="qDayList"></div>
+    <div class="qchest" id="qChest"></div>
+    <h3 class="qh">Défis de la semaine <small id="qWeekLeft"></small></h3>
+    <div class="qlist" id="qWeekList"></div>
+    <h3 class="qh">Hier</h3>
+    <div class="qyest" id="qYest"></div>
   </section>
 
   <!-- Notifications -->

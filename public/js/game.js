@@ -8,8 +8,9 @@ import { startCloud, cloudState } from "./cloud.js";
 import { initFriends, friendCodeFrom } from "./friends.js";
 import { enablePush, disablePush, pushMuted, pushState, currentSub } from "./push.js";
 import { initCosmetics, styleName, titleOf } from "./cosmetics.js";
+import { initQuests } from "./quests.js";
 
-const VERSION = "2.18.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.19.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -37,7 +38,7 @@ const S = {
 const M = () => MODES[S.mode];
 document.querySelectorAll(".ver").forEach((e) => (e.textContent = `Quizly v${VERSION} · par YoskanGame`));
 const online = initOnline({ $, show, flash, confetti, me: () => ({ name: S.firstName || "Joueur", photo: S.photo || "", uid: S.uid || "", cos: cosm.get() }),
-  addFriend: (uid, name) => friends.addByUid(uid, name), isFriend: (uid) => friends.isFriend(uid), record: chronoRecord, millionUI, avatarEl, setAudio, noteQ: noteRecent, recent: () => getRecent().arr.slice(-300).map((x) => String(x).slice(0, 220)), setMode: (kind) => (S.mode = KIND_MODE[kind] || "online"), stat: { answer: (t, ok) => statAnswer(t, ok), game: (k) => statGame(k) } });
+  addFriend: (uid, name) => friends.addByUid(uid, name), isFriend: (uid) => friends.isFriend(uid), record: chronoRecord, millionUI, avatarEl, setAudio, noteQ: noteRecent, recent: () => getRecent().arr.slice(-300).map((x) => String(x).slice(0, 220)), setMode: (kind) => (S.mode = KIND_MODE[kind] || "online"), stat: { answer: (t, ok) => statAnswer(t, ok), game: (k) => statGame(k), win: () => quests.tick("win") } });
 // record personnel du Chrono en ligne (gardé sur l'appareil, par compte)
 function chronoRecord(points) {
   const key = `quizly:${S.uid}:bestChrono`;
@@ -65,14 +66,14 @@ function show(id) {
   curScreen = id;
   if (id === "s-lobby") { $("btnInvite").hidden = !friends.ready(); friends.hideInvitePanel(); } // inviter ses amis dans le salon
   if (id === "s-mode") try { menuPushUI(); dailyCard(); } catch {}
-  $("btnNotifs").hidden = id === "s-login" || PLAYING.includes(id) || id === "s-lobby"; // la cloche, hors partie
+  $("btnNotifs").hidden = $("btnQuests").hidden = id === "s-login" || PLAYING.includes(id) || id === "s-lobby"; // la cloche et les Défis, hors partie
   tabbar(id); // la barre d'onglets du bas
   if (id === "s-end") setTimeout(() => friends.syncRecords(), 800); // nouveaux records visibles par les amis
   // rond des réactions : seulement pendant une partie en ligne
   let onl = false; try { onl = online.active(); online.closeReacts(); } catch {}
   $("reactFab").hidden = !(onl && ["s-game", "s-million", "s-load"].includes(id));
   if (id !== "s-game") stopAudio(); // l'extrait s'arrête quand on quitte la question
-  document.querySelectorAll(".screen").forEach((s) => (s.hidden = s.id !== id));
+  document.querySelectorAll(".screen").forEach((s) => { s.hidden = s.id !== id; if (s.id !== id) s.classList.remove("noanim"); });
   userLabel();
   $("bar").hidden = id === "s-login" || id === "s-local";
   window.scrollTo(0, 0);
@@ -785,8 +786,9 @@ function statAnswer(theme, ok) {
   const st = getStats();
   const t = (st.themes[theme] ||= { ok: 0, n: 0 });
   t.n++; if (ok) t.ok++;
-  if (ok) cosm.earn(1); // 1 jeton par bonne réponse
+  if (ok) cosm.earn(1); // 1 Q-Buck par bonne réponse
   st.run = ok ? (st.run || 0) + 1 : 0; // bonnes réponses d'affilée (toutes parties confondues)
+  if (ok) { quests.tick("good"); quests.best("run", st.run); } // les défis avancent
   st.bestRun = Math.max(st.bestRun || 0, st.run);
   saveStats(st);
   checkAch();
@@ -796,7 +798,11 @@ function statGame(kind) {
   const st = getStats();
   st.games[kind] = (st.games[kind] || 0) + 1;
   saveStats(st);
-  cosm.earn(2, "partie"); // 2 jetons par partie
+  cosm.earn(2, "partie"); // 2 Q-Bucks par partie
+  quests.tick("game");
+  if (["online", "chrono", "omillion", "oteams"].includes(kind)) quests.tick("online");
+  if (kind === "chrono") quests.tick("chrono");
+  if (kind === "million" || kind === "omillion") quests.tick("million");
   checkAch();
 }
 const GAME_NAMES = { classic: "Classique", qcm: "QCM", solo: "Solo", teams: "Équipes", million: "Millionnaire", online: "En ligne", chrono: "Chrono", omillion: "Millionnaire en ligne" };
@@ -1053,6 +1059,7 @@ const friends = initFriends({
 });
 function openNotifs() { friends.renderNotifs(); adminUI(); show("s-notifs"); }
 $("btnNotifs").onclick = openNotifs;
+$("btnQuests").onclick = openQuests;
 function openFriends() { friends.render(); friends.syncRecords(); pushUI(); show("s-friends"); }
 // bandeau des notifications dans l'onglet Amis
 function menuPushUI() { // bandeau du menu : tant que les notifications ne sont ni acceptées ni refusées
@@ -1077,7 +1084,7 @@ async function askPush() { const st = await enablePush(S.uid, true); pushUI(st);
 async function saveDevice() { const sub = await currentSub(); if (sub) friends.saveSub(sub.toJSON()); } // le serveur le retrouve même après s'être endormi
 $("btnPush").onclick = async () => { $("btnPush").disabled = true; await askPush(); $("btnPush").disabled = false; };
 // barre d'onglets du bas (comme Instagram) : visible sur les écrans principaux, cachée en partie et sur les écrans à bouton fixe
-const TAB_OF = { "s-mode": "s-mode", "s-sub": "s-mode", "s-online": "s-mode", "s-friends": "s-friends", "s-friend": "s-friends", "s-shop": "s-shop", "s-profile": "s-profile", "s-settings": "s-settings", "s-notifs": "" };
+const TAB_OF = { "s-mode": "s-mode", "s-sub": "s-mode", "s-online": "s-mode", "s-friends": "s-friends", "s-friend": "s-friends", "s-shop": "s-shop", "s-profile": "s-profile", "s-settings": "s-settings", "s-notifs": "", "s-quests": "" };
 const TAB_ORDER = ["s-mode", "s-friends", "s-shop", "s-profile", "s-settings"];
 function tabbar(id) {
   const bar = $("tabbar"), on = id in TAB_OF;
@@ -1085,6 +1092,7 @@ function tabbar(id) {
   document.body.classList.toggle("withtabs", on);
   bar.querySelectorAll(".tab").forEach((t) => t.classList.toggle("on", t.dataset.go === TAB_OF[id]));
   if (on) pillTo(bar.querySelector(".tab.on"));
+  fixSoon(); // recale la barre (ou les boutons du bas) au bas de l'écran
 }
 function goTab(t) {
   const go = t.dataset.go || t;
@@ -1124,7 +1132,12 @@ let drag = null;
 function dragLoop() { // une image sur deux n'attend pas : la bulle suit le doigt et s'étire selon la vitesse
   if (!drag) return;
   if (drag.moved) {
-    const w = pill.offsetWidth, g = drag.geo, x = Math.max(g[0].x, Math.min(g[g.length - 1].x, drag.cx - drag.left - w / 2));
+    const w = pill.offsetWidth, g = drag.geo, lo = g[0].x, hi = g[g.length - 1].x, raw = drag.cx - drag.left - w / 2;
+    // au-delà d'Accueil ou de Réglages : la bulle résiste et la barre s'étire de ce côté (élastique, comme Instagram)
+    const out = raw < lo ? raw - lo : raw > hi ? raw - hi : 0;
+    const x = out ? (out < 0 ? lo : hi) + out * 0.3 : raw;
+    if (out) { bar.style.transformOrigin = out < 0 ? "right center" : "left center"; bar.style.scale = `${1 + Math.min(0.14, Math.abs(out) / bar.offsetWidth * 0.55)} 1`; }
+    else bar.style.scale = "";
     drag.v *= 0.82; // l'étirement retombe quand le doigt ralentit
     const k = Math.min(0.4, Math.abs(drag.v) * 0.09);
     place(x, 1 + k, 1 - k * 0.3);
@@ -1153,14 +1166,17 @@ function dragEnd(e, cancel) {
   const t = cancel ? null : drag.moved ? drag.over : drag.tab;
   drag = null;
   bar.classList.remove("press", "drag"); TABS.forEach((b) => b.classList.remove("over"));
+  bar.style.scale = ""; // la barre reprend sa taille avec un rebond
   if (t) { TABS.forEach((b) => b.classList.toggle("on", b === t)); pillTo(t, P.x); goSoon(t); } else pillTo(bar.querySelector(".tab.on"), P.x);
 }
 bar.addEventListener("pointerup", (e) => dragEnd(e));
 bar.addEventListener("pointercancel", (e) => dragEnd(e, true));
 TABS.forEach((t) => (t.onclick = (e) => { if (e.detail === 0) goTab(t); })); // clavier (au doigt ou à la souris : géré ci-dessus)
 addEventListener("resize", () => { if (!bar.hidden) { P.shown = false; pillTo(bar.querySelector(".tab.on")); } });
-// balayer l'écran vers la gauche ou la droite : onglet suivant ou précédent (comme Instagram)
+// balayer l'écran (comme Instagram) : l'écran suit le doigt et l'onglet voisin arrive collé à côté ; on le lâche, il se cale
+const PREP = { "s-mode": () => { menuPushUI(); dailyCard(); }, "s-friends": () => friends.render(), "s-shop": () => cosm.render(), "s-profile": () => renderProfile(), "s-settings": () => renderSettings() };
 (() => {
+  const GAP = 12;
   let sw = null;
   const scrollsX = (el) => { // le geste appartient à un élément qui défile de côté (onglets, carrousels…)
     for (; el && el !== document.body; el = el.parentElement) {
@@ -1170,25 +1186,84 @@ addEventListener("resize", () => { if (!bar.hidden) { P.shown = false; pillTo(ba
     }
     return false;
   };
+  const clean = (el) => { if (!el) return; el.style.transform = el.style.transition = el.style.top = el.style.left = el.style.width = ""; el.classList.remove("peek", "swiping"); };
+  function neighbor(dir) { // prépare l'onglet voisin, posé juste à côté de l'écran
+    if (sw.nextEl) { sw.nextEl.hidden = true; clean(sw.nextEl); sw.nextEl = null; }
+    const i = TAB_ORDER.indexOf(curScreen), id = TAB_ORDER[i + dir];
+    sw.dir = dir; sw.next = id || null;
+    if (!id) return;
+    try { PREP[id](); } catch {}
+    const el = $(id);
+    el.classList.add("peek", "noanim");
+    Object.assign(el.style, { top: `${sw.cur.offsetTop + scrollY}px`, left: `${sw.cur.offsetLeft}px`, width: `${sw.cur.offsetWidth}px` });
+    el.hidden = false; sw.nextEl = el;
+  }
+  function paint(dx) {
+    const W = sw.cur.offsetWidth + GAP;
+    sw.cur.style.transform = `translate3d(${dx}px,0,0)`;
+    if (sw.nextEl) sw.nextEl.style.transform = `translate3d(${dx + sw.dir * W}px,0,0)`;
+    // la bulle de la barre suit le geste, d'un onglet à l'autre
+    const a = TABS.find((b) => b.dataset.go === curScreen), b = sw.next && TABS.find((t) => t.dataset.go === sw.next);
+    if (a && b) { if (P.anim) { P.anim.cancel(); P.anim = null; } const p = Math.min(1, Math.abs(dx) / W); place(a.offsetLeft + (b.offsetLeft - a.offsetLeft) * p); }
+  }
+  function move(e) {
+    if (!sw) return;
+    const t = e.touches[0], dx = t.clientX - sw.x, dy = t.clientY - sw.y;
+    if (!sw.lock) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      if (Math.abs(dx) < Math.abs(dy) * 1.2) { sw = null; return; } // geste vertical : on laisse défiler
+      sw.lock = true; sw.cur.classList.add("swiping");
+    }
+    if (e.cancelable) e.preventDefault();
+    const dir = dx < 0 ? 1 : -1;
+    if (dir !== sw.dir) neighbor(dir);
+    const now = performance.now(); sw.v = (t.clientX - sw.lx) / Math.max(1, now - sw.lt); sw.lx = t.clientX; sw.lt = now;
+    sw.dx = sw.next ? dx : dx * 0.28; // au bout (Accueil, Réglages) : ça résiste
+    paint(sw.dx);
+  }
+  function end() {
+    removeEventListener("touchmove", move, { passive: false });
+    const s = sw; sw = null;
+    if (!s || !s.lock) return;
+    const W = s.cur.offsetWidth + GAP, go = s.next && (Math.abs(s.dx) > W * 0.3 || (Math.abs(s.v) > 0.45 && Math.sign(s.v) === -s.dir));
+    const ease = "transform .3s cubic-bezier(.2,.85,.25,1)";
+    s.cur.style.transition = ease; if (s.nextEl) s.nextEl.style.transition = ease;
+    s.cur.style.transform = `translate3d(${go ? -s.dir * W : 0}px,0,0)`;
+    if (s.nextEl) s.nextEl.style.transform = `translate3d(${go ? 0 : s.dir * W}px,0,0)`;
+    if (!go) pillTo(bar.querySelector(".tab.on"));
+    setTimeout(() => {
+      clean(s.cur);
+      if (go) { clean(s.nextEl); show(s.next); }
+      else if (s.nextEl) { s.nextEl.hidden = true; clean(s.nextEl); }
+    }, 310);
+  }
   addEventListener("touchstart", (e) => {
     sw = null;
-    if (e.touches.length !== 1 || !TAB_ORDER.includes(curScreen) || $("tabbar").hidden || e.target.closest("#tabbar,.modal,#confirm") || scrollsX(e.target)) return;
+    if (e.touches.length !== 1 || !TAB_ORDER.includes(curScreen) || bar.hidden || e.target.closest("#tabbar,.modal,#confirm") || scrollsX(e.target)) return;
     const p = e.touches[0];
-    sw = { x: p.clientX, y: p.clientY, t: Date.now() };
+    sw = { x: p.clientX, y: p.clientY, lx: p.clientX, lt: performance.now(), v: 0, dx: 0, dir: 0, cur: $(curScreen), lock: false, next: null, nextEl: null };
+    addEventListener("touchmove", move, { passive: false });
   }, { passive: true });
-  addEventListener("touchend", (e) => {
-    if (!sw) return;
-    const p = e.changedTouches[0], dx = p.clientX - sw.x, dy = p.clientY - sw.y, dt = Date.now() - sw.t;
-    sw = null;
-    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.6 || (dt > 700 && Math.abs(dx) < innerWidth * 0.4)) return;
-    const i = TAB_ORDER.indexOf(curScreen), j = i + (dx < 0 ? 1 : -1);
-    if (i < 0 || j < 0 || j >= TAB_ORDER.length) return;
-    const t = TABS.find((b) => b.dataset.go === TAB_ORDER[j]);
-    $("main").dataset.from = dx < 0 ? "r" : "l"; // l'écran arrive du côté du geste
-    setTimeout(() => delete $("main").dataset.from, 400);
-    TABS.forEach((b) => b.classList.toggle("on", b === t)); pillTo(t); goSoon(t);
-  }, { passive: true });
+  addEventListener("touchend", end, { passive: true });
+  addEventListener("touchcancel", end, { passive: true });
 })();
+// la barre et les boutons du bas restent collés au bas de l'écran, quoi qu'il arrive :
+// sur un écran court (Club, En ligne…), l'iPhone peut placer les éléments fixés trop haut ; on mesure l'écart et on le rattrape
+function fixBottom() {
+  const vv = window.visualViewport; if (!vv) return;
+  const root = document.documentElement, el = !bar.hidden && !document.body.classList.contains("kbd") ? bar : [...document.querySelectorAll(".screen:not([hidden]) .dock:not([hidden])")][0];
+  if (!el) return;
+  const cur = parseFloat(root.style.getPropertyValue("--vfix")) || 0;
+  const want = vv.offsetTop + vv.height - parseFloat(getComputedStyle(el).bottom || 0); // où son bas devrait être
+  const got = el.getBoundingClientRect().bottom - cur; // où il serait sans correction
+  const fix = Math.round(want - got);
+  root.style.setProperty("--vfix", `${Math.abs(fix) > 1 && Math.abs(fix) < 200 ? fix : 0}px`);
+}
+function fixSoon() { requestAnimationFrame(() => requestAnimationFrame(fixBottom)); }
+addEventListener("resize", fixSoon);
+addEventListener("orientationchange", () => setTimeout(fixBottom, 300));
+if (window.visualViewport) { visualViewport.addEventListener("resize", fixSoon); visualViewport.addEventListener("scroll", fixSoon); }
+addEventListener("scroll", fixSoon, { passive: true });
 // clavier ouvert : la barre se cache (comme sur iPhone) ; à sa fermeture, on la remet bien en bas
 // (sinon l'iPhone peut laisser la barre fixée remontée après la saisie du code d'un salon)
 const typing = (el) => el && el.matches && el.matches("input:not([type=checkbox]):not([type=radio]),textarea,[contenteditable]");
@@ -1225,6 +1300,7 @@ async function afterCloud() {
   setUser(S.gName, S.gPhoto); // nom et photo personnalisés récupérés du cloud
   cosm.apply();
   coinBackpay();
+  questBadge(quests.ready());
   await friends.start();
   enablePush(S.uid, false).then((st) => { pushUI(st); if (st === "granted") saveDevice(); }); // réinscrit cet appareil (sans rien demander)
   if (new URLSearchParams(location.search).get("defi")) { try { history.replaceState(null, "", location.pathname); } catch {} openDaily(); } // notification de 10 h touchée
@@ -1705,13 +1781,18 @@ async function refreshScreen() {
 
 /* ---------- Série du Défi du jour ---------- */
 const dHistKey = () => `quizly:${S.uid}:dailyHist`;
+const dResKey = () => `quizly:${S.uid}:dailyRes`;
 function dailyDays() { try { return JSON.parse(localStorage.getItem(dHistKey()) || "[]"); } catch { return []; } }
 function noteDailyDay(d) {
   const days = dailyDays();
   if (!days.includes(d.day)) { // une seule fois par jour
     days.push(d.day); try { localStorage.setItem(dHistKey(), JSON.stringify(days.slice(-120))); } catch {}
     cosm.earn(10, "défi du jour");
+    quests.tick("daily");
   }
+  quests.best("dailyScore", d.score || 0);
+  // résultat gardé (pour « Hier » dans l'onglet Défis)
+  try { const r = JSON.parse(localStorage.getItem(dResKey()) || "{}"); r[d.day] = { score: d.score || 0, ms: d.ms || 0 }; const keep = Object.keys(r).sort().slice(-30); localStorage.setItem(dResKey(), JSON.stringify(Object.fromEntries(keep.map((k) => [k, r[k]])))); } catch {}
   friends.dailyDone(d.day, d); // pour le rappel du soir et le classement mondial
   checkAch();
 }
@@ -1867,4 +1948,44 @@ const cosm = initCosmetics({
   achs: () => Object.keys(getAch()),
   onChange: () => { if (curScreen === "s-profile") renderProfile(); friends.syncRecords(); } // vos amis voient vos cosmétiques
 });
+/* ---------- Défis : défi du jour, défis quotidiens et hebdomadaires, la veille ---------- */
+const quests = initQuests({ $, uid: () => S.uid, earn: (n, why) => cosm.earn(n, why), onChange: (n) => questBadge(n) });
+function questBadge(n) { $("questBadge").hidden = !n; $("questBadge").textContent = n > 9 ? "9+" : n; }
+function openQuests() { renderQuestDaily(); quests.render(); renderYesterday(); show("s-quests"); }
+function renderQuestDaily() {
+  const d = getDaily(), sk = dailyStreak(), box = $("qDaily");
+  box.className = "qdaily" + (d ? " done" : "");
+  const k = document.createElement("span"); k.className = "dk"; k.textContent = "Défi du jour";
+  const t = document.createElement("b"); t.textContent = d ? `Fait : ${d.score} / 10` : "10 questions, une seule tentative";
+  const sm = document.createElement("small"); sm.textContent = d ? `Temps : ${Math.round((d.ms || 0) / 1000)} s · série : ${sk} jour${sk > 1 ? "s" : ""}` : "Les mêmes pour tout le monde. +10 Q-Bucks.";
+  const btn = document.createElement("button"); btn.className = "btn sm " + (d ? "white" : "sun"); btn.textContent = d ? "Voir le classement" : "Jouer"; btn.onclick = openDaily;
+  box.replaceChildren(k, t, sm, btn);
+}
+async function renderYesterday() {
+  const y = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(Date.now() - 86400000);
+  let r = null; try { r = JSON.parse(localStorage.getItem(dResKey()) || "{}")[y] || null; } catch {}
+  const played = r || dailyDays().includes(y);
+  const box = $("qYest"); box.replaceChildren();
+  const head = document.createElement("div"); head.className = "qyhead";
+  const b = document.createElement("b"); b.textContent = r ? `Votre score : ${r.score} / 10` : played ? "Vous l'avez fait" : "Vous ne l'avez pas fait";
+  const sm = document.createElement("small"); sm.textContent = r ? `en ${Math.round(r.ms / 1000)} s` : "Les réponses du défi d'hier :";
+  head.append(b, sm);
+  const btn = document.createElement("button"); btn.className = "btn white sm"; btn.textContent = "Voir les questions et réponses";
+  const list = document.createElement("ol"); list.className = "qylist"; list.hidden = true;
+  btn.onclick = async () => {
+    if (!list.hidden) { list.hidden = true; btn.textContent = "Voir les questions et réponses"; return; }
+    btn.disabled = true; btn.textContent = "Chargement…";
+    try {
+      const set = await (await fetch(`/api/daily?day=${y}`)).json();
+      list.replaceChildren(...(set.questions || []).map((q) => {
+        const li = document.createElement("li"); const qq = document.createElement("span"); qq.textContent = q.q;
+        const a = document.createElement("b"); a.textContent = q.a; li.append(qq, a); return li;
+      }));
+      list.hidden = false; btn.textContent = "Masquer les réponses";
+    } catch { btn.textContent = "Impossible de charger, réessayez"; }
+    btn.disabled = false;
+  };
+  box.append(head, btn, list);
+}
+
 $("btnShop").onclick = () => { cosm.render(); show("s-shop"); };

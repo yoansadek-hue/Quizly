@@ -328,6 +328,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     stopClock();
     const chrono = m.kind === "chrono", mill = m.kind === "million", teams = m.kind === "equipes";
     if (stat) stat.game(chrono ? "chrono" : mill ? "omillion" : teams ? "oteams" : "online");
+    if (stat && stat.win && !teams && m.winner && m.ranking && m.ranking.length > 1 && m.ranking[0].id === O.you) stat.win(); // victoire : pour les défis
     O.chrono = false; O.cur = null; O.mout = false; O.watch = false; mu.stopClock(); $("liveBoard").hidden = true;
     $("endLead").textContent = m.winner ? "Vainqueur" : "Partie terminée";
     $("winner").textContent = m.winner || "Égalité";
