@@ -295,6 +295,11 @@ addEventListener("error", function (e) {
       <textarea id="adminText" maxlength="160" rows="3" placeholder="Description (160 caractères)"></textarea>
       <button class="btn sun" id="btnAdminSend">Envoyer à tout le monde</button>
       <p class="msg" id="adminMsg" role="alert"></p>
+      <p class="fhint" id="adminPush">État des notifications…</p>
+      <pre class="adminrule" id="adminRule" hidden>match /pushsubs/{id} {
+  allow read: if true;
+  allow write: if request.auth != null;
+}</pre>
       <p class="fhint">Votre identifiant : <b id="adminUid"></b> <button class="btn ghost sm" id="btnCopyUid">Copier</button></p>
     </div>
     <button class="link devlink" id="btnDev">Mode développeur</button>
@@ -408,7 +413,7 @@ addEventListener("error", function (e) {
     <!-- thème personnalisé : n'importe quel sujet, l'IA crée les questions -->
     <div class="custom">
       <div class="row">
-        <input id="customIn" type="text" maxlength="30" placeholder="Votre thème : Harry Potter, Rap FR…" autocomplete="off" enterkeyhint="done">
+        <input id="customIn" type="text" maxlength="50" placeholder="Votre thème : Harry Potter, Rap FR…" autocomplete="off" enterkeyhint="done">
         <button class="btn sun sm" id="btnCustomAdd">Ajouter</button>
       </div>
       <p class="msg" id="customMsg"></p>

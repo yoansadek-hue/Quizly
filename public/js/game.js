@@ -1401,7 +1401,19 @@ const DEV_UID = "uIBgcwCCESgPLZdqC2wG14enXJk2"; // le compte du développeur : l
 function adminUI() {
   const dev = S.uid === DEV_UID, key = dev && localStorage.getItem(ADMIN);
   $("adminBox").hidden = !key; $("btnDev").hidden = !dev || !!key;
+  if (key) pushStatus(key);
   $("adminUid").textContent = S.uid || "";
+}
+// combien d'appareils le serveur retrouve après une mise à jour (il redémarre et oublie ceux en mémoire)
+function pushStatus(key) {
+  fetch("/api/push/status", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key }) })
+    .then((r) => r.json()).then((d) => {
+      if (!d.ok) return;
+      $("adminPush").textContent = !d.push ? "Notifications : clés VAPID absentes sur Render."
+        : d.fsErr ? `Notifications : le serveur ne peut pas lire les appareils dans Firestore (${d.fsErr}). Après chaque mise à jour, il ne retrouve personne. Ajoutez cette règle dans Firebase › Firestore › Règles :`
+        : `Notifications : ${d.firestore} appareil${d.firestore > 1 ? "s" : ""} enregistré${d.firestore > 1 ? "s" : ""} dans Firestore, retrouvé${d.firestore > 1 ? "s" : ""} même après une mise à jour.`;
+      $("adminRule").hidden = !d.fsErr;
+    }).catch(() => {});
 }
 $("btnCopyUid").onclick = () => { try { navigator.clipboard.writeText(S.uid); $("adminMsg").textContent = "Identifiant copié : collez-le dans la règle Firestore."; } catch {} };
 $("btnDev").onclick = () => {
@@ -1416,8 +1428,10 @@ $("btnAdminSend").onclick = async () => {
   if (title.length < 2 && text.length < 3) { $("adminMsg").textContent = "Écrivez un titre et une description."; return; }
   $("btnAdminSend").disabled = true; $("adminMsg").textContent = "Envoi…";
   try {
-    const { saved, sent, ok } = await friends.announce(title, text, localStorage.getItem(ADMIN));
-    const push = ok ? `Notification envoyée à ${sent} appareil${sent > 1 ? "s" : ""}.` : "Notification non envoyée : clé développeur refusée par le serveur.";
+    const { saved, sent, ok, devices, fsErr, why, read } = await friends.announce(title, text, localStorage.getItem(ADMIN));
+    let push = ok ? `Notification envoyée à ${sent} appareil${sent > 1 ? "s" : ""} sur ${devices}.` : "Notification non envoyée : clé développeur refusée par le serveur.";
+    if (ok && why) push += ` ${why}`;
+    else if (ok && !devices) push += fsErr ? ` Firestore refuse la lecture des appareils (${fsErr}) : ajoutez la règle « pushsubs » (voir Mode développeur).` : " Aucun appareil inscrit pour l'instant.";
     const bell = saved ? " Annonce ajoutée dans la cloche de tout le monde." : " Mais pas ajoutée dans la cloche : la règle « announces » de Firestore refuse votre identifiant.";
     $("adminMsg").textContent = push + bell;
     if (saved || ok) { $("adminText").value = ""; $("adminTitle").value = ""; }
@@ -1757,7 +1771,7 @@ document.querySelectorAll("#dScope button").forEach((b) => (b.onclick = () => { 
 const customKey = () => `quizly:${S.uid}:customThemes`;
 function customThemes() { try { return JSON.parse(localStorage.getItem(customKey()) || "[]"); } catch { return []; } }
 function saveCustom(list) { try { localStorage.setItem(customKey(), JSON.stringify(list.slice(-12))); } catch {} }
-const cleanTheme = (t) => String(t || "").replace(/[,;"«»\n\r<>]/g, " ").replace(/\s+/g, " ").trim().slice(0, 30); // pas de virgule : elle séparerait les thèmes
+const cleanTheme = (t) => String(t || "").replace(/[,;"«»\n\r<>]/g, " ").replace(/\s+/g, " ").trim().slice(0, 50); // pas de virgule : elle séparerait les thèmes
 function renderCustom() {
   const box = $("customList");
   box.replaceChildren(...customThemes().map((t) => {

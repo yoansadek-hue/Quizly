@@ -36,7 +36,7 @@ app.post("/api/push/unsubscribe", (req, res) => {
   res.json({ ok: true });
 });
 // les appareils inscrits sont aussi enregistrés dans Firestore (collection « pushsubs », lisible par le serveur)
-let fsSubs = { at: 0, list: [] };
+let fsSubs = { at: 0, list: [], err: "" };
 const deadSubs = new Set(); // appareils désinscrits (le téléphone a retiré l'autorisation)
 async function loadFsSubs() {
   if (Date.now() - fsSubs.at < 120000) return fsSubs.list;
@@ -53,8 +53,8 @@ async function loadFsSubs() {
       if (!j.nextPageToken) break;
       page = j.nextPageToken;
     }
-    fsSubs = { at: Date.now(), list: out };
-  } catch (e) { console.warn("Appareils (Firestore) :", e.message); }
+    fsSubs = { at: Date.now(), list: out, err: "" };
+  } catch (e) { fsSubs.err = e.message; console.warn("Appareils (Firestore) :", e.message); }
   return fsSubs.list;
 }
 // tous les appareils d'un compte (ou de tout le monde si uid vide), sans doublon
@@ -90,12 +90,27 @@ app.post("/api/push/send", async (req, res) => {
 const ADMIN_KEY = process.env.ADMIN_KEY || "";
 const isAdmin = (k) => ADMIN_KEY.length >= 8 && String(k || "") === ADMIN_KEY;
 app.post("/api/admin/check", (req, res) => res.json({ ok: isAdmin(req.body && req.body.key) }));
+// abonnements envoyés par le téléphone du développeur (lus dans Firestore avec son compte) : marche même si le serveur ne peut pas lire Firestore
+const okSub = (x) => x && typeof x.endpoint === "string" && x.endpoint.startsWith("https://") && x.keys && typeof x.keys.p256dh === "string" && typeof x.keys.auth === "string";
 app.post("/api/push/broadcast", async (req, res) => {
   if (!isAdmin(req.body && req.body.key)) return res.status(403).json({ ok: false });
   const title = String((req.body && req.body.title) || "").slice(0, 60), body = String((req.body && req.body.body) || "").slice(0, 160);
-  if (!pushOn || !(title || body)) return res.json({ ok: true, sent: 0 });
-  const sent = await pushTo(await devicesOf("", cleanUid(req.body && req.body.from)), { title, body, url: "/?notifs=1" }); // pas à vous-même
-  res.json({ ok: true, sent });
+  if (!pushOn) return res.json({ ok: true, sent: 0, devices: 0, why: "Clés VAPID absentes sur Render." });
+  if (!(title || body)) return res.json({ ok: true, sent: 0, devices: 0 });
+  const from = cleanUid(req.body && req.body.from), map = new Map();
+  for (const s of await devicesOf("", from)) map.set(s.endpoint, s); // pas à vous-même
+  for (const d of Array.isArray(req.body.subs) ? req.body.subs.slice(0, 5000) : []) {
+    if (okSub(d.sub) && d.uid !== from && !deadSubs.has(d.sub.endpoint)) map.set(d.sub.endpoint, { endpoint: d.sub.endpoint, keys: { p256dh: d.sub.keys.p256dh, auth: d.sub.keys.auth } });
+  }
+  const sent = await pushTo([...map.values()], { title, body, url: "/?notifs=1" });
+  res.json({ ok: true, sent, devices: map.size, fsErr: fsSubs.err || "" });
+});
+// état des notifications (mode développeur) : combien d'appareils le serveur connaît, et si Firestore lui répond
+app.post("/api/push/status", async (req, res) => {
+  if (!isAdmin(req.body && req.body.key)) return res.status(403).json({ ok: false });
+  fsSubs.at = 0; const fs = await loadFsSubs();
+  let mem = 0; for (const m of pushSubs.values()) mem += m.size;
+  res.json({ ok: true, push: pushOn, memory: mem, firestore: fs.length, fsErr: fsSubs.err || "" });
 });
 
 /* ---------- Défi du jour : les mêmes 10 questions pour tout le monde, chaque jour ---------- */
@@ -206,42 +221,90 @@ app.get("/icons/icon-:n.png", (req, res) => {
 app.use(express.static("public", { setHeaders: (res, file) => { if (/\.(html|js|css|webmanifest)$/.test(file)) res.set("Cache-Control", "no-cache"); } }));
 
 /* ====================== Génération des questions ====================== */
-const SYSTEM = `Quiz en français. Réponds uniquement par un tableau JSON compact, sans texte ni Markdown :
-[{"t":thème,"q":question,"a":bonne réponse courte,"w":[3 mauvaises réponses plausibles],"c":certitude de 1 à 5}]
-Fiabilité : n'écris que des faits dont tu es absolument certain ; une seule bonne réponse indiscutable ; aucune question ambiguë.
-Évite : les événements postérieurs à 2023, les classements, records, statistiques ou palmarès qui ont pu changer, les « le plus / le meilleur » sans consensus, les chiffres très précis. Si tu hésites, change de question. "c" = ta certitude (5 = certain à 100 %).
-Thème « Musique » : musique moderne uniquement (2000 à aujourd'hui) : rap US et FR, R&B, pop actuelle, afrobeats. Jamais de classique ni de variété ancienne.`;
+const SYSTEM = `Tu écris des questions de quiz en français, du niveau d'un bon jeu télévisé. Réponds uniquement par un tableau JSON compact, sans texte ni Markdown :
+[{"t":thème,"q":question,"a":bonne réponse,"w":[3 mauvaises réponses],"c":certitude de 1 à 5}]
 
-const norm = (s) => String(s).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+QUESTION
+- Une phrase claire, autonome et précise (le contexte est dans la question : qui, quoi, quel domaine), 140 caractères au plus.
+- Une seule bonne réponse, indiscutable et vérifiable. Jamais d'opinion, de « le plus / le meilleur » sans consensus, de chiffre très précis, de classement ou record qui a pu changer, d'événement après 2023.
+- La question ne contient pas la réponse ni un mot qui la trahit. Pas de double négation, pas de « Laquelle de ces affirmations ».
+- Intéressante : un fait marquant ou étonnant, pas une banalité.
 
-async function generate(themes, diff, count, avoid) {
-  if (!KEY) throw new Error("AI_API_KEY manquante côté serveur");
-  const prompt = `${count} questions, thèmes : ${themes.join(", ")}. Difficulté ${diff}/5. Varie les sous-thèmes, les époques et les pays, mais reste sur des faits établis. Graine ${Math.random().toString(36).slice(2, 7)}.` +
-    (avoid.length ? `\nDéjà posées (ne pas reposer ni reformuler) :\n- ${avoid.join("\n- ")}` : "");
+RÉPONSES
+- "a" : courte (1 à 5 mots), écrite exactement comme on l'attend.
+- "w" : 3 mauvaises réponses de MÊME NATURE que "a" (une ville → 3 villes, une année → 3 années proches, une personne → 3 personnes du même domaine et de la même époque), de longueur et de forme semblables, crédibles pour quelqu'un qui hésite.
+- Les mauvaises réponses sont certainement fausses : jamais un synonyme, une partie, une autre écriture ou une réponse aussi acceptable que "a". Jamais de réponse absurde, d'humour, de « toutes / aucune de ces réponses ».
+
+DIFFICULTÉ (1 à 5)
+1 : connu de presque tout le monde. 2 : culture générale courante. 3 : amateur du sujet. 4 : passionné. 5 : expert, mais toujours un fait vérifiable.
+Plus c'est difficile, plus les mauvaises réponses sont proches de la bonne.
+
+THÈMES
+- Un thème peut être un sujet précis écrit par le joueur (« One Piece », « la F1 des années 90 », « Harry Potter », « les volcans »). Chaque question porte alors PRÉCISÉMENT sur ce sujet, jamais sur un domaine voisin plus général. "t" reprend le nom du thème tel qu'il est donné.
+- Si un sujet est trop étroit, utilise ses faits les plus documentés (personnages, lieux, dates, auteurs, œuvres) plutôt que d'inventer.
+- Thème « Musique » : musique moderne uniquement (2000 à aujourd'hui) : rap US et FR, R&B, pop actuelle, afrobeats.
+
+"c" = ta certitude que la question est juste et sans ambiguïté (5 = certain à 100 %). Si tu hésites, change de question.`;
+
+// relecture : une seconde passe de l'IA écarte les questions fausses, ambiguës ou hors sujet
+const CHECK = `Tu vérifies des questions de quiz en français. Pour chacune, réponds "ok": true seulement si : la bonne réponse "a" est exacte, aucune des mauvaises réponses "w" n'est aussi correcte, la question n'est pas ambiguë, et elle porte bien sur son thème "t".
+Réponds uniquement par un tableau JSON compact, dans le même ordre : [{"i":numéro,"ok":true|false}]`;
+
+const norm = (s) => String(s).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+
+async function chat(system, user, effort, temperature) {
   const r = await fetch(`${BASE}/chat/completions`, {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${KEY}` },
     body: JSON.stringify({
       model: MODEL,
-      temperature: 0.6,
-      ...(MODEL.includes("gpt-oss") ? { reasoning_effort: EFFORT } : {}),
-      messages: [{ role: "system", content: SYSTEM }, { role: "user", content: prompt }]
+      temperature,
+      ...(MODEL.includes("gpt-oss") ? { reasoning_effort: effort } : {}),
+      messages: [{ role: "system", content: system }, { role: "user", content: user }]
     })
   });
   if (r.status === 429) { const e = new Error("L'IA est saturée, réessayez dans une minute."); e.status = 429; throw e; }
   if (!r.ok) throw new Error(`API ${r.status} ${(await r.text()).slice(0, 200)}`);
   const data = await r.json();
   const text = data.choices?.[0]?.message?.content || "";
-  const raw = JSON.parse(text.replace(/```json|```/g, "").trim());
-  const list = Array.isArray(raw) ? raw : (Object.values(raw || {}).find(Array.isArray) || []);
-  const questions = list
+  const m = text.replace(/```json|```/g, "").match(/\[[\s\S]*\]/); // le tableau, même entouré de texte
+  const raw = JSON.parse(m ? m[0] : text);
+  return Array.isArray(raw) ? raw : (Object.values(raw || {}).find(Array.isArray) || []);
+}
+// contrôles simples, sans IA : une question mal formée ne passe pas
+function wellFormed(x) {
+  const q = norm(x.q), a = norm(x.a), w = x.w.map(norm);
+  if (x.q.length < 12 || x.q.length > 220 || !a || a.length > 60) return false;
+  if (new Set([a, ...w]).size < 4 || w.some((o) => !o)) return false; // réponses en double
+  if (w.some((o) => (a.length >= 4 && o.includes(a)) || (o.length >= 4 && a.includes(o)))) return false; // une mauvaise réponse contient la bonne (ou l'inverse)
+  if (a.length > 3 && q.includes(a)) return false; // la question donne la réponse
+  if ([a, ...w].some((o) => /^(toutes|aucune|les deux)\b/.test(o))) return false;
+  const lens = [x.a, ...x.w].map((o) => o.length), long = Math.max(...lens), short = Math.min(...lens);
+  if (long > 3 * short + 12) return false; // une réponse beaucoup plus longue se repère tout de suite
+  return true;
+}
+
+async function generate(themes, diff, count, avoid) {
+  if (!KEY) throw new Error("AI_API_KEY manquante côté serveur");
+  const want = count + 3; // un peu plus : certaines seront écartées
+  const prompt = `${want} questions, thèmes : ${themes.map((t) => `« ${t} »`).join(", ")}. Difficulté ${diff}/5 (${LEVELS[diff]}). Répartis les questions entre les thèmes, varie les sous-sujets, les époques et les types de réponses (personnes, lieux, dates, œuvres, objets). Graine ${Math.random().toString(36).slice(2, 7)}.` +
+    (avoid.length ? `\nDéjà posées (ne pas reposer ni reformuler) :\n- ${avoid.join("\n- ")}` : "");
+  const list = await chat(SYSTEM, prompt, EFFORT === "low" ? "medium" : EFFORT, 0.7);
+  let questions = list
     .map((x) => ({
-      t: String(x?.t || themes[0]), d: diff, q: String(x?.q || ""), a: String(x?.a || ""),
+      t: String(x?.t || themes[0]).slice(0, 60), d: diff, q: String(x?.q || "").trim(), a: String(x?.a || "").trim(),
       c: x?.c == null ? 5 : Number(x.c),
-      w: (Array.isArray(x?.w) ? x.w : Array.isArray(x?.o) ? x.o : []).map(String).filter((o) => o !== String(x?.a)).slice(0, 3)
+      w: (Array.isArray(x?.w) ? x.w : Array.isArray(x?.o) ? x.o : []).map((o) => String(o).trim()).filter((o) => o && o !== String(x?.a)).slice(0, 3)
     }))
-    .filter((x) => x.q && x.a && x.w.length === 3 && x.c >= 4) // on écarte les questions dont l'IA doute
-    .map(({ w, c, ...x }) => ({ ...x, o: [x.a, ...w] }));
+    .filter((x) => x.q && x.a && x.w.length === 3 && x.c >= 4 && wellFormed(x)); // on écarte les questions dont l'IA doute ou mal formées
+  // seconde passe : relecture (si elle échoue, on garde les questions déjà filtrées)
+  if (questions.length) try {
+    const verdict = await chat(CHECK, JSON.stringify(questions.map(({ t, q, a, w }, i) => ({ i, t, q, a, w }))), "medium", 0);
+    const bad = new Set(verdict.filter((v) => v && v.ok === false).map((v) => Number(v.i)));
+    const kept = questions.filter((_, i) => !bad.has(i));
+    if (kept.length) questions = kept;
+  } catch (e) { console.warn("Relecture :", e.message); }
+  questions = questions.slice(0, count).map(({ w, c, ...x }) => ({ ...x, o: [x.a, ...w] }));
   if (!questions.length) throw new Error("Réponse vide");
   return questions;
 }
@@ -439,7 +502,7 @@ app.post("/api/questions", async (req, res) => {
   if (recent.length >= 10) return res.status(429).json({ error: "Trop de requêtes, patientez." });
   hits.set(req.ip, [...recent, now]);
 
-  const themes = (Array.isArray(req.body.themes) ? req.body.themes : []).slice(0, 15).map((t) => String(t).slice(0, 30));
+  const themes = (Array.isArray(req.body.themes) ? req.body.themes : []).slice(0, 15).map((t) => String(t).slice(0, 60));
   const diff = Math.min(Math.max(+req.body.difficulty || 1, 1), 5);
   const count = Math.min(Math.max(+req.body.count || 6, 1), 10);
   const avoid = (Array.isArray(req.body.avoid) ? req.body.avoid : []).slice(-20).map((x) => String(x).slice(0, 70));
@@ -1066,7 +1129,7 @@ function leave(ws) {
 }
 
 function readCfg(m) {
-  const themes = (Array.isArray(m.themes) ? m.themes : []).map((t) => clean(t, 30)).filter(Boolean).slice(0, 60);
+  const themes = (Array.isArray(m.themes) ? m.themes : []).map((t) => clean(t, 50)).filter(Boolean).slice(0, 60);
   if (!themes.length) return "Choisissez au moins un thème.";
   return { auto: !!m.auto, kind: ["chrono", "million", "equipes"].includes(m.kind) ? m.kind : "survie", themes, time: clamp(+m.time, 0, 120), lives: clamp(+m.lives || 2, 1, 5) };
 }

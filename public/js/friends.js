@@ -534,12 +534,18 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
       // 1) gardée dans la cloche de tout le monde (Firestore) ; 2) envoyée en notification à tous, sauf à vous (même si 1 échoue)
       let saved = false;
       if (ready()) try { await F.fs.addDoc(F.fs.collection(F.fs.db, "announces"), { title, text, by: F.uid, at: Date.now() }); saved = true; } catch (e) { console.warn("Annonce non gardée :", e.message); }
-      let sent = 0, ok = false;
+      // tous les appareils inscrits, lus avec votre compte : le serveur, qui redémarre à chaque mise à jour, n'en garde aucun en mémoire
+      let subs = [];
+      if (ready()) try {
+        const snap = await F.fs.getDocs(F.fs.collection(F.fs.db, "pushsubs"));
+        subs = snap.docs.map((d) => d.data()).filter((x) => x.endpoint).map((x) => ({ uid: x.uid, sub: { endpoint: x.endpoint, keys: { p256dh: x.p256dh, auth: x.auth } } }));
+      } catch (e) { console.warn("Appareils non lus :", e.message); }
+      let sent = 0, ok = false, devices = 0, fsErr = "", why = "";
       try {
-        const r = await fetch("/api/push/broadcast", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key, title, body: text, from: F.uid }) });
-        ok = r.ok; sent = (await r.json()).sent || 0;
+        const r = await fetch("/api/push/broadcast", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key, title, body: text, from: F.uid, subs }) });
+        ok = r.ok; const j = await r.json(); sent = j.sent || 0; devices = j.devices || 0; fsErr = j.fsErr || ""; why = j.why || "";
       } catch {}
-      return { saved, sent, ok };
+      return { saved, sent, ok, devices, fsErr, why, read: subs.length };
     },
     hideInvitePanel: () => ($("invitePanel").hidden = true),
     refresh: () => (ready() ? loadFriends() : render())
