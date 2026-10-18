@@ -10,7 +10,7 @@ import { enablePush, disablePush, pushMuted, pushState, currentSub } from "./pus
 import { initCosmetics, styleName, titleOf } from "./cosmetics.js";
 import { initQuests } from "./quests.js";
 
-const VERSION = "2.20.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.20.1"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -73,7 +73,7 @@ function show(id) {
   let onl = false; try { onl = online.active(); online.closeReacts(); } catch {}
   $("reactFab").hidden = !(onl && ["s-game", "s-million", "s-load"].includes(id));
   if (id !== "s-game") stopAudio(); // l'extrait s'arrête quand on quitte la question
-  document.querySelectorAll(".screen").forEach((s) => { s.hidden = s.id !== id; if (s.id !== id) s.classList.remove("noanim"); });
+  document.querySelectorAll(".screen").forEach((s) => { s.hidden = s.id !== id; if (s.id !== id) s.classList.remove("noanim"); swipeClean(s); }); // jamais d'écran resté décalé
   userLabel();
   $("bar").hidden = id === "s-login" || id === "s-local";
   window.scrollTo(0, 0);
@@ -1094,7 +1094,6 @@ function tabbar(id) {
   document.body.classList.toggle("withtabs", on);
   bar.querySelectorAll(".tab").forEach((t) => t.classList.toggle("on", t.dataset.go === TAB_OF[id]));
   if (on) pillTo(bar.querySelector(".tab.on"));
-  fixSoon(); // recale la barre (ou les boutons du bas) au bas de l'écran
 }
 function goTab(t) {
   const go = t.dataset.go || t;
@@ -1175,10 +1174,15 @@ bar.addEventListener("pointerup", (e) => dragEnd(e));
 bar.addEventListener("pointercancel", (e) => dragEnd(e, true));
 TABS.forEach((t) => (t.onclick = (e) => { if (e.detail === 0) goTab(t); })); // clavier (au doigt ou à la souris : géré ci-dessus)
 addEventListener("resize", () => { if (!bar.hidden) { P.shown = false; pillTo(bar.querySelector(".tab.on")); } });
-// balayer l'écran (comme Instagram) : l'écran suit le doigt et l'onglet voisin arrive collé à côté ; on le lâche, il se cale
+// balayer l'écran (comme Instagram) : l'écran suit le doigt et l'onglet voisin glisse à côté ; on le lâche, il se cale.
+// Règle de sûreté : en dehors d'un geste, un seul écran est visible et aucun n'est déplacé (voir swipeReset).
 const PREP = { "s-mode": () => { menuPushUI(); dailyCard(); }, "s-friends": () => friends.render(), "s-shop": () => cosm.render(), "s-profile": () => renderProfile(), "s-settings": () => renderSettings() };
+function swipeClean(el) { if (!el) return; el.style.transform = el.style.transition = el.style.top = el.style.left = el.style.width = ""; el.classList.remove("peek", "swiping"); }
+function swipeReset() { // remet tous les écrans en place : seul l'écran courant est visible
+  document.querySelectorAll(".screen").forEach((el) => { swipeClean(el); el.hidden = el.id !== curScreen; });
+}
 (() => {
-  let sw = null;
+  let sw = null, pend = null; // pend : la fin d'un geste en train de se caler
   const scrollsX = (el) => { // le geste appartient à un élément qui défile de côté (onglets, carrousels…)
     for (; el && el !== document.body; el = el.parentElement) {
       if (el.matches("input,textarea,select,[data-noswipe]")) return true;
@@ -1187,10 +1191,10 @@ const PREP = { "s-mode": () => { menuPushUI(); dailyCard(); }, "s-friends": () =
     }
     return false;
   };
-  const clean = (el) => { if (!el) return; el.style.transform = el.style.transition = el.style.top = el.style.left = el.style.width = ""; el.classList.remove("peek", "swiping"); };
+  function settle() { if (!pend) return; const f = pend; pend = null; clearTimeout(f.t); f.run(); } // termine tout de suite le geste précédent
   function neighbor(dir) { // prépare l'onglet voisin, posé juste à côté de l'écran
-    if (sw.nextEl) { sw.nextEl.hidden = true; clean(sw.nextEl); sw.nextEl = null; }
-    const i = TAB_ORDER.indexOf(curScreen), id = TAB_ORDER[i + dir];
+    if (sw.nextEl) { sw.nextEl.hidden = true; swipeClean(sw.nextEl); sw.nextEl = null; }
+    const id = TAB_ORDER[TAB_ORDER.indexOf(sw.from) + dir];
     sw.dir = dir; sw.next = id || null;
     if (!id) return;
     try { PREP[id](); } catch {}
@@ -1200,19 +1204,19 @@ const PREP = { "s-mode": () => { menuPushUI(); dailyCard(); }, "s-friends": () =
     el.hidden = false; sw.nextEl = el;
   }
   function paint(dx) {
-    const W = $("main").clientWidth; // un écran entier : l'onglet voisin arrive avec ses marges, sans effet de carte
+    const W = $("main").clientWidth; // un écran entier : l'onglet voisin arrive avec ses marges
     sw.cur.style.transform = `translate3d(${dx}px,0,0)`;
     if (sw.nextEl) sw.nextEl.style.transform = `translate3d(${dx + sw.dir * W}px,0,0)`;
-    // la bulle de la barre suit le geste, d'un onglet à l'autre
-    const a = TABS.find((b) => b.dataset.go === curScreen), b = sw.next && TABS.find((t) => t.dataset.go === sw.next);
-    if (a && b) { if (P.anim) { P.anim.cancel(); P.anim = null; } const p = Math.min(1, Math.abs(dx) / W); place(a.offsetLeft + (b.offsetLeft - a.offsetLeft) * p); }
+    const a = TABS.find((b) => b.dataset.go === sw.from), b = sw.next && TABS.find((t) => t.dataset.go === sw.next); // la bulle suit le geste
+    if (a && b) { if (P.anim) { P.anim.cancel(); P.anim = null; } place(a.offsetLeft + (b.offsetLeft - a.offsetLeft) * Math.min(1, Math.abs(dx) / W)); }
   }
   function move(e) {
     if (!sw) return;
+    if (e.touches.length !== 1) return abort(); // un deuxième doigt : on annule proprement
     const t = e.touches[0], dx = t.clientX - sw.x, dy = t.clientY - sw.y;
     if (!sw.lock) {
       if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
-      if (Math.abs(dx) < Math.abs(dy) * 1.2) { sw = null; return; } // geste vertical : on laisse défiler
+      if (Math.abs(dx) < Math.abs(dy) * 1.2 || !e.cancelable) { sw = null; return; } // geste vertical (ou défilement déjà lancé) : on laisse défiler
       sw.lock = true; sw.cur.classList.add("swiping");
     }
     if (e.cancelable) e.preventDefault();
@@ -1222,49 +1226,37 @@ const PREP = { "s-mode": () => { menuPushUI(); dailyCard(); }, "s-friends": () =
     sw.dx = sw.next ? dx : dx * 0.28; // au bout (Accueil, Réglages) : ça résiste
     paint(sw.dx);
   }
-  function end() {
-    removeEventListener("touchmove", move, { passive: false });
+  function finish(go) {
     const s = sw; sw = null;
+    removeEventListener("touchmove", move, { passive: false });
     if (!s || !s.lock) return;
-    const W = $("main").clientWidth, go = s.next && (Math.abs(s.dx) > W * 0.3 || (Math.abs(s.v) > 0.45 && Math.sign(s.v) === -s.dir));
-    const ease = "transform .3s cubic-bezier(.2,.85,.25,1)";
+    const W = $("main").clientWidth, ease = "transform .28s cubic-bezier(.2,.85,.25,1)";
     s.cur.style.transition = ease; if (s.nextEl) s.nextEl.style.transition = ease;
     s.cur.style.transform = `translate3d(${go ? -s.dir * W : 0}px,0,0)`;
     if (s.nextEl) s.nextEl.style.transform = `translate3d(${go ? 0 : s.dir * W}px,0,0)`;
-    if (!go) pillTo(bar.querySelector(".tab.on"));
-    setTimeout(() => {
-      clean(s.cur);
-      if (go) { clean(s.nextEl); show(s.next); }
-      else if (s.nextEl) { s.nextEl.hidden = true; clean(s.nextEl); }
-    }, 310);
+    if (!go) pillTo(TABS.find((b) => b.dataset.go === s.from));
+    pend = { run: () => { if (go) show(s.next); swipeReset(); }, t: setTimeout(() => settle(), 290) };
+  }
+  function abort() { if (sw && sw.lock) finish(false); else { sw = null; removeEventListener("touchmove", move, { passive: false }); } }
+  function end(e) {
+    if (e.touches && e.touches.length) return; // un doigt reste posé : le geste continue
+    if (!sw || !sw.lock) { sw = null; removeEventListener("touchmove", move, { passive: false }); return; }
+    const W = $("main").clientWidth;
+    finish(!!sw.next && (Math.abs(sw.dx) > W * 0.3 || (Math.abs(sw.v) > 0.45 && Math.sign(sw.v) === -sw.dir)));
   }
   addEventListener("touchstart", (e) => {
-    sw = null;
+    if (sw) { if (e.touches.length > 1) abort(); return; } // un geste est déjà en cours
+    settle(); // le geste précédent se termine d'abord
+    if (document.querySelector(".screen.peek,.screen.swiping") || document.querySelectorAll(".screen:not([hidden])").length > 1) swipeReset(); // filet de sécurité
     if (e.touches.length !== 1 || !TAB_ORDER.includes(curScreen) || bar.hidden || e.target.closest("#tabbar,.modal,#confirm") || scrollsX(e.target)) return;
     const p = e.touches[0];
-    sw = { x: p.clientX, y: p.clientY, lx: p.clientX, lt: performance.now(), v: 0, dx: 0, dir: 0, cur: $(curScreen), lock: false, next: null, nextEl: null };
+    sw = { x: p.clientX, y: p.clientY, lx: p.clientX, lt: performance.now(), v: 0, dx: 0, dir: 0, from: curScreen, cur: $(curScreen), lock: false, next: null, nextEl: null };
     addEventListener("touchmove", move, { passive: false });
   }, { passive: true });
   addEventListener("touchend", end, { passive: true });
-  addEventListener("touchcancel", end, { passive: true });
+  addEventListener("touchcancel", () => abort(), { passive: true });
+  document.addEventListener("visibilitychange", () => { if (document.hidden) { abort(); settle(); swipeReset(); } }); // appli mise en arrière-plan en plein geste
 })();
-// la barre et les boutons du bas restent collés au bas de l'écran, quoi qu'il arrive :
-// sur un écran court (Club, En ligne…), l'iPhone peut placer les éléments fixés trop haut ; on mesure l'écart et on le rattrape
-function fixBottom() {
-  const vv = window.visualViewport; if (!vv) return;
-  const root = document.documentElement, el = !bar.hidden && !document.body.classList.contains("kbd") ? bar : [...document.querySelectorAll(".screen:not([hidden]) .dock:not([hidden])")][0];
-  if (!el) return;
-  const cur = parseFloat(root.style.getPropertyValue("--vfix")) || 0;
-  const want = vv.offsetTop + vv.height - parseFloat(getComputedStyle(el).bottom || 0); // où son bas devrait être
-  const got = el.getBoundingClientRect().bottom - cur; // où il serait sans correction
-  const fix = Math.round(want - got);
-  root.style.setProperty("--vfix", `${Math.abs(fix) > 1 && Math.abs(fix) < 200 ? fix : 0}px`);
-}
-function fixSoon() { requestAnimationFrame(() => requestAnimationFrame(fixBottom)); }
-addEventListener("resize", fixSoon);
-addEventListener("orientationchange", () => setTimeout(fixBottom, 300));
-if (window.visualViewport) { visualViewport.addEventListener("resize", fixSoon); visualViewport.addEventListener("scroll", fixSoon); }
-addEventListener("scroll", fixSoon, { passive: true });
 // clavier ouvert : la barre se cache (comme sur iPhone) ; à sa fermeture, on la remet bien en bas
 // (sinon l'iPhone peut laisser la barre fixée remontée après la saisie du code d'un salon)
 const typing = (el) => el && el.matches && el.matches("input:not([type=checkbox]):not([type=radio]),textarea,[contenteditable]");
