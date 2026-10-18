@@ -1160,8 +1160,10 @@ body.kbd .tabbar{display:none}
 .clubtxt{padding-right:0;flex:1 1 180px}
 .clubtxt b{white-space:normal;overflow-wrap:anywhere}
 .clubcard .clubcode{position:static;flex:1 0 100%;flex-direction:row;justify-content:center;gap:10px;padding:6px 12px}
-/* recalage mesuré au bas de l'écran (voir fixBottom) : la barre et les boutons du bas ne remontent plus */
-.tabbar,.dock{translate:0 var(--vfix,0px)}
+/* la page fait toujours au moins la hauteur de l'écran : sur une page courte (Club, En ligne…), l'iPhone plaçait
+   la barre et les boutons du bas plus haut ; ainsi ils restent toujours exactement au même endroit */
+html{min-height:100%}
+body{box-sizing:border-box;min-height:100vh;min-height:100lvh}
 /* élastique de la barre quand on tire la bulle au-delà des bords */
 .tabbar{transition:scale .5s cubic-bezier(.25,1.7,.45,1)}
 .tabbar.drag{transition:none}
