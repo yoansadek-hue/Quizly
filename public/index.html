@@ -151,7 +151,7 @@ addEventListener("error", function (e) {
       <button class="btn sun sm" id="btnMenuPush">Activer</button>
       <button class="fx light" id="btnMenuPushNo" aria-label="Plus tard">×</button>
     </div>
-    <button class="daily" id="btnDaily"><span class="dk">Défi du jour</span><span class="streak" id="dailyStreak" hidden></span><strong id="dailyTitle">10 questions, une seule tentative</strong><span class="dsub" id="dailySub">Les mêmes pour tout le monde. Battez vos amis.</span></button>
+    <button class="daily" id="btnDaily" hidden><span class="dk">Défi du jour</span><span class="streak" id="dailyStreak" hidden></span><strong id="dailyTitle">10 questions, une seule tentative</strong><span class="dsub" id="dailySub">Les mêmes pour tout le monde. Battez vos amis.</span></button>
     <div id="modes"></div>
     <p class="version ver"></p>
   </section>
@@ -271,7 +271,7 @@ addEventListener("error", function (e) {
       <div class="scope" id="dScope"><button data-s="friends" aria-pressed="true">Amis</button><button data-s="world" aria-pressed="false">Monde</button></div>
       <p class="lead small myrank" id="dMyRank"></p>
       <ol class="rank" id="dRank"></ol>
-      <div class="stack"><button class="btn sun" id="btnDailyBack">Retour au menu</button></div>
+      <div class="stack"><button class="btn sun" id="btnDailyBack">Retour aux Défis</button></div>
     </div>
   </section>
 
@@ -291,13 +291,16 @@ addEventListener("error", function (e) {
     <button class="goback" data-back="s-mode">← Retour</button>
     <h2>Défis</h2>
     <div class="qdaily" id="qDaily"></div>
+    <h3 class="qh">Classement du Défi du jour</h3>
+    <div class="scope" id="qrDay"><button data-d="today" aria-pressed="true">Aujourd'hui</button><button data-d="yest" aria-pressed="false">Hier</button></div>
+    <div class="scope" id="qrScope"><button data-s="friends" aria-pressed="true">Amis</button><button data-s="world" aria-pressed="false">Monde</button></div>
+    <p class="lead small myrank" id="qrMine"></p>
+    <ol class="rank" id="qrList"></ol>
     <h3 class="qh">Défis du jour <small id="qDayLeft"></small></h3>
     <div class="qlist" id="qDayList"></div>
     <div class="qchest" id="qChest"></div>
     <h3 class="qh">Défis de la semaine <small id="qWeekLeft"></small></h3>
     <div class="qlist" id="qWeekList"></div>
-    <h3 class="qh">Hier</h3>
-    <div class="qyest" id="qYest"></div>
   </section>
 
   <!-- Notifications -->
@@ -379,23 +382,34 @@ addEventListener("error", function (e) {
             </div>
             <button class="clubcode" id="clubShowCodeBtn" aria-label="Copier le code du club"><span>Code</span><b id="clubShowCode"></b></button>
           </div>
-          <button class="btn white sm clubedit" id="btnClubEdit" hidden>Personnaliser le club</button>
-          <div class="clubbox" id="clubEditBox" hidden>
-            <h4 class="fsub">Emblème</h4><div class="embpick" id="clubEmbPick"></div>
-            <h4 class="fsub">Couleur</h4><div class="colpick" id="clubColPick"></div>
-            <h4 class="fsub">Description</h4><input id="clubDescIn" type="text" maxlength="80" placeholder="Ex. : la 3e B, les rois du quiz" autocomplete="off">
-            <button class="btn sun sm" id="btnClubSave">Enregistrer</button>
+          <div class="scope cnav" id="clubNav"><button data-c="rank">Classement</button><button data-c="quest">Défis</button><button data-c="chat">Chat</button><button data-c="invite">Inviter</button><button data-c="set">Réglages</button></div>
+          <div class="cpanel" id="cpRank">
+            <div class="clubstats" id="clubStats"></div>
+            <div class="chips opts" id="clubTabs"></div>
+            <ol class="rank" id="clubRank"></ol>
           </div>
-          <div class="clubstats" id="clubStats"></div>
-          <h3 class="clubh">Classement</h3>
-          <div class="chips opts" id="clubTabs"></div>
-          <ol class="rank" id="clubRank"></ol>
-          <h3 class="clubh">Mur du club</h3>
-          <div class="clubwall" id="clubWall"></div>
-          <div class="row"><input id="clubWallIn" type="text" maxlength="120" placeholder="Un message pour le club…" autocomplete="off" enterkeyhint="send"><button class="btn mint sm" id="btnClubPost">Envoyer</button></div>
-          <h3 class="clubh">Inviter des amis</h3>
-          <div class="flist" id="clubInvite"></div>
-          <div class="two"><button class="btn sun sm" id="btnClubShare">Partager le code</button><button class="btn ghost sm" id="btnClubLeave">Quitter le club</button></div>
+          <div class="cpanel" id="cpQuest" hidden>
+            <p class="fhint">Des défis à relever tous ensemble cette semaine. Chacun récupère la récompense quand le club y arrive.</p>
+            <div class="qlist" id="clubQuests"></div>
+          </div>
+          <div class="cpanel" id="cpChat" hidden>
+            <div class="clubwall" id="clubWall"></div>
+            <div class="row"><input id="clubWallIn" type="text" maxlength="120" placeholder="Un message pour le club…" autocomplete="off" enterkeyhint="send"><button class="btn mint sm" id="btnClubPost">Envoyer</button></div>
+          </div>
+          <div class="cpanel" id="cpInvite" hidden>
+            <div class="flist" id="clubInvite"></div>
+            <button class="btn sun sm cfull" id="btnClubShare">Partager le code</button>
+          </div>
+          <div class="cpanel" id="cpSet" hidden>
+            <div class="clubbox" id="clubEditBox">
+              <h4 class="fsub">Emblème</h4><div class="embpick" id="clubEmbPick"></div>
+              <h4 class="fsub">Couleur</h4><div class="colpick" id="clubColPick"></div>
+              <h4 class="fsub">Description</h4><input id="clubDescIn" type="text" maxlength="80" placeholder="Ex. : la 3e B, les rois du quiz" autocomplete="off">
+              <button class="btn sun sm" id="btnClubSave">Enregistrer</button>
+            </div>
+            <p class="fhint" id="clubSetHint"></p>
+            <button class="btn ghost sm cfull" id="btnClubLeave">Quitter le club</button>
+          </div>
         </div>
         <p class="msg" id="clubMsg"></p>
       </div>

@@ -10,7 +10,7 @@ import { enablePush, disablePush, pushMuted, pushState, currentSub } from "./pus
 import { initCosmetics, styleName, titleOf } from "./cosmetics.js";
 import { initQuests } from "./quests.js";
 
-const VERSION = "2.19.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.20.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -800,6 +800,7 @@ function statGame(kind) {
   saveStats(st);
   cosm.earn(2, "partie"); // 2 Q-Bucks par partie
   quests.tick("game");
+  friends.clubSync(); // le club voit vos chiffres de la semaine
   if (["online", "chrono", "omillion", "oteams"].includes(kind)) quests.tick("online");
   if (kind === "chrono") quests.tick("chrono");
   if (kind === "million" || kind === "omillion") quests.tick("million");
@@ -1044,6 +1045,7 @@ function enter(uid, name, photo) {
 /* ---------- Amis ---------- */
 const friends = initFriends({
   $, ask, avatarEl, euros,
+  week: () => quests.weekStats(), earn: (n, why) => cosm.earn(n, why), // défis du club
   me: () => ({ name: S.firstName || "Joueur", photo: S.photo || "" }),
   records: () => { const b = (k) => { try { return +localStorage.getItem(`quizly:${S.uid}:${k}`) || 0; } catch { return 0; } }; return { best2: b("best2"), bestChrono: b("bestChrono"), bestMillion: b("bestMillion") }; },
   joinRoom: (code) => { chooseMode("online"); online.join(code); },
@@ -1176,7 +1178,6 @@ addEventListener("resize", () => { if (!bar.hidden) { P.shown = false; pillTo(ba
 // balayer l'écran (comme Instagram) : l'écran suit le doigt et l'onglet voisin arrive collé à côté ; on le lâche, il se cale
 const PREP = { "s-mode": () => { menuPushUI(); dailyCard(); }, "s-friends": () => friends.render(), "s-shop": () => cosm.render(), "s-profile": () => renderProfile(), "s-settings": () => renderSettings() };
 (() => {
-  const GAP = 12;
   let sw = null;
   const scrollsX = (el) => { // le geste appartient à un élément qui défile de côté (onglets, carrousels…)
     for (; el && el !== document.body; el = el.parentElement) {
@@ -1199,7 +1200,7 @@ const PREP = { "s-mode": () => { menuPushUI(); dailyCard(); }, "s-friends": () =
     el.hidden = false; sw.nextEl = el;
   }
   function paint(dx) {
-    const W = sw.cur.offsetWidth + GAP;
+    const W = $("main").clientWidth; // un écran entier : l'onglet voisin arrive avec ses marges, sans effet de carte
     sw.cur.style.transform = `translate3d(${dx}px,0,0)`;
     if (sw.nextEl) sw.nextEl.style.transform = `translate3d(${dx + sw.dir * W}px,0,0)`;
     // la bulle de la barre suit le geste, d'un onglet à l'autre
@@ -1225,7 +1226,7 @@ const PREP = { "s-mode": () => { menuPushUI(); dailyCard(); }, "s-friends": () =
     removeEventListener("touchmove", move, { passive: false });
     const s = sw; sw = null;
     if (!s || !s.lock) return;
-    const W = s.cur.offsetWidth + GAP, go = s.next && (Math.abs(s.dx) > W * 0.3 || (Math.abs(s.v) > 0.45 && Math.sign(s.v) === -s.dir));
+    const W = $("main").clientWidth, go = s.next && (Math.abs(s.dx) > W * 0.3 || (Math.abs(s.v) > 0.45 && Math.sign(s.v) === -s.dir));
     const ease = "transform .3s cubic-bezier(.2,.85,.25,1)";
     s.cur.style.transition = ease; if (s.nextEl) s.nextEl.style.transition = ease;
     s.cur.style.transform = `translate3d(${go ? -s.dir * W : 0}px,0,0)`;
@@ -1652,7 +1653,7 @@ function dailyEnd(fresh) {
   if (fresh && d.score >= 7) confetti();
 }
 $("btnDaily").onclick = openDaily;
-$("btnDailyBack").onclick = () => show("s-mode");
+$("btnDailyBack").onclick = openQuests;
 
 
 /* ---------- Paramètres (gardés sur cet appareil) ---------- */
@@ -1951,41 +1952,38 @@ const cosm = initCosmetics({
 /* ---------- Défis : défi du jour, défis quotidiens et hebdomadaires, la veille ---------- */
 const quests = initQuests({ $, uid: () => S.uid, earn: (n, why) => cosm.earn(n, why), onChange: (n) => questBadge(n) });
 function questBadge(n) { $("questBadge").hidden = !n; $("questBadge").textContent = n > 9 ? "9+" : n; }
-function openQuests() { renderQuestDaily(); quests.render(); renderYesterday(); show("s-quests"); }
+function openQuests() { renderQuestDaily(); quests.render(); renderQuestRank(); show("s-quests"); }
 function renderQuestDaily() {
   const d = getDaily(), sk = dailyStreak(), box = $("qDaily");
   box.className = "qdaily" + (d ? " done" : "");
   const k = document.createElement("span"); k.className = "dk"; k.textContent = "Défi du jour";
   const t = document.createElement("b"); t.textContent = d ? `Fait : ${d.score} / 10` : "10 questions, une seule tentative";
   const sm = document.createElement("small"); sm.textContent = d ? `Temps : ${Math.round((d.ms || 0) / 1000)} s · série : ${sk} jour${sk > 1 ? "s" : ""}` : "Les mêmes pour tout le monde. +10 Q-Bucks.";
-  const btn = document.createElement("button"); btn.className = "btn sm " + (d ? "white" : "sun"); btn.textContent = d ? "Voir le classement" : "Jouer"; btn.onclick = openDaily;
+  const btn = document.createElement("button"); btn.className = "btn sm " + (d ? "white" : "sun"); btn.textContent = d ? "Voir mon résultat" : "Jouer"; btn.onclick = openDaily;
   box.replaceChildren(k, t, sm, btn);
 }
-async function renderYesterday() {
-  const y = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(Date.now() - 86400000);
-  let r = null; try { r = JSON.parse(localStorage.getItem(dResKey()) || "{}")[y] || null; } catch {}
-  const played = r || dailyDays().includes(y);
-  const box = $("qYest"); box.replaceChildren();
-  const head = document.createElement("div"); head.className = "qyhead";
-  const b = document.createElement("b"); b.textContent = r ? `Votre score : ${r.score} / 10` : played ? "Vous l'avez fait" : "Vous ne l'avez pas fait";
-  const sm = document.createElement("small"); sm.textContent = r ? `en ${Math.round(r.ms / 1000)} s` : "Les réponses du défi d'hier :";
-  head.append(b, sm);
-  const btn = document.createElement("button"); btn.className = "btn white sm"; btn.textContent = "Voir les questions et réponses";
-  const list = document.createElement("ol"); list.className = "qylist"; list.hidden = true;
-  btn.onclick = async () => {
-    if (!list.hidden) { list.hidden = true; btn.textContent = "Voir les questions et réponses"; return; }
-    btn.disabled = true; btn.textContent = "Chargement…";
-    try {
-      const set = await (await fetch(`/api/daily?day=${y}`)).json();
-      list.replaceChildren(...(set.questions || []).map((q) => {
-        const li = document.createElement("li"); const qq = document.createElement("span"); qq.textContent = q.q;
-        const a = document.createElement("b"); a.textContent = q.a; li.append(qq, a); return li;
-      }));
-      list.hidden = false; btn.textContent = "Masquer les réponses";
-    } catch { btn.textContent = "Impossible de charger, réessayez"; }
-    btn.disabled = false;
-  };
-  box.append(head, btn, list);
+// classement du Défi du jour : aujourd'hui ou hier, entre amis ou dans le monde
+const QR = { day: "today", scope: "friends" };
+async function renderQuestRank() {
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(Date.now() - (QR.day === "yest" ? 86400000 : 0)), want = `${QR.day}-${QR.scope}`;
+  document.querySelectorAll("#qrDay button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.d === QR.day)));
+  document.querySelectorAll("#qrScope button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.s === QR.scope)));
+  const fmt = (p) => `${p.daily.score} / 10 · ${Math.round(p.daily.ms / 1000)} s`;
+  let mine = null; try { mine = JSON.parse(localStorage.getItem(dResKey()) || "{}")[day] || null; } catch {}
+  if (QR.day === "today") mine = getDaily() || mine;
+  $("qrList").replaceChildren(Object.assign(document.createElement("p"), { className: "lead small", textContent: "Chargement du classement…" }));
+  let list = [];
+  try {
+    if (QR.scope === "friends" && QR.day === "today") list = friends.ready() ? friends.dailyBoard(day) : [];
+    else if (friends.ready()) { list = await friends.worldDaily(day); if (QR.scope === "friends") list = list.filter((p) => p.you || friends.isFriend(p.uid)); }
+  } catch { list = []; }
+  if (`${QR.day}-${QR.scope}` !== want) return; // on a changé d'onglet entre-temps
+  if (mine && !list.some((p) => p.you)) { list.push({ name: S.firstName, photo: S.photo, you: true, daily: { score: mine.score || 0, ms: mine.ms || 0 } }); list.sort((a, b) => b.daily.score - a.daily.score || a.daily.ms - b.daily.ms); }
+  const i = list.findIndex((p) => p.you);
+  $("qrMine").textContent = !list.length ? (QR.day === "today" ? "Personne n'a encore fait le défi aujourd'hui." : "Personne n'a fait le défi hier.") : i >= 0 ? `Votre place : ${i + 1}e sur ${list.length}` : QR.day === "today" ? "Vous ne l'avez pas encore fait." : "Vous ne l'avez pas fait hier.";
+  $("qrList").replaceChildren(...list.map((p, k) => rankRow(p, k, fmt(p))));
 }
+document.querySelectorAll("#qrDay button").forEach((b) => (b.onclick = () => { QR.day = b.dataset.d; renderQuestRank(); }));
+document.querySelectorAll("#qrScope button").forEach((b) => (b.onclick = () => { QR.scope = b.dataset.s; renderQuestRank(); }));
 
 $("btnShop").onclick = () => { cosm.render(); show("s-shop"); };

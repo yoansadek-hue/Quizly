@@ -939,8 +939,6 @@ body::after{content:"";position:fixed;inset:-50px;z-index:-1;pointer-events:none
 .avatar.fr-peach{border-color:var(--peach);box-shadow:0 0 0 2px var(--ink)}
 .avatar.fr-neon{border-color:#7df9ff;box-shadow:0 0 0 2px var(--ink),0 0 12px 3px rgba(125,249,255,.75)}
 .avatar.fr-gold{border-color:#ffd23f;box-shadow:0 0 0 2px #8a6400,0 0 10px 2px rgba(255,210,63,.7)}
-.avatar.fr-rainbow{border-color:transparent;background-origin:border-box;box-shadow:0 0 0 2px var(--ink);border-image:none;outline:3px solid transparent;background-image:none;position:relative}
-.avatar.fr-rainbow{box-shadow:0 0 0 3px #ff6b8b,0 0 0 6px #ffe14d,0 0 0 9px #34e3b0}
 .avatar.fr-crown{border-color:var(--sun);box-shadow:0 0 0 3px var(--ink),0 0 0 6px var(--sun),0 0 14px 6px rgba(255,225,77,.6)}
 /* bulles du chat (cosmétiques) */
 .bubble.sk-ink{background:var(--ink)!important;color:var(--sun);border-color:var(--sun)}
@@ -1067,9 +1065,9 @@ body.withtabs .reactfab{bottom:auto}
 #main::-webkit-scrollbar,html::-webkit-scrollbar,body::-webkit-scrollbar{display:none;width:0;height:0;background:transparent}
 body.kbd .tabbar{display:none}
 .adminrule{margin:6px 0 10px;padding:10px 12px;border-radius:12px;background:var(--ink);color:var(--mint);font:600 12px ui-monospace,Menlo,monospace;white-space:pre-wrap;user-select:text;-webkit-user-select:text}
-/* balayage entre onglets (comme Instagram) : les deux écrans glissent côte à côte, en cartes arrondies */
+/* balayage entre onglets (comme Instagram) : les deux écrans glissent simplement côte à côte */
 .screen.peek{position:absolute;z-index:2}
-.screen.swiping,.screen.peek{will-change:transform;background:var(--bg);border-radius:28px;box-shadow:0 0 0 1px rgba(255,255,255,.07),0 10px 40px rgba(6,2,20,.45)}
+.screen.swiping,.screen.peek{will-change:transform}
 .screen.noanim>*,.screen.peek>*{animation:none!important}
 
 /* ---------- 2.18 : Boutique élargie (Q-Bucks) ---------- */
@@ -1083,10 +1081,9 @@ body.kbd .tabbar{display:none}
 .chip .ptitle{margin-left:4px}
 .ncol.nc-sun{color:var(--sun)!important} .ncol.nc-mint{color:var(--mint)!important} .ncol.nc-coral{color:var(--coral)!important} .ncol.nc-sky{color:var(--sky)!important}
 .ncol.nc-neon{color:#7df9ff!important;text-shadow:0 0 8px rgba(125,249,255,.85)}
-.ncol.nc-gold,.ncol.nc-fire,.ncol.nc-rainbow{-webkit-background-clip:text;background-clip:text;color:transparent!important;-webkit-text-fill-color:transparent}
+.ncol.nc-gold,.ncol.nc-fire{-webkit-background-clip:text;background-clip:text;color:transparent!important;-webkit-text-fill-color:transparent}
 .ncol.nc-gold{background-image:linear-gradient(135deg,#fff3b0,#ffd23f 45%,#e3a600)}
 .ncol.nc-fire{background-image:linear-gradient(90deg,#ff3d00,#ff9f45 55%,#ffe14d)}
-.ncol.nc-rainbow{background-image:linear-gradient(90deg,#ff6b8b,#ffb36b,#ffe14d,#34e3b0,#62c7ff,#c79bff)}
 .pv .ptitle{font-size:12px;padding:4px 12px}
 .nm-pv{font:800 20px var(--display);color:var(--ink)}
 .pv-name{background:var(--bg-deep)} .pv-name .nm-pv{color:var(--paper)}
@@ -1101,13 +1098,11 @@ body.kbd .tabbar{display:none}
 .bubble.sk-sky,.bubble-pv.sk-sky,.trybub.sk-sky{background:var(--sky)!important;color:var(--ink)}
 .bubble.sk-lava,.bubble-pv.sk-lava,.trybub.sk-lava{background:linear-gradient(135deg,#ff6a2a,#ffb02e)!important;color:var(--ink);border-color:#5a1200}
 .bubble.sk-galaxy,.bubble-pv.sk-galaxy,.trybub.sk-galaxy{background:radial-gradient(circle at 25% 35%,rgba(255,255,255,.8) 1px,transparent 2px) 0 0/16px 16px,linear-gradient(135deg,#140a33,#3b1d8f)!important;color:#fff;border-color:#9b6bff}
-.bubble.sk-rainbow,.bubble-pv.sk-rainbow,.trybub.sk-rainbow{background:linear-gradient(90deg,#ff6b8b,#ffb36b,#ffe14d,#34e3b0,#62c7ff,#c79bff)!important;color:var(--ink)}
 /* nouvelles bannières */
 .pv.bn-mint,.tryban.bn-mint,.profhead.bn-mint{background:linear-gradient(120deg,#34e3b0,#9df0d4)}
 .pv.bn-night,.tryban.bn-night,.profhead.bn-night{background:radial-gradient(circle at 15% 25%,#fff 1px,transparent 2px) 0 0/40px 40px,radial-gradient(circle at 60% 70%,rgba(255,255,255,.7) 1px,transparent 2px) 0 0/28px 28px,linear-gradient(160deg,#0c0920,#2c136f)}
 .pv.bn-fire,.tryban.bn-fire,.profhead.bn-fire{background:linear-gradient(0deg,#ff3d00,#ff9f45 60%,#ffe14d)}
-.pv.bn-rainbow,.tryban.bn-rainbow,.profhead.bn-rainbow{background:linear-gradient(120deg,#ff6b8b,#ffb36b,#ffe14d,#34e3b0,#62c7ff,#c79bff)}
-.profhead.bn-mint h2,.profhead.bn-fire h2,.profhead.bn-rainbow h2,.tryban.bn-mint b,.tryban.bn-fire b,.tryban.bn-rainbow b{color:var(--ink)}
+.profhead.bn-mint h2,.profhead.bn-fire h2,.tryban.bn-mint b,.tryban.bn-fire b{color:var(--ink)}
 /* thèmes de l'appli */
 :root[data-theme="th-night"]{--bg:#17123a;--bg-deep:#0d0a24}
 :root[data-theme="th-ocean"]{--bg:#0f4c81;--bg-deep:#0a365c}
@@ -1207,3 +1202,19 @@ body.kbd .tabbar{display:none}
 .qylist li{font:600 14px var(--font);color:var(--paper)}
 .qylist li span{display:block}
 .qylist li b{display:inline-block;margin-top:4px;padding:2px 10px;border-radius:99px;background:var(--mint);color:var(--ink);font:800 13px var(--display)}
+/* ---------- 2.20 : club en onglets, emblèmes dessinés ---------- */
+.cnav{grid-template-columns:repeat(5,1fr);gap:3px;padding:4px;margin:0 0 14px}
+.cnav button{min-height:40px;padding:4px 2px;font-size:12px}
+.cpanel{display:flex;flex-direction:column;gap:10px}
+.cpanel>.clubstats,.cpanel>.chips{margin:0}
+.cfull{width:100%}
+.clubemb{color:var(--ink)}
+.clubemb svg{width:34px;height:34px}
+.embpick button{display:grid;place-items:center;color:var(--ink)}
+.embpick button svg{width:22px;height:22px}
+#cpSet .clubbox{margin:0}
+#cpSet .fhint:empty{display:none}
+svg.qchico{width:30px;height:30px;flex:none;color:var(--coral)}
+.qchest.ready svg.qchico{color:var(--ink)}
+.qchest.open svg.qchico{color:var(--mint)}
+.qbtn.wait:disabled{opacity:1;color:var(--muted);background:#ece8ff;box-shadow:none}

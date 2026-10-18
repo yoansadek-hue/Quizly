@@ -79,7 +79,7 @@ export function initQuests({ $, uid, earn, onChange }) {
     const bar = document.createElement("div"); bar.className = "qbar"; const i = document.createElement("i"); i.style.width = `${Math.round((100 * v) / q.n)}%`; bar.append(i);
     const p = document.createElement("small"); p.textContent = q.max ? (done ? "Réussi" : `Meilleur : ${v} / ${q.n}`) : `${v} / ${q.n}`;
     t.append(b, bar, p);
-    const btn = document.createElement("button"); btn.className = "btn sm qbtn " + (taken ? "white" : done ? "sun" : "ghost");
+    const btn = document.createElement("button"); btn.className = "btn sm qbtn " + (taken ? "white" : done ? "sun" : "white wait");
     btn.innerHTML = ""; const coin = document.createElement("span"); coin.className = "coin"; btn.append(coin, document.createTextNode(` ${q.r}`));
     if (taken) { btn.textContent = "Récupéré"; btn.disabled = true; }
     else if (done) btn.onclick = () => claim(q, weekly);
@@ -98,12 +98,16 @@ export function initQuests({ $, uid, earn, onChange }) {
     const all = today(s).every((q) => s.gotD.includes(q.id)), open = s.gotD.includes("chest");
     const ch = $("qChest"); ch.className = "qchest" + (open ? " open" : all ? " ready" : "");
     ch.replaceChildren();
-    const ico = document.createElement("span"); ico.className = "qchico"; ico.textContent = open ? "🎉" : "🎁";
+    const ico = document.createElementNS("http://www.w3.org/2000/svg", "svg"); ico.setAttribute("class", "qchico"); ico.setAttribute("viewBox", "0 0 24 24"); ico.setAttribute("aria-hidden", "true");
+    const ip = document.createElementNS("http://www.w3.org/2000/svg", "path"); ip.setAttribute("fill", "currentColor");
+    ip.setAttribute("d", open ? "M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z" : "M20 7h-2.2A3 3 0 0 0 12 4.5 3 3 0 0 0 6.2 7H4v5h1v9h14v-9h1V7zM9 5.5a1 1 0 0 1 1 1V7H9a.75.75 0 0 1 0-1.5zm6 0A.75.75 0 0 1 15 7h-1v-.5a1 1 0 0 1 1-1zM6 9h5v1.5H6zm7 0h5v1.5h-5zM7 12h4v7H7zm6 0h4v7h-4z"); ico.append(ip);
     const tx = document.createElement("div"); tx.className = "qtxt";
     const b = document.createElement("b"); b.textContent = open ? "Coffre du jour ouvert" : "Coffre du jour";
     const sm = document.createElement("small"); sm.textContent = open ? "Revenez demain pour un nouveau coffre." : all ? `Ouvrez-le : +${CHEST} Q-Bucks.` : "Récupérez les 3 défis du jour pour l'ouvrir.";
     tx.append(b, sm); ch.append(ico, tx);
     if (all && !open) { const btn = document.createElement("button"); btn.className = "btn sun sm qbtn"; btn.textContent = "Ouvrir"; btn.onclick = claimChest; ch.append(btn); }
   }
-  return { tick, best, render, ready: () => ready(load()) };
+  // vos chiffres de la semaine (pour les défis du club)
+  const weekStats = () => { const s = load(); return { week: s.week, good: s.w.good || 0, game: s.w.game || 0, daily: s.w.daily || 0 }; };
+  return { tick, best, render, weekStats, ready: () => ready(load()) };
 }

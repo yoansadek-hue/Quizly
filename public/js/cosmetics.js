@@ -8,23 +8,23 @@ export const ITEMS = {
   "fr-ink": ["frame", "Encre", 0], "fr-sun": ["frame", "Citron", 40], "fr-mint": ["frame", "Menthe", 40], "fr-coral": ["frame", "Pamplemousse", 40],
   "fr-sky": ["frame", "Ciel", 40], "fr-peach": ["frame", "Abricot", 40], "fr-cotton": ["frame", "Barbe à papa", 70], "fr-forest": ["frame", "Forêt", 90],
   "fr-ice": ["frame", "Glace", 120], "fr-pixel": ["frame", "Pixel", 140], "fr-neon": ["frame", "Néon", 180], "fr-lava": ["frame", "Lave", 220],
-  "fr-gold": ["frame", "Or", 260], "fr-galaxy": ["frame", "Galaxie", 320], "fr-rainbow": ["frame", "Arc-en-ciel", 400], "fr-diamond": ["frame", "Diamant", 520],
+  "fr-gold": ["frame", "Or", 260], "fr-galaxy": ["frame", "Galaxie", 320], "fr-diamond": ["frame", "Diamant", 520],
   "fr-crown": ["frame", "Millionnaire", 0, "million"],
   // bulles du chat
   "sk-classic": ["bubble", "Classique", 0], "sk-mint": ["bubble", "Menthe", 60], "sk-sky": ["bubble", "Ciel", 60], "sk-ink": ["bubble", "Nuit", 80],
   "sk-pastel": ["bubble", "Pastel", 80], "sk-candy": ["bubble", "Bonbon", 100], "sk-neon": ["bubble", "Néon", 160], "sk-lava": ["bubble", "Lave", 190],
-  "sk-gold": ["bubble", "Or", 240], "sk-galaxy": ["bubble", "Galaxie", 290], "sk-rainbow": ["bubble", "Arc-en-ciel", 380],
+  "sk-gold": ["bubble", "Or", 240], "sk-galaxy": ["bubble", "Galaxie", 290],
   // bannières du profil
   "bn-plain": ["banner", "Myrtille", 0], "bn-mint": ["banner", "Menthe", 60], "bn-stripes": ["banner", "Rayures", 80], "bn-check": ["banner", "Damier", 100],
   "bn-sunset": ["banner", "Coucher de soleil", 120], "bn-lagoon": ["banner", "Lagon", 120], "bn-night": ["banner", "Nuit étoilée", 170], "bn-galaxy": ["banner", "Galaxie", 220],
-  "bn-fire": ["banner", "Flammes", 250], "bn-aurora": ["banner", "Aurore", 300], "bn-rainbow": ["banner", "Arc-en-ciel", 420], "bn-streak": ["banner", "Série de feu", 0, "streak7"],
+  "bn-fire": ["banner", "Flammes", 250], "bn-aurora": ["banner", "Aurore", 300], "bn-streak": ["banner", "Série de feu", 0, "streak7"],
   // titres, sous le pseudo
   "ti-none": ["title", "Aucun", 0], "ti-rookie": ["title", "Recrue", 30], "ti-curious": ["title", "Curieux", 60], "ti-fast": ["title", "Éclair", 90],
   "ti-brain": ["title", "Cerveau", 120], "ti-pro": ["title", "Pro du quiz", 200], "ti-genius": ["title", "Génie", 320], "ti-legend": ["title", "Légende vivante", 500],
   "ti-million": ["title", "Millionnaire", 0, "million"], "ti-flame": ["title", "Inarrêtable", 0, "streak7"],
   // couleur du pseudo
   "nc-plain": ["name", "Blanc", 0], "nc-sun": ["name", "Citron", 50], "nc-mint": ["name", "Menthe", 50], "nc-coral": ["name", "Pamplemousse", 50],
-  "nc-sky": ["name", "Ciel", 50], "nc-gold": ["name", "Or", 220], "nc-neon": ["name", "Néon", 260], "nc-fire": ["name", "Feu", 300], "nc-rainbow": ["name", "Arc-en-ciel", 450],
+  "nc-sky": ["name", "Ciel", 50], "nc-gold": ["name", "Or", 220], "nc-neon": ["name", "Néon", 260], "nc-fire": ["name", "Feu", 300],
   // thème de l'appli (visible seulement par vous)
   "th-berry": ["theme", "Myrtille", 0], "th-night": ["theme", "Minuit", 120], "th-ocean": ["theme", "Océan", 150], "th-forest": ["theme", "Forêt", 150],
   "th-sunset": ["theme", "Crépuscule", 200], "th-cherry": ["theme", "Cerise", 200], "th-cosmos": ["theme", "Cosmos", 350]
@@ -34,6 +34,8 @@ export function rarity(id) {
   const [, , p, need] = ITEMS[id];
   return need ? ["Exclusif", "x"] : p === 0 ? ["De base", "b"] : p <= 50 ? ["Commun", "c"] : p <= 150 ? ["Rare", "r"] : p <= 260 ? ["Épique", "e"] : ["Légendaire", "l"];
 }
+// articles retirés de la Boutique : remboursés à ceux qui les avaient achetés
+const REMOVED = { "fr-rainbow": 400, "sk-rainbow": 380, "bn-rainbow": 420, "nc-rainbow": 450 };
 const DEFAULT = { frame: "fr-ink", bubble: "sk-classic", banner: "bn-plain", title: "ti-none", name: "nc-plain", theme: "th-berry" };
 const CATS = [["frame", "Cadres"], ["bubble", "Bulles"], ["banner", "Bannières"], ["title", "Titres"], ["name", "Pseudo"], ["theme", "Thèmes"]];
 const HOW = { title: "Affiché sous votre pseudo, pour tout le monde.", name: "La couleur de votre pseudo, pour tout le monde.", theme: "Le fond de toute l'appli, visible seulement par vous." };
@@ -55,7 +57,15 @@ export function initCosmetics({ $, ask, uid, name, photo, achs, avatarEl, onChan
   const write = (n, v) => { try { localStorage.setItem(k(n), JSON.stringify(v)); } catch {} };
   const coins = () => +read("coins", 0) || 0;
   const owned = () => new Set(dev() ? Object.keys(ITEMS) : [...read("owned", []), ...Object.values(DEFAULT)]);
-  const equipped = () => ({ ...DEFAULT, ...read("cos", {}) });
+  const equipped = () => { const e = { ...DEFAULT, ...read("cos", {}) }; for (const c in e) if (!ITEMS[e[c]] || ITEMS[e[c]][0] !== c) e[c] = DEFAULT[c]; return e; }; // un article retiré revient à celui de base
+  function refund() { // une seule fois : les Q-Bucks des articles retirés reviennent
+    if (!uid()) return;
+    const own = read("owned", []), gone = own.filter((id) => REMOVED[id]);
+    if (!gone.length) return;
+    write("owned", own.filter((id) => !REMOVED[id]));
+    write("coins", coins() + gone.reduce((a, id) => a + REMOVED[id], 0));
+    write("cos", equipped());
+  }
   let tab = "frame";
 
   // Q-Bucks gagnés en jouant (avec un petit « +5 » qui s'envole)
@@ -78,6 +88,7 @@ export function initCosmetics({ $, ask, uid, name, photo, achs, avatarEl, onChan
   const unlocked = (id) => { const need = ITEMS[id][3]; return !need || dev() || achs().includes(need); };
 
   function apply() { // ce qui est équipé s'affiche partout
+    refund();
     const e = equipped();
     if (name()) setFrame(name(), e.frame);
     document.body.dataset.banner = e.banner;
