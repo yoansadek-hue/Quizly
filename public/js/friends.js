@@ -8,7 +8,7 @@ import { styleName, titleEl, titleOf } from "./cosmetics.js";
 const ALPHA = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // sans I, O, 0, 1 : pas de confusion à la lecture
 const INVITE_TTL = 10 * 60 * 1000; // une invitation de plus de 10 minutes est ignorée
 
-export function initFriends({ $, ask, avatarEl, euros, me, records, summary, daily, achs, cos, joinRoom, roomInfo, openFriends, openNotifs, showScreen }) {
+export function initFriends({ $, ask, avatarEl, euros, me, records, summary, daily, achs, cos, joinRoom, roomInfo, openFriends, openNotifs, showScreen, week = () => null, earn = () => {} }) {
   const F = { uid: null, fs: null, code: "", friends: [], unsub: [], tab: "best2", inv: null, panel: null };
   // onglets de l'écran Amis
   function setPanel(p) {
@@ -435,41 +435,90 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
       if (!c.exists()) { setMyClub(""); F.club = null; return renderClub(); }
       const mem = await F.fs.getDocs(F.fs.collection(F.fs.db, "clubs", code, "members"));
       if (!mem.docs.some((d) => d.id === F.uid)) { setMyClub(""); F.club = null; return renderClub(); } // plus membre
+      await clubSync(code, true); // vos chiffres de la semaine, pour les défis du club
       const members = [];
       for (const d of mem.docs) {
         let p = {};
         try { const s = await F.fs.getDoc(ref("profiles", d.id)); if (s.exists()) p = s.data(); } catch {}
-        members.push({ uid: d.id, ...d.data(), ...p, you: d.id === F.uid });
+        members.push({ uid: d.id, ...p, ...d.data(), name: p.name || d.data().name, you: d.id === F.uid });
         setFrame(p.name || d.data().name, (p.cos || {}).frame);
       }
       F.club = { code, ...c.data(), members };
     } catch { F.club = null; }
     renderClub();
   }
-  F.ctab = "daily";
+  F.ctab = "daily"; F.cpanel = "rank";
   const CTABS = [["daily", "Défi du jour"], ["best2", "Solo"], ["bestChrono", "Chrono"], ["bestMillion", "Millionnaire"], ["achs", "Succès"]];
-  const EMBLEMS = ["🦉", "🔥", "⚡", "🚀", "🧠", "👑", "🐺", "🦊", "🐉", "🎯", "🌟", "🍀"];
+  // emblèmes des clubs : des icônes dessinées (les anciens clubs à emoji reçoivent l'étoile)
+  const EMBLEMS = {
+    star: "M12 2l2.9 6.6 7.1.6-5.4 4.7 1.6 7L12 17.3 5.8 21l1.6-7L2 9.2l7.1-.6z",
+    bolt: "M13 2L4 14h6l-1 8 9-12h-6z",
+    flame: "M12 2c1 4 5 5.5 5 10a5 5 0 0 1-10 0c0-2 1-3.5 2-4.5 0 2 1 3 2 3 0-3-1-5 1-8.5z",
+    crown: "M3 7l4.5 4L12 4l4.5 7L21 7l-2 12H5z",
+    trophy: "M7 3h10v2h3v3a5 5 0 0 1-4.3 4.95A5 5 0 0 1 13 15.9V18h3v3H8v-3h3v-2.1a5 5 0 0 1-2.7-2.95A5 5 0 0 1 4 8V5h3V3z",
+    shield: "M12 2l8 3v6c0 5-3.4 9.4-8 11-4.6-1.6-8-6-8-11V5z",
+    heart: "M12 21s-8-5.3-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 10c0 5.7-8 11-8 11z",
+    diamond: "M6 3h12l4 6-10 12L2 9z",
+    moon: "M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z",
+    rocket: "M12 2c3.5 2 5.5 5.6 5.5 9.5 0 1.3-.2 2.5-.6 3.6L19 18l-3 1-1.5-2h-5L8 19l-3-1 2.1-2.9c-.4-1.1-.6-2.3-.6-3.6C6.5 7.6 8.5 4 12 2zm0 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm-2 11h4l-2 3z",
+    target: "M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm0 3a7 7 0 1 0 0 14 7 7 0 0 0 0-14zm0 3a4 4 0 1 1 0 8 4 4 0 0 1 0-8zm0 2.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z",
+    brain: "M9 3a3 3 0 0 0-3 3 3 3 0 0 0-2 5 3 3 0 0 0 1 5 3 3 0 0 0 4 3h2V3zm4 0v16h2a3 3 0 0 0 4-3 3 3 0 0 0 1-5 3 3 0 0 0-2-5 3 3 0 0 0-3-3z"
+  };
+  const embOf = (c) => (EMBLEMS[c && c.emb] ? c.emb : "star");
+  const icon = (k) => { const ns = "http://www.w3.org/2000/svg", v = document.createElementNS(ns, "svg"); v.setAttribute("viewBox", "0 0 24 24"); v.setAttribute("aria-hidden", "true"); const pth = document.createElementNS(ns, "path"); pth.setAttribute("d", EMBLEMS[k]); pth.setAttribute("fill", "currentColor"); pth.setAttribute("fill-rule", "evenodd"); v.append(pth); return v; };
   const CCOLORS = ["mint", "sun", "coral", "sky", "peach", "lilac"];
   const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(Date.now());
+  // défis du club : tous ensemble cette semaine ; l'objectif grandit avec le nombre de membres
+  const CQUESTS = [
+    { id: "cq-good", txt: (n) => `Ensemble : ${n} bonnes réponses`, k: "cgood", per: 60, r: 60 },
+    { id: "cq-game", txt: (n) => `Ensemble : ${n} parties`, k: "cgame", per: 8, r: 50 },
+    { id: "cq-daily", txt: (n) => `Ensemble : ${n} Défis du jour`, k: "cdaily", per: 3, r: 70 }
+  ];
+  let lastSync = 0;
+  async function clubSync(code = myClub(), force) { // vos chiffres de la semaine dans votre fiche de membre
+    const w = week(); if (!code || !ready() || !w || (!force && Date.now() - lastSync < 30000)) return;
+    lastSync = Date.now();
+    try { await F.fs.setDoc(ref("clubs", code, "members", F.uid), { cwk: w.week, cgood: w.good, cgame: w.game, cdaily: w.daily }, { merge: true }); } catch {}
+  }
+  const gotKey = () => `quizly:${F.uid}:clubGot`;
+  const clubGot = () => { try { return JSON.parse(localStorage.getItem(gotKey()) || "[]"); } catch { return []; } };
+  function renderClubQuests(c) {
+    const w = week(), wk = w ? w.week : "", n = Math.max(2, c.members.length), got = clubGot();
+    $("clubQuests").replaceChildren(...CQUESTS.map((q) => {
+      const goal = q.per * n, v = Math.min(goal, c.members.filter((p) => p.cwk === wk).reduce((a, p) => a + (+p[q.k] || 0), 0));
+      const tag = `${c.code}:${wk}:${q.id}`, taken = got.includes(tag), done = v >= goal;
+      const card = document.createElement("div"); card.className = "quest" + (taken ? " taken" : done ? " ready" : "");
+      const t = document.createElement("div"); t.className = "qtxt";
+      const b = document.createElement("b"); b.textContent = q.txt(goal);
+      const bar = document.createElement("div"); bar.className = "qbar"; const i = document.createElement("i"); i.style.width = `${Math.round((100 * v) / goal)}%`; bar.append(i);
+      const sm = document.createElement("small"); sm.textContent = `${v} / ${goal}`;
+      t.append(b, bar, sm);
+      const btn = document.createElement("button"); btn.className = "btn sm qbtn " + (taken ? "white" : done ? "sun" : "white wait");
+      if (taken) { btn.textContent = "Récupéré"; btn.disabled = true; }
+      else { const coin = document.createElement("span"); coin.className = "coin"; btn.append(coin, document.createTextNode(` ${q.r}`)); btn.disabled = !done; btn.onclick = () => { const g = clubGot(); if (g.includes(tag)) return; g.push(tag); try { localStorage.setItem(gotKey(), JSON.stringify(g.slice(-60))); } catch {} earn(q.r, "club"); renderClub(); }; }
+      card.append(t, btn); return card;
+    }));
+  }
   function renderClub() {
     const c = F.club;
     $("clubNone").hidden = !!c; $("clubIn").hidden = !c;
     if (!c) return;
     const owner = c.owner === F.uid, day = today();
     $("clubCard").className = `clubcard cc-${CCOLORS.includes(c.color) ? c.color : "mint"}`;
-    $("clubEmb").textContent = EMBLEMS.includes(c.emb) ? c.emb : "🦉";
+    $("clubEmb").replaceChildren(icon(embOf(c)));
     $("clubTitle").textContent = c.name;
     $("clubDesc").textContent = c.desc || ""; $("clubDesc").hidden = !c.desc;
     $("clubShowCode").textContent = c.code;
     $("clubInfo").textContent = `${c.members.length} membre${c.members.length > 1 ? "s" : ""} sur ${CLUB_MAX}${owner ? " · vous l'avez créé" : ""}`;
-    $("btnClubEdit").hidden = !owner;
-    // chiffres du club
+    // les onglets du club
+    document.querySelectorAll("#clubNav button").forEach((b) => { b.setAttribute("aria-pressed", String(b.dataset.c === F.cpanel)); b.onclick = () => { F.cpanel = b.dataset.c; cmsg(""); renderClub(); }; });
+    [["rank", "cpRank"], ["quest", "cpQuest"], ["chat", "cpChat"], ["invite", "cpInvite"], ["set", "cpSet"]].forEach(([k, id]) => ($(id).hidden = k !== F.cpanel));
+    // classement et chiffres du club
     const doneToday = c.members.filter((p) => p.daily && p.daily.day === day).length;
     const achTotal = c.members.reduce((a, p) => a + (p.achs || []).length, 0);
     $("clubStats").replaceChildren(...[[`${doneToday}/${c.members.length}`, "défi du jour fait"], [achTotal, "succès au total"], [c.members.reduce((a, p) => a + ((p.summary || {}).games || 0), 0), "parties jouées"]].map(([v, k]) => {
       const d = document.createElement("div"); const b = document.createElement("strong"); b.textContent = v; const t = document.createElement("span"); t.textContent = k; d.append(b, t); return d;
     }));
-    // classement
     $("clubTabs").replaceChildren(...CTABS.map(([k, label]) => {
       const b = document.createElement("button"); b.className = "chip"; b.textContent = label; b.setAttribute("aria-pressed", String(F.ctab === k));
       b.onclick = () => { F.ctab = k; renderClub(); }; return b;
@@ -494,7 +543,8 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
       }
       return li;
     }));
-    // le mur : les derniers messages de chaque membre, du plus récent au plus ancien
+    renderClubQuests(c);
+    // le chat : les derniers messages de chaque membre, du plus récent au plus ancien
     const wall = c.members.flatMap((p) => (Array.isArray(p.wall) ? p.wall : []).map((w) => ({ ...w, p }))).filter((w) => w && w.text).sort((a, b) => b.at - a.at).slice(0, 30);
     $("clubWall").replaceChildren(...(wall.length ? wall.map((w) => {
       const r = document.createElement("div"); r.className = "wmsg" + (w.p.you ? " mine" : "");
@@ -514,9 +564,12 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
       b.disabled = sent || c.members.length >= CLUB_MAX;
       return row(f, [b]);
     }) : [Object.assign(document.createElement("p"), { className: "fhint", textContent: F.friends.length ? "Tous vos amis sont déjà dans le club." : "Ajoutez des amis pour pouvoir les inviter ici." })]));
-    // personnalisation (créateur)
-    $("clubEmbPick").replaceChildren(...EMBLEMS.map((e) => { const b = document.createElement("button"); b.textContent = e; b.setAttribute("aria-pressed", String((c.emb || "🦉") === e)); b.onclick = () => { F.cEdit.emb = e; [...$("clubEmbPick").children].forEach((x) => x.setAttribute("aria-pressed", String(x === b))); }; return b; }));
-    $("clubColPick").replaceChildren(...CCOLORS.map((col) => { const b = document.createElement("button"); b.className = `cc-${col}`; b.setAttribute("aria-label", col); b.setAttribute("aria-pressed", String((c.color || "mint") === col)); b.onclick = () => { F.cEdit.color = col; [...$("clubColPick").children].forEach((x) => x.setAttribute("aria-pressed", String(x === b))); }; return b; }));
+    // réglages : le créateur personnalise le club ; chacun peut le quitter
+    $("clubEditBox").hidden = !owner;
+    $("clubSetHint").textContent = owner ? "" : "Seul le créateur du club peut changer son emblème, sa couleur et sa description.";
+    if (owner && !F.cEditOpen) { F.cEdit = { emb: embOf(c), color: c.color || "mint" }; $("clubDescIn").value = c.desc || ""; F.cEditOpen = true; }
+    $("clubEmbPick").replaceChildren(...Object.keys(EMBLEMS).map((e) => { const b = document.createElement("button"); b.append(icon(e)); b.setAttribute("aria-label", e); b.setAttribute("aria-pressed", String((F.cEdit.emb || embOf(c)) === e)); b.onclick = () => { F.cEdit.emb = e; [...$("clubEmbPick").children].forEach((x) => x.setAttribute("aria-pressed", String(x === b))); }; return b; }));
+    $("clubColPick").replaceChildren(...CCOLORS.map((col) => { const b = document.createElement("button"); b.className = `cc-${col}`; b.setAttribute("aria-label", col); b.setAttribute("aria-pressed", String((F.cEdit.color || c.color || "mint") === col)); b.onclick = () => { F.cEdit.color = col; [...$("clubColPick").children].forEach((x) => x.setAttribute("aria-pressed", String(x === b))); }; return b; }));
   }
   async function inviteToClub(f, b) {
     const c = F.club; if (!c) return;
@@ -539,11 +592,10 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
     catch { cmsg("Message non envoyé, réessayez."); }
   }
   F.cEdit = {};
-  $("btnClubEdit").onclick = () => { const c = F.club; if (!c) return; F.cEdit = { emb: c.emb, color: c.color }; $("clubDescIn").value = c.desc || ""; $("clubEditBox").hidden = !$("clubEditBox").hidden; };
   $("btnClubSave").onclick = async () => {
     const c = F.club; if (!c || c.owner !== F.uid) return;
-    const patch = { emb: F.cEdit.emb || c.emb || "🦉", color: F.cEdit.color || c.color || "mint", desc: $("clubDescIn").value.replace(/[<>]/g, "").replace(/\s+/g, " ").trim().slice(0, 80) };
-    try { await F.fs.setDoc(ref("clubs", c.code), patch, { merge: true }); Object.assign(c, patch); $("clubEditBox").hidden = true; renderClub(); cmsg("Club mis à jour."); }
+    const patch = { emb: F.cEdit.emb || embOf(c), color: F.cEdit.color || c.color || "mint", desc: $("clubDescIn").value.replace(/[<>]/g, "").replace(/\s+/g, " ").trim().slice(0, 80) };
+    try { await F.fs.setDoc(ref("clubs", c.code), patch, { merge: true }); Object.assign(c, patch); renderClub(); cmsg("Club mis à jour."); }
     catch { cmsg("Impossible d'enregistrer pour le moment."); }
   };
   $("btnClubPost").onclick = postWall;
@@ -567,7 +619,7 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
   }
 
   const api = {
-    start, stop, ready, loadClub, render, syncRecords, addByCode, openInvites, renderNotifs, clubInvite,
+    start, stop, ready, loadClub, render, syncRecords, addByCode, openInvites, renderNotifs, clubInvite, clubSync: () => clubSync(),
     isFriend: (uid) => F.friends.some((f) => f.uid === uid),
     count: () => F.friends.length,
     // défi du jour terminé : noté pour le rappel du soir (le serveur ne prévient que ceux qui ne l'ont pas fait)
