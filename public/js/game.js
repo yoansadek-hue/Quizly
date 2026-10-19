@@ -10,7 +10,7 @@ import { enablePush, disablePush, pushMuted, pushState, currentSub } from "./pus
 import { initCosmetics, styleName, titleOf } from "./cosmetics.js";
 import { initQuests } from "./quests.js";
 
-const VERSION = "2.23.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.24.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -24,6 +24,7 @@ const MODES = {
   // types de salon, choisis depuis « En ligne »
   chrono: { name: "Chrono en ligne", qcm: true, time: 60, joker: false, lives: false, online: true, chrono: true, hidden: true },
   oteams: { name: "Équipes en ligne", qcm: true, time: 30, joker: false, lives: false, online: true, teams: true, hidden: true },
+  obets: { name: "Les Parieurs", qcm: true, time: 30, joker: false, lives: false, online: true, bets: true, hidden: true },
   omillion: { name: "Millionnaire en ligne", qcm: true, time: 30, joker: false, lives: false, online: true, million: true, hidden: true }
 };
 const TIMES = [10, 15, 20, 30, 45, 60, 0];
@@ -806,12 +807,12 @@ function statGame(kind) {
   cosm.earn(2, "partie"); // 2 Q-Bucks par partie
   quests.tick("game");
   friends.clubSync(); // le club voit vos chiffres de la semaine
-  if (["online", "chrono", "omillion", "oteams"].includes(kind)) quests.tick("online");
+  if (["online", "chrono", "omillion", "oteams", "obets"].includes(kind)) quests.tick("online");
   if (kind === "chrono") quests.tick("chrono");
   if (kind === "million" || kind === "omillion") quests.tick("million");
   checkAch();
 }
-const GAME_NAMES = { classic: "Classique", qcm: "QCM", solo: "Solo", teams: "Équipes", million: "Millionnaire", online: "En ligne", chrono: "Chrono", omillion: "Millionnaire en ligne" };
+const GAME_NAMES = { classic: "Classique", qcm: "QCM", solo: "Solo", teams: "Équipes", million: "Millionnaire", online: "En ligne", chrono: "Chrono", omillion: "Millionnaire en ligne", oteams: "Équipes en ligne", obets: "Les Parieurs" };
 function renderProfile() {
   const st = getStats();
   const best = (k) => { try { return +localStorage.getItem(`quizly:${S.uid}:${k}`) || 0; } catch { return 0; } };
@@ -1461,13 +1462,13 @@ $("btnThemes").onclick = () => {
   renderTime(); show("s-time");
 };
 $("btnTime").onclick = () => {
-  if (M().online && (M().million || M().teams)) return submitRoom(); // Millionnaire et Équipes en ligne : pas de vies
+  if (M().online && (M().million || M().teams || M().bets)) return submitRoom(); // Millionnaire, Équipes et Parieurs en ligne : pas de vies
   if (M().online) { renderLivesOpt(); show("s-jokers"); }
   else if (M().joker) { renderJokers(); show("s-jokers"); }
   else startGame();
 };
 function submitRoom() {
-  const cfg = { auto: S.cfg.auto, kind: M().chrono ? "chrono" : M().million ? "million" : M().teams ? "equipes" : "survie", themes: [...S.active], time: S.cfg.time, lives: S.cfg.lives };
+  const cfg = { auto: S.cfg.auto, kind: M().chrono ? "chrono" : M().million ? "million" : M().teams ? "equipes" : M().bets ? "parieurs" : "survie", themes: [...S.active], time: S.cfg.time, lives: S.cfg.lives };
   if (S.editRoom) { S.editRoom = false; online.setEditing(false); online.config(cfg); } // l'hôte modifie la salle
   else online.create(cfg);
 }
@@ -1502,9 +1503,10 @@ const ROOM_MODES = [
   ["online", "survie", "Survie", "Chacun son tour, avec des vies. Le dernier en vie gagne."],
   ["chrono", "chrono", "Chrono 60 s", "Tout le monde joue en même temps pendant 60 secondes. Le plus de points gagne."],
   ["oteams", "teams", "Équipes", "Les joueurs sont répartis en équipes qui jouent chacune leur tour. Les points s'additionnent."],
+  ["obets", "bets", "Les Parieurs", "Chacun répond à son tour. Avant sa réponse, les autres parient leurs jetons : réussira-t-il ou non ? Le plus riche gagne."],
   ["omillion", "million", "Qui veut gagner des millions", "La même échelle de 15 questions pour tous, chacun avec ses jokers. Celui qui repart avec le plus gagne."]
 ];
-const KIND_MODE = { survie: "online", chrono: "chrono", million: "omillion", equipes: "oteams" };
+const KIND_MODE = { survie: "online", chrono: "chrono", million: "omillion", equipes: "oteams", parieurs: "obets" };
 function renderRoomModes(current) {
   const box = $("roomModes");
   box.replaceChildren();
@@ -1904,7 +1906,7 @@ function achFacts() {
     games: Object.values(g).reduce((a, v) => a + v, 0), good: t.reduce((a, x) => a + x.ok, 0), themes: Object.keys(st.themes || {}).length,
     bestRun: st.bestRun || 0, best2: b("best2"), bestChrono: b("bestChrono"), bestMillion: b("bestMillion"),
     perfect: !!(d && d.done !== false && d.score === 10) || !!getAch().perfect, streak: dailyStreak(),
-    onlineGames: (g.online || 0) + (g.chrono || 0) + (g.omillion || 0) + (g.oteams || 0), friends: friends.ready() ? friends.count() : 0
+    onlineGames: (g.online || 0) + (g.chrono || 0) + (g.omillion || 0) + (g.oteams || 0) + (g.obets || 0), friends: friends.ready() ? friends.count() : 0
   };
 }
 // jetons en cadeau pour ce qui a été fait avant la Boutique : 1 par bonne réponse, 2 par partie, 10 par Défi du jour, 25 par succès
