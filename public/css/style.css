@@ -815,10 +815,6 @@ body{display:flex;flex-direction:column;padding-top:env(safe-area-inset-top)}
 .ptr.ready .arc{stroke:var(--mint)}
 .ptr.spin svg{animation:ptrspin2 .7s linear infinite}
 @keyframes ptrspin2{to{transform:rotate(270deg)}}
-/* bouton Paramètres dans le Profil */
-#s-profile{position:relative}
-.gearbtn{position:absolute;right:0;top:0;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:var(--paper);color:var(--ink);border:3px solid var(--ink);box-shadow:var(--edge-s);cursor:pointer}
-.gearbtn:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ink)}
 /* Paramètres aux couleurs de Quizly : des jetons */
 .setlist{gap:12px}
 .setlist .fsub{display:inline-block;align-self:flex-start;margin:18px 0 0;padding:4px 12px;border-radius:99px;background:var(--ink);color:var(--sun);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
@@ -848,10 +844,6 @@ html{background-color:var(--bg);background-image:radial-gradient(rgba(255,255,25
 .ptr{position:fixed;top:calc(env(safe-area-inset-top) + 64px)}
 
 /* ---------- 2.12.5 : Paramètres ---------- */
-.profhead .gearbtn{position:static;margin-left:auto;align-self:flex-start}
-.gearbtn{width:46px;height:46px;flex:none}
-.gearbtn svg{transition:transform .5s cubic-bezier(.2,.8,.2,1)}
-.gearbtn:active svg{transform:rotate(90deg)}
 .setacct{display:flex;align-items:center;gap:12px;margin:4px 0 22px;padding:14px;background:var(--sun);color:var(--ink);border:3px solid var(--ink);border-radius:24px;box-shadow:var(--edge)}
 .setacct .avatar.big{width:52px;height:52px;font-size:22px}
 .setacct .btn.sm{width:auto;flex:none}
@@ -1066,7 +1058,7 @@ body.withtabs .reactfab{bottom:auto}
 body.kbd .tabbar{display:none}
 .adminrule{margin:6px 0 10px;padding:10px 12px;border-radius:12px;background:var(--ink);color:var(--mint);font:600 12px ui-monospace,Menlo,monospace;white-space:pre-wrap;user-select:text;-webkit-user-select:text}
 /* balayage entre onglets (comme Instagram) : les deux écrans glissent simplement côte à côte */
-.screen.peek{position:absolute;z-index:2}
+.screen.peek{position:absolute!important;z-index:2}
 .screen.swiping,.screen.peek{will-change:transform}
 .screen.noanim>*,.screen.peek>*{animation:none!important}
 
@@ -1226,7 +1218,7 @@ svg.qchico{width:30px;height:30px;flex:none;color:var(--coral)}
 /* pendant un balayage : la barre du bas ne recalcule pas son flou à chaque image (fluidité sur iPhone) */
 body.swipe .tabbar{-webkit-backdrop-filter:none;backdrop-filter:none;background:rgba(18,9,44,.95)}
 /* onglet voisin garé : mis en page à l'avance, invisible, prêt pour un balayage sans à-coup */
-.screen.parked{position:absolute;visibility:hidden;pointer-events:none;z-index:-1}
+.screen.parked{position:absolute!important;visibility:hidden;pointer-events:none;z-index:-1}
 .screen.parked>*{animation:none!important}
 /* ---------- 2.21 : Q-Bucks en haut, onglets des Défis, Boutique plus lisible ---------- */
 .coinchip{gap:6px;padding:6px 14px 6px 8px;background:var(--paper);box-shadow:var(--edge-s);font:800 16px var(--display)}
