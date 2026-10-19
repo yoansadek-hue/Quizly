@@ -1,7 +1,7 @@
 import { THEMES, fetchAI } from "./questions.js";
 import { watch, signIn, logout } from "./auth.js";
 import { initOnline } from "./online.js";
-import { makeLocal, LOCAL_THEMES, SONG_THEME, euros } from "./local.js";
+import { makeLocal, LOCAL_THEMES, IMP_LOCAL_OK, SONG_THEME, euros } from "./local.js";
 import { millionUI, millionLocal, avatarEl, setAudio, stopAudio } from "./million.js";
 import { startScan, stopScan, tvCodeFrom } from "./scan.js";
 import { startCloud, cloudState } from "./cloud.js";
@@ -11,7 +11,7 @@ import { initCosmetics, styleName, titleOf } from "./cosmetics.js";
 import { initQuests } from "./quests.js";
 import { impUI, IMP_PTS } from "./impostor.js";
 
-const VERSION = "2.26.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.26.1"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -294,7 +294,7 @@ function fill() {
   const d = S.diff;
   if (S.loading && S.loading.d === d) return S.loading.p;
   const aiThemes = [...S.active].filter((t) => !LOCAL_THEMES.includes(t));
-  const p = fetchAI(aiThemes.sort(() => Math.random() - 0.5).slice(0, 5), d, 6, getAvoid())
+  const p = fetchAI(aiThemes.sort(() => Math.random() - 0.5).slice(0, 5), d, 6, getAvoid(), !!M().impostor)
     .then((qs) => {
       qs.forEach((q) => { if (!seen(q.q) && !S.buf.some((b) => similar(b.q, q.q))) S.buf.push({ ...q, d }); });
       saveBank();
@@ -377,7 +377,7 @@ async function getQuestion() {
     try { await fill(); } catch { break; } // IA indisponible : on passe aux questions sans IA
   }
   // l'IA ne répond pas : la partie continue avec des questions sans IA plutôt que de s'arrêter
-  const lq = await pickLocalQ(locals.length ? locals : LOCAL_THEMES.filter((t) => t !== SONG_THEME), S.diff);
+  const lq = await pickLocalQ(locals.length ? locals : M().impostor ? IMP_LOCAL_OK : LOCAL_THEMES.filter((t) => t !== SONG_THEME), S.diff);
   if (lq) { S.asked.push(lq.key); return lq; }
   throw new Error("L'IA n'a renvoyé aucune nouvelle question.");
 }
@@ -796,8 +796,11 @@ const IMP = {};
 const impShuffle = (a) => a.map((x) => [Math.random(), x]).sort((p, q) => p[0] - q[0]).map((x) => x[1]);
 const impHead = () => ({ round: IMP.round, rounds: IMP.rounds });
 function impStart() {
-  S.active.delete(SONG_THEME); // on ne peut pas écouter un extrait en secret
-  if (!S.active.size) THEMES.filter((t) => t !== SONG_THEME).forEach((t) => S.active.add(t));
+  // des questions très dures, que l'imposteur ne peut pas trouver seul : pas de calcul, de logique, d'anagramme, ni d'extrait à écouter
+  [...S.active].forEach((t) => { if (LOCAL_THEMES.includes(t) && !IMP_LOCAL_OK.includes(t)) S.active.delete(t); });
+  if (!S.active.size) THEMES.filter((t) => !LOCAL_THEMES.includes(t)).forEach((t) => S.active.add(t));
+  const bank = loadBank(); // les questions gardées d'avant sont trop faciles : on repart de questions neuves, très dures
+  S.buf = []; S.rest = bank;
   S.players.forEach((p) => { p.points = 0; p.imp = 0; });
   Object.assign(IMP, { round: 0, rounds: Math.min(6, Math.max(3, S.players.length)), last: -1 });
   impRound();
@@ -806,7 +809,7 @@ async function impRound() {
   if (!S.inGame) return;
   if (IMP.round >= IMP.rounds) return impEnd();
   IMP.round++;
-  S.diff = Math.min(5, 2 + Math.floor((IMP.round - 1) / 2)); // de plus en plus dur : l'imposteur devine moins facilement
+  S.diff = 5; // toujours le niveau le plus dur : l'imposteur ne doit pas pouvoir deviner
   $("loadText").textContent = "L'IA prépare la question…"; $("loadErr").hidden = true; show("s-load");
   let q;
   try { q = await getQuestion(); } catch (e) { if (!S.inGame) return; $("loadText").textContent = `Génération impossible : ${e.message}`; $("loadErr").hidden = false; IMP.round--; return; }
