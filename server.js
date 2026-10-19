@@ -627,6 +627,7 @@ function startGame(room) {
   players(room).forEach((p) => Object.assign(p, { lives: room.cfg.lives, score: 0, points: room.cfg.kind === "parieurs" ? BET_START : 0, dead: false, outAt: 0 }));
   if (room.cfg.kind === "equipes") makeTeams(room);
   if (room.cfg.kind === "parieurs") makeBetOrder(room);
+  if (room.cfg.kind === "imposteur") return impStart(room);
   nextTurn(room);
 }
 function nextTurn(room) {
@@ -762,6 +763,116 @@ function endTeams(room) {
     t: "end", kind: "equipes", winner: tie ? null : `Équipe ${teams[0].name}`,
     mvp: mvp && mvp.points > 0 ? { name: mvp.name, points: mvp.points } : null, // pas de « meilleur joueur » à 0 point
     ranking: teams.map((t, k) => ({ id: `t${k}`, name: `${t.name} (${t.members.map((p) => p.name).join(", ")})`, score: t.members.length, points: t.points, lives: 0, photo: "" }))
+  });
+}
+
+/* ====================== L'Imposteur en ligne ====================== */
+// Tout le monde reçoit la question et la réponse, sauf l'imposteur (la question seule). On discute (chat ou à voix haute),
+// puis chacun vote. Démasqué (majorité nette), l'imposteur a une dernière chance : trouver la réponse parmi 4 choix.
+const IMP_PTS = { hidden: 3, guessed: 2, crew: 1, voter: 1 }; // les mêmes que dans impostor.js
+const IMP_VOTE_MS = +process.env.IMP_VOTE_MS || 40000, IMP_GUESS_MS = +process.env.IMP_GUESS_MS || 20000;
+const present = (room) => players(room).filter((p) => !p.left);
+const impHead = (room) => ({ t: "imp", round: room.ir.round, rounds: room.ir.rounds, host: room.hostId });
+// chaque joueur garde le dernier écran reçu (pour revenir après une coupure) ; la télé n'a jamais la réponse avant la fin
+function impSend(p, o) { p.impLast = { ...o, at: Date.now() }; send(p.ws, o); }
+function impTv(room, o) { room.impTv = { ...o, at: Date.now() }; tvs(room).forEach((ws) => send(ws, o)); }
+function impStart(room) {
+  present(room).forEach((p) => { p.points = 0; p.imp = 0; p.impLast = null; });
+  room.ir = { round: 0, rounds: Math.min(6, Math.max(3, present(room).length)), last: null };
+  impRound(room);
+}
+async function impRound(room) {
+  clearTimeout(room.timer);
+  const ir = room.ir;
+  if (present(room).length < 3) return impEnd(room);
+  if (ir.round >= ir.rounds) return impEnd(room);
+  ir.round++;
+  room.diff = Math.min(5, 2 + Math.floor((ir.round - 1) / 2)); // de plus en plus dur : l'imposteur devine moins facilement
+  room.phase = "load"; cast(room, { t: "load", msg: "L'IA prépare la question…" });
+  let q;
+  try { q = await takeQuestion(room); }
+  catch (e) { console.error(e.message); ir.round--; room.phase = "error"; return cast(room, { t: "fail", msg: e.status === 429 ? e.message : "L'IA n'a pas répondu." }); }
+  if (!rooms.has(room.code) || room.phase !== "load") return;
+  const ps = present(room);
+  if (ps.length < 3) return impEnd(room);
+  const pool = ps.filter((p) => p.id !== ir.last); // jamais deux fois de suite le même imposteur
+  const bad = pick(pool.length ? pool : ps);
+  ir.imp = bad.id; ir.last = bad.id; bad.imp++;
+  const o = Array.isArray(q.o) ? q.o : [];
+  room.q = { ...q, options: shuffle(o.includes(q.a) ? o : [q.a, ...o.filter((x) => x !== q.a).slice(0, 3)]) };
+  ir.votes = new Map();
+  room.phase = "italk";
+  const ms = room.cfg.time * 1000;
+  if (ms) room.timer = setTimeout(() => impVoteStart(room), ms);
+  const base = { ...impHead(room), phase: "talk", tag: `${q.t} · ${LEVELS[room.diff]}`, q: q.q, img: q.img || null, ms, starter: pick(ps).name };
+  ps.forEach((p) => impSend(p, { ...base, imposter: p.id === bad.id, answer: p.id === bad.id ? null : q.a }));
+  impTv(room, { ...base, imposter: false, answer: null });
+}
+function impVoteStart(room) {
+  if (room.phase !== "italk") return;
+  clearTimeout(room.timer);
+  room.phase = "ivote";
+  room.timer = setTimeout(() => impTally(room), IMP_VOTE_MS);
+  const o = { ...impHead(room), phase: "vote", ms: IMP_VOTE_MS, players: present(room).map(({ id, name, photo }) => ({ id, name, photo })), count: 0, total: present(room).length };
+  present(room).forEach((p) => impSend(p, o));
+  impTv(room, o);
+}
+const impVoters = (room) => present(room).filter((p) => !p.away);
+function impVote(room, me, id) {
+  const t = room.players.get(String(id));
+  if (room.phase !== "ivote" || room.ir.votes.has(me.id) || !t || t.left || t.id === me.id) return;
+  room.ir.votes.set(me.id, t.id);
+  if (me.impLast && me.impLast.phase === "vote") me.impLast.picked = t.id;
+  const o = { t: "ivoted", count: room.ir.votes.size, total: present(room).length };
+  present(room).forEach((p) => send(p.ws, o)); tvs(room).forEach((ws) => send(ws, o));
+  if (impVoters(room).every((p) => room.ir.votes.has(p.id))) impTally(room); // tout le monde a voté
+}
+function impTally(room) {
+  if (room.phase !== "ivote") return;
+  clearTimeout(room.timer);
+  const ir = room.ir, n = new Map();
+  ir.votes.forEach((t) => n.set(t, (n.get(t) || 0) + 1));
+  const top = Math.max(0, ...n.values()), best = [...n].filter(([, v]) => v === top);
+  ir.accused = top && best.length === 1 ? best[0][0] : null; // égalité ou aucun vote : personne n'est accusé
+  if (ir.accused !== ir.imp) return impResult(room, false, false);
+  const bad = room.players.get(ir.imp);
+  if (!bad || bad.left) return impResult(room, true, false);
+  room.phase = "iguess";
+  room.timer = setTimeout(() => impResult(room, true, false), IMP_GUESS_MS);
+  const o = { ...impHead(room), phase: "guess", name: bad.name, q: room.q.q, options: room.q.options, ms: IMP_GUESS_MS };
+  present(room).forEach((p) => impSend(p, { ...o, you: p.id === bad.id }));
+  impTv(room, o);
+}
+function impGuess(room, me, i) {
+  if (room.phase !== "iguess" || me.id !== room.ir.imp || !Number.isInteger(i) || !room.q.options[i]) return;
+  impResult(room, true, room.q.options[i] === room.q.a);
+}
+function impResult(room, caught, guessed) {
+  clearTimeout(room.timer);
+  const ir = room.ir, gains = new Map(), add = (id, v) => { const p = room.players.get(id); if (p) { p.points += v; gains.set(id, (gains.get(id) || 0) + v); } };
+  if (!caught) add(ir.imp, IMP_PTS.hidden);
+  else if (guessed) add(ir.imp, IMP_PTS.guessed);
+  else present(room).forEach((p) => { if (p.id !== ir.imp) add(p.id, IMP_PTS.crew + (ir.votes.get(p.id) === ir.imp ? IMP_PTS.voter : 0)); });
+  room.phase = "ires";
+  const bad = room.players.get(ir.imp) || {}, name = (id) => room.players.get(id)?.name || "?";
+  const o = {
+    ...impHead(room), phase: "result", caught, guessed, imp: ir.imp, impName: bad.name, impPhoto: bad.photo || "", accusedName: ir.accused ? name(ir.accused) : null,
+    answer: room.q.a, last: ir.round >= ir.rounds,
+    votes: [...ir.votes].map(([from, to]) => ({ name: name(from), target: name(to), right: to === ir.imp })),
+    board: present(room).map((p) => ({ id: p.id, name: p.name, photo: p.photo, points: p.points, gain: gains.get(p.id) || 0 }))
+  };
+  present(room).forEach((p) => impSend(p, o));
+  impTv(room, o);
+}
+function impEnd(room) {
+  if (room.phase === "end") return;
+  clearTimeout(room.timer);
+  room.phase = "end";
+  const order = [...players(room)].sort((a, b) => b.points - a.points);
+  const tie = order.length > 1 && order[0].points === order[1].points;
+  cast(room, {
+    t: "end", kind: "imposteur", winner: tie ? null : order[0]?.name || null,
+    ranking: order.map((p) => ({ id: p.id, name: p.name, score: p.imp || 0, points: p.points, lives: 0, photo: p.photo }))
   });
 }
 
@@ -1120,6 +1231,7 @@ function drop(ws) {
   }
   const k = room.cfg.kind;
   if (k === "parieurs" && room.phase === "bet" && bettors(room).every((x) => room.bets.has(x.id))) betsDone(room); // on n'attend pas son pari
+  if (k === "imposteur" && room.phase === "ivote" && impVoters(room).every((p) => room.ir.votes.has(p.id))) impTally(room); // ni son vote
   if ((k === "survie" || k === "equipes" || k === "parieurs") && room.phase === "q" && players(room)[room.i]?.id === me.id && !room.cfg.time) {
     clearTimeout(room.timer); room.timer = setTimeout(() => resolveTurn(room, false, -1), 30000); // son tour, sans minuteur : on n'attend pas indéfiniment
   }
@@ -1154,6 +1266,11 @@ function rejoin(ws, m) {
     if (L && L.t === "load") send(ws, L);
     return;
   }
+  if (k === "imposteur" && ["italk", "ivote", "iguess", "ires"].includes(room.phase) && p.impLast) { // son propre écran (sa carte)
+    const o = { ...p.impLast };
+    if (o.ms) o.ms = Math.max(1000, o.ms - (Date.now() - p.impLast.at));
+    return send(ws, o);
+  }
   if (L) { // Survie, Équipes, Parieurs, fin de partie : on renvoie le dernier écran
     const o = { ...L };
     if (o.t === "q" && o.ms) o.ms = Math.max(1000, o.ms - (Date.now() - L.at));
@@ -1186,6 +1303,12 @@ function leave(ws) {
   if (lobbyLike) return castLobby(room);
   if (room.cfg.kind === "chrono") { clearTimeout(me.ctimer); me.done = true; me.cq = null; castBoard(room); return checkChronoEnd(room); }
   if (room.cfg.kind === "million") { if (!me.mout) { me.mout = true; me.mq = null; } return mCheck(room); }
+  if (room.cfg.kind === "imposteur") {
+    if (present.length < 3) return impEnd(room); // il faut au moins trois joueurs
+    if (me.id === room.ir?.imp && ["italk", "ivote", "iguess"].includes(room.phase)) { room.ir.round--; return impRound(room); } // l'imposteur est parti : on rejoue la manche
+    if (room.phase === "ivote") { room.ir.votes.delete(me.id); if (impVoters(room).every((p) => room.ir.votes.has(p.id))) impTally(room); }
+    return;
+  }
   if (room.cfg.kind === "equipes" || room.cfg.kind === "parieurs") {
     const bet = room.cfg.kind === "parieurs";
     if (present.length < 2) return bet ? endBets(room) : endTeams(room); // il faut au moins deux joueurs
@@ -1205,7 +1328,7 @@ function leave(ws) {
 function readCfg(m) {
   const themes = (Array.isArray(m.themes) ? m.themes : []).map((t) => clean(t, 50)).filter(Boolean).slice(0, 60);
   if (!themes.length) return "Choisissez au moins un thème.";
-  return { auto: !!m.auto, kind: ["chrono", "million", "equipes", "parieurs"].includes(m.kind) ? m.kind : "survie", themes, time: clamp(+m.time, 0, 120), lives: clamp(+m.lives || 2, 1, 5) };
+  return { auto: !!m.auto, kind: ["chrono", "million", "equipes", "parieurs", "imposteur"].includes(m.kind) ? m.kind : "survie", themes, time: clamp(+m.time, 0, 120), lives: clamp(+m.lives || 2, 1, 5) };
 }
 
 function handle(ws, m) {
@@ -1236,6 +1359,7 @@ function handle(ws, m) {
     tvNotify(room); // les téléphones savent qu'une télé est branchée
     if (room.phase === "chrono") castBoard(room);
     if (room.phase === "mq" || room.phase === "mres") mBoard(room);
+    if (["italk", "ivote", "iguess", "ires"].includes(room.phase) && room.impTv) send(ws, room.impTv); // L'Imposteur (jamais la réponse avant la fin)
     return;
   }
   if (m.t === "create") {
@@ -1272,6 +1396,7 @@ function handle(ws, m) {
     if (room.cfg.kind === "chrono") return startChrono(room); // le Chrono se joue aussi seul
     if (room.cfg.kind === "million") return startMillion(room); // le Millionnaire aussi
     if (players(room).length < 2) return send(ws, { t: "error", msg: "Il faut au moins 2 joueurs." });
+    if (room.cfg.kind === "imposteur" && players(room).length < 3) return send(ws, { t: "error", msg: "L'Imposteur se joue à 3 joueurs ou plus." });
     startGame(room);
   } else if (m.t === "answer") {
     if (room.cfg.kind === "chrono") chronoAnswer(room, me, Number(m.i));
@@ -1283,7 +1408,11 @@ function handle(ws, m) {
   else if (m.t === "mstop" && room.cfg.kind === "million") mStop(room, me);
   else if (m.t === "retry" && host && room.phase === "merror") mNext(room, true);
   else if (m.t === "level" && host && room.phase === "level") chooseLevel(room, !!m.up);
-  else if (m.t === "retry" && host && room.phase === "error") loadQuestion(room);
+  else if (m.t === "retry" && host && room.phase === "error") room.cfg.kind === "imposteur" ? impRound(room) : loadQuestion(room);
+  else if (m.t === "impvote" && host && room.phase === "italk") impVoteStart(room); // l'hôte lance le vote
+  else if (m.t === "vote" && room.cfg.kind === "imposteur") impVote(room, me, m.id);
+  else if (m.t === "iguess" && room.cfg.kind === "imposteur") impGuess(room, me, Number(m.i));
+  else if (m.t === "next" && host && room.phase === "ires") impRound(room);
   else if (m.t === "again") { if (host && room.phase === "end") { resetRoom(room); castLobby(room); } else send(ws, lobbyMsg(room, me)); }
   else if (m.t === "config" && host && room.phase === "lobby") {
     const c = readCfg(m);

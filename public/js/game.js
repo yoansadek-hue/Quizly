@@ -9,11 +9,13 @@ import { initFriends, friendCodeFrom } from "./friends.js";
 import { enablePush, disablePush, pushMuted, pushState, currentSub } from "./push.js";
 import { initCosmetics, styleName, titleOf } from "./cosmetics.js";
 import { initQuests } from "./quests.js";
+import { impUI, IMP_PTS } from "./impostor.js";
 
-const VERSION = "2.25.1"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.26.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
+const imp = impUI($, avatarEl); // l'écran de L'Imposteur (un téléphone et en ligne)
 const MODES = {
   online: { name: "En ligne", desc: "Une salle et un code : chacun joue sur son téléphone. Survie, Chrono 60 s ou Qui veut gagner des millions.", qcm: true, time: 30, joker: false, lives: true, online: true },
   classic: { name: "Classique", desc: "Réponse à l'oral, le groupe valide. Carte retournable à volonté, jokers 4 choix.", qcm: false, time: 30, joker: true, lives: true },
@@ -21,10 +23,12 @@ const MODES = {
   teams: { name: "Équipes", desc: "Sur un téléphone, en équipes qui jouent chacune leur tour. 3 questions par joueur, les points s'additionnent.", qcm: true, time: 30, joker: false, lives: false, teams: true },
   solo: { name: "Solo", desc: "Seul face aux questions : QCM, 3 vies, battez votre record.", qcm: true, time: 30, joker: false, lives: true, solo: true },
   million: { name: "Qui veut gagner des millions", desc: "Seul ou à plusieurs sur un téléphone : 15 questions, 3 jokers, des paliers sûrs. Visez le million !", qcm: true, time: 0, joker: false, lives: false, million: true },
+  impostor: { name: "L'Imposteur", desc: "Tout le monde voit la bonne réponse sauf l'imposteur, qui doit faire semblant de la connaître. Discutez, puis votez pour le démasquer.", qcm: true, time: 60, joker: false, lives: false, impostor: true },
   // types de salon, choisis depuis « En ligne »
   chrono: { name: "Chrono en ligne", qcm: true, time: 60, joker: false, lives: false, online: true, chrono: true, hidden: true },
   oteams: { name: "Équipes en ligne", qcm: true, time: 30, joker: false, lives: false, online: true, teams: true, hidden: true },
   obets: { name: "Les Parieurs", qcm: true, time: 30, joker: false, lives: false, online: true, bets: true, hidden: true },
+  oimp: { name: "L'Imposteur en ligne", qcm: true, time: 60, joker: false, lives: false, online: true, impostor: true, hidden: true },
   omillion: { name: "Millionnaire en ligne", qcm: true, time: 30, joker: false, lives: false, online: true, million: true, hidden: true }
 };
 const TIMES = [10, 15, 20, 30, 45, 60, 0];
@@ -38,7 +42,7 @@ const S = {
 };
 const M = () => MODES[S.mode];
 document.querySelectorAll(".ver").forEach((e) => (e.textContent = `Quizly v${VERSION} · par YoskanGame`));
-const online = initOnline({ $, show, flash, confetti, me: () => ({ name: S.firstName || "Joueur", photo: S.photo || "", uid: S.uid || "", cos: cosm.get() }),
+const online = initOnline({ $, show, flash, confetti, imp, me: () => ({ name: S.firstName || "Joueur", photo: S.photo || "", uid: S.uid || "", cos: cosm.get() }),
   addFriend: (uid, name) => friends.addByUid(uid, name), isFriend: (uid) => friends.isFriend(uid), record: chronoRecord, millionUI, avatarEl, setAudio, noteQ: noteRecent, recent: () => getRecent().arr.slice(-300).map((x) => String(x).slice(0, 220)), setMode: (kind) => (S.mode = KIND_MODE[kind] || "online"), stat: { answer: (t, ok) => statAnswer(t, ok), game: (k) => statGame(k), win: () => quests.tick("win") } });
 // record personnel du Chrono en ligne (gardé sur l'appareil, par compte)
 function chronoRecord(points) {
@@ -54,7 +58,7 @@ function chronoRecord(points) {
 
 /* ---------- Écrans & effets ---------- */
 // pendant une partie, le bouton du haut affiche « Quitter » au lieu de « Menu »
-const PLAYING = ["s-game", "s-million", "s-level", "s-revive", "s-load", "s-bet", "s-daily"];
+const PLAYING = ["s-game", "s-million", "s-level", "s-revive", "s-load", "s-bet", "s-daily", "s-imp"];
 let curScreen = "";
 function userLabel() {
   let on = false; try { on = online.active(); } catch {}
@@ -75,7 +79,8 @@ function show(id) {
   // rond des réactions : seulement pendant une partie en ligne
   // le chat reste ouvert d'une question à l'autre (on peut finir sa phrase) ; il se ferme seulement hors du jeu
   let onl = false; try { onl = online.active(); } catch {}
-  const chat = onl && ["s-game", "s-million", "s-load"].includes(id);
+  const chat = onl && ["s-game", "s-million", "s-load", "s-imp"].includes(id); // L'Imposteur en ligne : on discute dans le chat
+  if (id !== "s-imp") imp.stop(); // le compte à rebours de l'Imposteur s'arrête en quittant son écran
   if (!chat) try { online.closeReacts(); } catch {}
   $("reactFab").hidden = !chat;
   if (id !== "s-game") stopAudio(); // l'extrait s'arrête quand on quitte la question
@@ -227,8 +232,11 @@ function opts(box, values, current, label, onPick) {
   });
 }
 function renderTime() {
-  opts($("optTime"), TIMES, S.cfg.time, (v) => (v ? `${v} s` : "Sans limite"), (v) => (S.cfg.time = v));
-  $("autoRow").hidden = !!M().million; // le Millionnaire a déjà son échelle
+  const imp = !!M().impostor; // L'Imposteur : c'est le temps de discussion
+  $("timeTitle").textContent = imp ? "Temps de discussion" : "Temps par question";
+  $("timeLead").textContent = imp ? "Le temps pour donner vos indices avant de voter." : "Choisissez la durée dont chaque joueur dispose.";
+  opts($("optTime"), imp ? [30, 60, 90, 120, 180, 0] : TIMES, S.cfg.time, (v) => (v ? (v >= 60 && !(v % 60) ? `${v / 60} min` : `${v} s`) : "Sans limite"), (v) => (S.cfg.time = v));
+  $("autoRow").hidden = !!M().million || imp; // le Millionnaire a déjà son échelle
   opts($("optAuto"), [true, false], S.cfg.auto, (v) => (v ? "Évolutive" : "Au choix"), (v) => (S.cfg.auto = v));
 }
 function renderJokers() {
@@ -400,6 +408,7 @@ function startGame() {
   const bank = loadBank();
   S.buf = bank.filter((q) => S.active.has(q.t) && !seen(q.q));
   S.rest = bank.filter((q) => !S.active.has(q.t));
+  if (m.impostor) return impStart();
   nextTurn();
 }
 
@@ -780,6 +789,92 @@ $("btnTeams").onclick = () => {
   renderThemes(); show("s-themes");
 };
 
+/* ---------- L'Imposteur (un téléphone) ---------- */
+// On se passe le téléphone : chacun découvre sa carte en secret (la question et la réponse ; l'imposteur, seulement
+// la question). On discute, puis le groupe désigne un suspect. Démasqué, l'imposteur a une dernière chance : trouver la réponse.
+const IMP = {};
+const impShuffle = (a) => a.map((x) => [Math.random(), x]).sort((p, q) => p[0] - q[0]).map((x) => x[1]);
+const impHead = () => ({ round: IMP.round, rounds: IMP.rounds });
+function impStart() {
+  S.active.delete(SONG_THEME); // on ne peut pas écouter un extrait en secret
+  if (!S.active.size) THEMES.filter((t) => t !== SONG_THEME).forEach((t) => S.active.add(t));
+  S.players.forEach((p) => { p.points = 0; p.imp = 0; });
+  Object.assign(IMP, { round: 0, rounds: Math.min(6, Math.max(3, S.players.length)), last: -1 });
+  impRound();
+}
+async function impRound() {
+  if (!S.inGame) return;
+  if (IMP.round >= IMP.rounds) return impEnd();
+  IMP.round++;
+  S.diff = Math.min(5, 2 + Math.floor((IMP.round - 1) / 2)); // de plus en plus dur : l'imposteur devine moins facilement
+  $("loadText").textContent = "L'IA prépare la question…"; $("loadErr").hidden = true; show("s-load");
+  let q;
+  try { q = await getQuestion(); } catch (e) { if (!S.inGame) return; $("loadText").textContent = `Génération impossible : ${e.message}`; $("loadErr").hidden = false; IMP.round--; return; }
+  if (!S.inGame) return;
+  const opts = (q.o || []).includes(q.a) ? q.o : [q.a, ...(q.o || []).filter((o) => o !== q.a).slice(0, 3)];
+  const others = S.players.map((p, i) => i).filter((i) => i !== IMP.last); // jamais deux fois de suite le même imposteur
+  IMP.imp = others[Math.floor(Math.random() * others.length)]; IMP.last = IMP.imp;
+  S.players[IMP.imp].imp++;
+  Object.assign(IMP, { q, options: impShuffle(opts), k: 0 });
+  impPass();
+}
+const impCardOf = (i) => ({ ...impHead(), tag: `${IMP.q.t} · ${LEVELS[S.diff]}`, q: IMP.q.q, img: IMP.q.img || null, imposter: i === IMP.imp, answer: i === IMP.imp ? null : IMP.q.a });
+function impPass() { // au suivant de découvrir sa carte
+  if (IMP.k >= S.players.length) return impTalk();
+  const p = S.players[IMP.k];
+  imp.pass({ ...impHead(), name: p.name, photo: photoOf(p.name) }, () => imp.card(impCardOf(IMP.k), () => { IMP.k++; impPass(); }));
+  show("s-imp");
+}
+function impTalk() {
+  // pendant la discussion, le téléphone posé au milieu montre la question, sans la réponse
+  const starter = S.players[Math.floor(Math.random() * S.players.length)].name;
+  imp.talk({ ...impHead(), tag: `${IMP.q.t} · ${LEVELS[S.diff]}`, q: IMP.q.q, img: IMP.q.img || null, ms: S.cfg.time * 1000, starter }, impVote, impVote);
+  show("s-imp");
+}
+function impVote() {
+  imp.vote({ ...impHead(), info: "Mettez-vous d'accord, puis touchez le suspect.", players: S.players.map((p, i) => ({ id: i, name: p.name, photo: photoOf(p.name) })) },
+    (p) => ask(`Accuser ${p.name} ?`, "Le groupe pense que c'est l'imposteur.", "Accuser", () => impAccuse(p.id)));
+}
+function impAccuse(i) {
+  IMP.accused = i;
+  if (i !== IMP.imp) return impResult(false, false);
+  const p = S.players[IMP.imp]; // démasqué : on lui passe le téléphone pour sa dernière chance
+  imp.pass({ ...impHead(), name: p.name, photo: photoOf(p.name) }, () =>
+    imp.guess({ ...impHead(), q: IMP.q.q, options: IMP.options }, (k, o) => setTimeout(() => impResult(true, o === IMP.q.a), 700)));
+}
+function impResult(caught, guessed) {
+  const before = S.players.map((p) => p.points);
+  const bad = S.players[IMP.imp];
+  if (!caught) bad.points += IMP_PTS.hidden;
+  else if (guessed) bad.points += IMP_PTS.guessed;
+  else S.players.forEach((p, i) => { if (i !== IMP.imp) p.points += IMP_PTS.crew + IMP_PTS.voter; }); // sur un téléphone, tout le monde a voté ensemble
+  if (!caught || guessed) flash("ko"); else flash("ok");
+  const last = IMP.round >= IMP.rounds;
+  imp.result({
+    ...impHead(), caught, guessed, impName: bad.name, impPhoto: photoOf(bad.name), accusedName: S.players[IMP.accused]?.name, answer: IMP.q.a,
+    board: S.players.map((p, i) => ({ name: p.name, photo: photoOf(p.name), points: p.points, gain: p.points - before[i] }))
+  }, impRound, last ? "Voir le classement" : "Manche suivante");
+  show("s-imp");
+}
+function impEnd() {
+  S.inGame = false;
+  const order = [...S.players].sort((a, b) => b.points - a.points);
+  const tie = order.length > 1 && order[0].points === order[1].points;
+  $("endLead").textContent = tie ? "Partie terminée" : "Vainqueur";
+  $("winner").textContent = tie ? "Égalité" : order[0].name;
+  $("endNote").textContent = "L'Imposteur";
+  const ol = $("ranking"); ol.replaceChildren();
+  order.forEach((p, i) => {
+    const li = document.createElement("li"); li.className = "rk" + (i === 0 ? " first" : ""); li.style.animationDelay = `${0.35 + i * 0.12}s`;
+    const pos = document.createElement("span"); pos.className = "pos"; pos.textContent = i + 1;
+    const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = p.name;
+    const st = document.createElement("span"); st.className = "st"; st.textContent = `${p.points} pts · imposteur ${p.imp}×`;
+    li.append(pos, avatarEl(p.name, photoOf(p.name)), nm, st); ol.append(li);
+  });
+  show("s-end");
+  confetti();
+}
+
 /* ---------- Statistiques (onglet Profil) ---------- */
 const statKey = () => `quizly:${S.uid}:stats`;
 function getStats() {
@@ -807,12 +902,12 @@ function statGame(kind) {
   cosm.earn(2, "partie"); // 2 Q-Bucks par partie
   quests.tick("game");
   friends.clubSync(); // le club voit vos chiffres de la semaine
-  if (["online", "chrono", "omillion", "oteams", "obets"].includes(kind)) quests.tick("online");
+  if (["online", "chrono", "omillion", "oteams", "obets", "oimp"].includes(kind)) quests.tick("online");
   if (kind === "chrono") quests.tick("chrono");
   if (kind === "million" || kind === "omillion") quests.tick("million");
   checkAch();
 }
-const GAME_NAMES = { classic: "Classique", qcm: "QCM", solo: "Solo", teams: "Équipes", million: "Millionnaire", online: "En ligne", chrono: "Chrono", omillion: "Millionnaire en ligne", oteams: "Équipes en ligne", obets: "Les Parieurs" };
+const GAME_NAMES = { classic: "Classique", qcm: "QCM", solo: "Solo", teams: "Équipes", million: "Millionnaire", online: "En ligne", chrono: "Chrono", omillion: "Millionnaire en ligne", oteams: "Équipes en ligne", obets: "Les Parieurs", impostor: "L'Imposteur", oimp: "L'Imposteur en ligne" };
 function renderProfile() {
   const st = getStats();
   const best = (k) => { try { return +localStorage.getItem(`quizly:${S.uid}:${k}`) || 0; } catch { return 0; } };
@@ -960,8 +1055,8 @@ function setUser(name, photo) {
 
 // menu : 3 blocs (En ligne · Party · Solo). Party et Solo ouvrent leur propre liste de modes.
 const SECTIONS = {
-  party: ["Party", "Sur un seul téléphone, entre amis : Classique, QCM, Équipes et Qui veut gagner des millions.", [
-    ["classic"], ["qcm"], ["teams"],
+  party: ["Party", "Sur un seul téléphone, entre amis : Classique, QCM, Équipes, L'Imposteur et Qui veut gagner des millions.", [
+    ["classic"], ["qcm"], ["teams"], ["impostor"],
     ["million", "Qui veut gagner des millions", "À plusieurs : chacun son échelle de 15 questions et ses 3 jokers. Celui qui repart avec le plus gagne."]
   ]],
   solosec: ["Solo", "Seul face aux questions : Solo et Qui veut gagner des millions.", [
@@ -1450,6 +1545,7 @@ $("btnNames").onclick = () => {
   const err = validateNames();
   $("namesMsg").textContent = err;
   if (err) return;
+  if (M().impostor && S.slots.length < 3) { $("namesMsg").textContent = "L'Imposteur se joue à 3 joueurs ou plus."; return; }
   if (M().million) return startMillion(); // Millionnaire : pas de choix de thèmes
   if (M().teams) { renderTeams(); return show("s-teams"); } // Équipes : on forme les équipes
   renderThemes(); show("s-themes");
@@ -1463,18 +1559,18 @@ $("btnThemes").onclick = () => {
   renderTime(); show("s-time");
 };
 $("btnTime").onclick = () => {
-  if (M().online && (M().million || M().teams || M().bets)) return submitRoom(); // Millionnaire, Équipes et Parieurs en ligne : pas de vies
+  if (M().online && (M().million || M().teams || M().bets || M().impostor)) return submitRoom(); // Millionnaire, Équipes, Parieurs et Imposteur en ligne : pas de vies
   if (M().online) { renderLivesOpt(); show("s-jokers"); }
   else if (M().joker) { renderJokers(); show("s-jokers"); }
   else startGame();
 };
 function submitRoom() {
-  const cfg = { auto: S.cfg.auto, kind: M().chrono ? "chrono" : M().million ? "million" : M().teams ? "equipes" : M().bets ? "parieurs" : "survie", themes: [...S.active], time: S.cfg.time, lives: S.cfg.lives };
+  const cfg = { auto: S.cfg.auto, kind: M().chrono ? "chrono" : M().million ? "million" : M().teams ? "equipes" : M().bets ? "parieurs" : M().impostor ? "imposteur" : "survie", themes: [...S.active].filter((t) => !M().impostor || t !== SONG_THEME), time: S.cfg.time, lives: S.cfg.lives };
   if (S.editRoom) { S.editRoom = false; online.setEditing(false); online.config(cfg); } // l'hôte modifie la salle
   else online.create(cfg);
 }
 $("btnStart").onclick = () => (M().online ? submitRoom() : startGame());
-$("btnRetry").onclick = () => (M().online ? online.retry() : M().million ? million.retry() : loadAndPlay());
+$("btnRetry").onclick = () => (M().online ? online.retry() : M().million ? million.retry() : M().impostor ? impRound() : loadAndPlay());
 $("btnSwap").onclick = () => { if (S.locked || !S.inGame) return; stopTimer(); loadAndPlay(); };
 $("btnStopTimer").onclick = stopTimer;
 $("card").onclick = flip;
@@ -1505,9 +1601,10 @@ const ROOM_MODES = [
   ["chrono", "chrono", "Chrono 60 s", "Tout le monde joue en même temps pendant 60 secondes. Le plus de points gagne."],
   ["oteams", "teams", "Équipes", "Les joueurs sont répartis en équipes qui jouent chacune leur tour. Les points s'additionnent."],
   ["obets", "bets", "Les Parieurs", "Chacun répond à son tour. Avant sa réponse, les autres parient leurs jetons : réussira-t-il ou non ? Le plus riche gagne."],
+  ["oimp", "impostor", "L'Imposteur", "Tout le monde voit la bonne réponse sauf l'imposteur, qui doit faire semblant en discutant. Ensuite, on vote pour le démasquer."],
   ["omillion", "million", "Qui veut gagner des millions", "La même échelle de 15 questions pour tous, chacun avec ses jokers. Celui qui repart avec le plus gagne."]
 ];
-const KIND_MODE = { survie: "online", chrono: "chrono", million: "omillion", equipes: "oteams", parieurs: "obets" };
+const KIND_MODE = { survie: "online", chrono: "chrono", million: "omillion", equipes: "oteams", parieurs: "obets", imposteur: "oimp" };
 function renderRoomModes(current) {
   const box = $("roomModes");
   box.replaceChildren();
@@ -1919,7 +2016,7 @@ function achFacts() {
     games: Object.values(g).reduce((a, v) => a + v, 0), good: t.reduce((a, x) => a + x.ok, 0), themes: Object.keys(st.themes || {}).length,
     bestRun: st.bestRun || 0, best2: b("best2"), bestChrono: b("bestChrono"), bestMillion: b("bestMillion"),
     perfect: !!(d && d.done !== false && d.score === 10) || !!getAch().perfect, streak: dailyStreak(),
-    onlineGames: (g.online || 0) + (g.chrono || 0) + (g.omillion || 0) + (g.oteams || 0) + (g.obets || 0), friends: friends.ready() ? friends.count() : 0
+    onlineGames: (g.online || 0) + (g.chrono || 0) + (g.omillion || 0) + (g.oteams || 0) + (g.obets || 0) + (g.oimp || 0), friends: friends.ready() ? friends.count() : 0
   };
 }
 // jetons en cadeau pour ce qui a été fait avant la Boutique : 1 par bonne réponse, 2 par partie, 10 par Défi du jour, 25 par succès

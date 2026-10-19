@@ -5,7 +5,7 @@ import { THEMES } from "./questions.js";
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
-const KIND = { survie: "Survie", chrono: "Chrono 60 s", million: "Qui veut gagner des millions", equipes: "Équipes", parieurs: "Les Parieurs" };
+const KIND = { survie: "Survie", chrono: "Chrono 60 s", million: "Qui veut gagner des millions", equipes: "Équipes", parieurs: "Les Parieurs", imposteur: "L'Imposteur" };
 const TAUNTS = ["Trop facile", "Tu dors ?", "Pleure pas", "Même pas peur", "Je suis trop fort", "Cadeau !"];
 const T = { ws: null, code: "", pl: {}, kind: "survie", raf: 0, last: null, board: [], mboard: [], who: null, craf: 0 };
 
@@ -55,6 +55,8 @@ function onMsg(m) {
     case "mspec": renderMSpec(m); break;
     case "mout": break; // visible dans la colonne de droite
     case "bets": betCount(m.count); break;
+    case "imp": renderImp(m); break;
+    case "ivoted": $("tImpLive").replaceChildren(el("span", "chip", `${m.count} / ${m.total} ont voté`)); break;
     case "go": betsGo(m); break;
     case "end": renderEnd(m); break;
     case "react": bubble(m.name, TAUNTS[m.r] || "", `r${m.r} ${m.sk || ""}`); break;
@@ -125,6 +127,34 @@ function splash(name, ph) {
   $("gSplashName").textContent = name;
   s.hidden = false; s.style.animation = "none"; void s.offsetWidth; s.style.animation = "";
   clearTimeout(T.splashT); T.splashT = setTimeout(() => (s.hidden = true), 1400);
+}
+
+/* ---------- L'Imposteur ---------- */
+function renderImp(m) {
+  stopRing();
+  $("tImpRound").textContent = `L'Imposteur · manche ${m.round} / ${m.rounds}`;
+  const live = $("tImpLive");
+  if (m.phase === "talk") {
+    $("tImpTitle").textContent = m.q;
+    $("tImpText").textContent = `Discutez ! Chacun donne un indice sur la réponse, sans la dire. Un imposteur ne la connaît pas…${m.starter ? ` ${m.starter} commence.` : ""}`;
+    live.replaceChildren();
+  } else if (m.phase === "vote") {
+    $("tImpTitle").textContent = "Qui est l'imposteur ?";
+    $("tImpText").textContent = "Votez sur vos téléphones.";
+    live.replaceChildren(el("span", "chip", `${m.count || 0} / ${m.total} ont voté`));
+  } else if (m.phase === "guess") {
+    $("tImpTitle").textContent = `${m.name} est démasqué !`;
+    $("tImpText").textContent = "Dernière chance : trouver la bonne réponse…";
+    live.replaceChildren(...m.options.map((o) => el("span", "chip", o)));
+  } else if (m.phase === "result") {
+    $("tImpTitle").textContent = m.caught && !m.guessed ? `${m.impName} était l'imposteur !` : m.caught ? `${m.impName} a trouvé la réponse !` : `L'imposteur était ${m.impName} !`;
+    $("tImpText").textContent = `La réponse : ${m.answer}`;
+    live.replaceChildren(...[...m.board].sort((a, b) => b.points - a.points).map((p) => {
+      const c = el("span", "chip"); c.append(avatarEl(p.name, p.photo || photo(p.id)), document.createTextNode(` ${p.name} · ${p.points} pts${p.gain ? ` (+${p.gain})` : ""}`)); return c;
+    }));
+    if (m.caught && !m.guessed) confetti();
+  }
+  show("tImp");
 }
 
 /* ---------- Survie et Équipes ---------- */
@@ -271,7 +301,7 @@ function renderRace() {
 /* ---------- fin : podium et confettis ---------- */
 function renderEnd(m) {
   stopRing(); cancelAnimationFrame(T.craf);
-  const fmt = (p) => (m.kind === "million" ? euros(p.points) : m.kind === "parieurs" ? `${p.points} jetons` : m.kind === "chrono" || m.kind === "equipes" ? `${p.points} pts` : `${p.score} bonne${p.score > 1 ? "s" : ""}`);
+  const fmt = (p) => (m.kind === "million" ? euros(p.points) : m.kind === "parieurs" ? `${p.points} jetons` : m.kind === "imposteur" ? `${p.points} pts` : m.kind === "chrono" || m.kind === "equipes" ? `${p.points} pts` : `${p.score} bonne${p.score > 1 ? "s" : ""}`);
   $("tEndLead").textContent = m.winner ? "Vainqueur" : "Partie terminée";
   $("tWinner").textContent = m.winner || "Égalité";
   const top = m.ranking.slice(0, 3);

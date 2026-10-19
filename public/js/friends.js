@@ -356,7 +356,7 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
       return row(f, [b]);
     }) : [Object.assign(document.createElement("p"), { className: "lead small", textContent: "Ajoutez des amis depuis votre Profil pour les inviter." })]));
   }
-  const KIND = { survie: "Survie", chrono: "Chrono 60 s", million: "Qui veut gagner des millions", equipes: "Équipes", parieurs: "Les Parieurs" };
+  const KIND = { survie: "Survie", chrono: "Chrono 60 s", million: "Qui veut gagner des millions", equipes: "Équipes", parieurs: "Les Parieurs", imposteur: "L'Imposteur" };
   function showInvite(inv) {
     F.inv = inv;
     const t = $("inviteToast");
