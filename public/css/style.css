@@ -1254,3 +1254,22 @@ body.swipe .tabbar{-webkit-backdrop-filter:none;backdrop-filter:none;background:
 #shopGrid .item.r-b{border-top-color:var(--ink)} #shopGrid .item.r-c{border-top-color:#9aa6b8} #shopGrid .item.r-r{border-top-color:var(--sky)}
 #shopGrid .item.r-e{border-top-color:#a66bff} #shopGrid .item.r-l{border-top-color:#ff9f45} #shopGrid .item.r-x{border-top-color:var(--coral)}
 @media (min-width:700px){#shopGrid .shopgrid{grid-template-columns:repeat(4,1fr)}}
+/* ---------- 2.24 : Les Parieurs en ligne ---------- */
+.mode[data-m=bets]{background:var(--sky)}
+.mode[data-m=bets]::after{width:90px;height:90px;right:-14px;top:-20px;border-radius:50%;border:12px solid rgba(30,15,69,.12);box-shadow:-46px 54px 0 -20px rgba(30,15,69,.1)}
+.betbox{display:flex;flex-direction:column;gap:10px;margin:14px 0 0;padding:14px;background:var(--bg-deep);border:3px solid var(--ink);border-radius:22px;box-shadow:var(--edge-s)}
+#betCtrl{display:flex;flex-direction:column;gap:10px}
+#betCtrl[hidden]{display:none}
+.betq{margin:0;font:800 15px var(--display);color:var(--sun);text-align:center}
+.betamts{display:flex;flex-wrap:wrap;justify-content:center;gap:8px}
+.betamts .chip{min-height:40px;padding:6px 16px;background:var(--paper);font:800 15px var(--display);box-shadow:var(--edge-s)}
+.betamts .chip[aria-pressed=true]{background:var(--sun)}
+.betbox .two .btn{min-height:52px;font-size:15px}
+#betPass{align-self:center;color:var(--lilac)}
+.betwait{margin:0;text-align:center;font:700 14px var(--font);color:var(--lilac)}
+.betlist{display:flex;flex-wrap:wrap;gap:6px;margin:0;padding:0;list-style:none}
+.betlist:empty{display:none}
+.betlist li{display:inline-flex;gap:6px;align-items:center;padding:5px 12px;border-radius:99px;background:rgba(255,255,255,.1);font:700 13px var(--font);color:var(--paper);animation:pop .25s backwards}
+.betlist li b{font-family:var(--display)}
+.betlist li.won{background:var(--mint);color:var(--ink)}
+.betlist li.lost{background:var(--coral);color:var(--ink)}

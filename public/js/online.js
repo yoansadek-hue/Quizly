@@ -117,6 +117,9 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
       case "level": renderLevel(m); break;
       case "end": renderEnd(m); break;
       case "host": O.host = m.host; break;
+      // Les Parieurs en ligne
+      case "bets": if (O.cur) { O.cur.bets = m.list; renderBets(); } break;
+      case "go": goAnswer(m); break;
       case "tvflag": tvMode(m.tv, m.kind); break;
       // Chrono en ligne
       case "cgo": O.chrono = true; O.board = []; break;
@@ -197,7 +200,8 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     });
     const host = m.host === m.you;
     $("lobbyCount").textContent = `${m.players.length} / 20 joueurs`;
-    const chrono = m.cfg.kind === "chrono", mill = m.cfg.kind === "million", teams = m.cfg.kind === "equipes", need = chrono || mill ? 1 : 2; // Chrono et Millionnaire se jouent aussi seul
+    const chrono = m.cfg.kind === "chrono", mill = m.cfg.kind === "million", teams = m.cfg.kind === "equipes", bets = m.cfg.kind === "parieurs", need = chrono || mill ? 1 : 2; // Chrono et Millionnaire se jouent aussi seul
+    $("betBox").hidden = true;
     tvMode(m.tv, m.cfg.kind);
     // salon télé : pas de code à donner, on rejoint seulement en scannant la télé
     $("lobbyCode").hidden = !!m.tvRoom;
@@ -214,6 +218,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     $("lobbyInfo").textContent = chrono
       ? `Chrono 60 s · ${plural(m.cfg.themes.length, "thème")} · le plus de points gagne`
       : mill ? `Qui veut gagner des millions · toutes les catégories · ${m.cfg.time ? m.cfg.time + " s par question" : "sans limite"}`
+      : bets ? `Les Parieurs · ${plural(m.cfg.themes.length, "thème")} · ${m.cfg.time ? m.cfg.time + " s" : "sans limite"} · 3 questions par joueur · 100 jetons au départ`
       : teams ? `Équipes · ${plural(m.cfg.themes.length, "thème")} · ${m.cfg.time ? m.cfg.time + " s" : "sans limite"} · 3 questions par joueur${m.cfg.auto ? " · difficulté évolutive" : ""}`
       : `${plural(m.cfg.themes.length, "thème")} · ${m.cfg.time ? m.cfg.time + " s" : "sans limite"} · ${plural(m.cfg.lives, "vie")}${m.cfg.auto ? " · difficulté évolutive" : ""}`;
     $("btnLobbyStart").hidden = !host;
@@ -260,9 +265,12 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     $("whoName").textContent = mine ? `${m.name} (vous)` : m.name;
     $("whoAv").replaceChildren(avatarEl(m.name, photoOf(m.who), true));
     $("whoName").classList.remove("retry");
-    $("whoLives").hidden = false; $("whoLives").textContent = m.teams ? `Équipe ${m.team}` : `${HEART} ${m.lives}`;
+    const bets = O.cfg && O.cfg.kind === "parieurs";
+    $("whoLives").hidden = false; $("whoLives").textContent = m.teams ? `Équipe ${m.team}` : bets ? jetons(m.tokens ?? tokensOf(m.who)) : `${HEART} ${m.lives}`;
     $("alive").hidden = false;
-    $("alive").textContent = m.teams ? `${mine ? "À vous de jouer · " : ""}${teamLine(m.teams)}` : mine ? "C'est à vous de jouer" : `${m.alive} joueurs en vie`;
+    $("alive").textContent = m.teams ? `${mine ? "À vous de jouer · " : ""}${teamLine(m.teams)}`
+      : bets ? (m.bet ? (mine ? "Les autres parient sur vous…" : `Pariez : ${m.name} va-t-il réussir ?`) : mine ? "À vous de répondre !" : `${m.name} répond…`)
+      : mine ? "C'est à vous de jouer" : `${m.alive} joueurs en vie`;
     $("tag").textContent = m.tag;
     const ql = m.q.length;
     $("qText").textContent = m.q;
@@ -279,17 +287,68 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
       b.className = "btn white"; b.textContent = o; b.style.animation = `pop .35s ${i * 70}ms backwards`;
       if (mine) {
         b.onclick = () => {
-          if (O.answered) return;
+          if (O.answered || (O.cur && O.cur.bet)) return; // Parieurs : on attend la fin des paris
           O.answered = true; b.classList.add("picked");
           box.querySelectorAll(".btn").forEach((x) => (x.disabled = true));
           send({ t: "answer", i });
         };
-      } else b.disabled = true;
+      }
+      b.disabled = !mine || !!m.bet;
       box.append(b);
     });
     box.hidden = false;
-    
+    renderBets();
     show("s-game");
+    startClock(m.ms);
+  }
+
+  /* ----- Les Parieurs : avant la réponse, les autres parient leurs jetons ----- */
+  const jetons = (n) => `${n || 0} jeton${n > 1 ? "s" : ""}`;
+  const tokensOf = (id) => ((O.cur && O.cur.board) || []).find((p) => p.id === id)?.points || 0;
+  let betAmt = 10;
+  function renderBets() {
+    const m = O.cur, on = !!m && O.cfg && O.cfg.kind === "parieurs";
+    $("betBox").hidden = !on;
+    if (!on) return;
+    const mine = m.who === O.you, list = m.bets || [], my = list.find((b) => b.id === O.you), have = tokensOf(O.you);
+    // les commandes : seulement pendant les paris, pour ceux qui ne répondent pas et n'ont pas encore parié
+    const can = m.bet && !mine && !my && have > 0;
+    $("betCtrl").hidden = !can;
+    if (can) {
+      $("betQ").textContent = `Vous avez ${jetons(have)}. Combien misez-vous ?`;
+      const amts = [10, 25, 50].filter((a) => a < have).concat(have);
+      if (!amts.includes(betAmt)) betAmt = amts[0];
+      $("betAmts").replaceChildren(...amts.map((a) => {
+        const b = document.createElement("button"); b.className = "chip"; b.textContent = a === have ? `Tout (${a})` : a;
+        b.setAttribute("aria-pressed", String(a === betAmt));
+        b.onclick = () => { betAmt = a; renderBets(); };
+        return b;
+      }));
+      $("betYes").textContent = `${m.name} réussit`; $("betNo").textContent = `${m.name} se trompe`;
+    }
+    // les paris de tout le monde, en direct (puis gagnés ou perdus)
+    $("betList").replaceChildren(...list.map((b) => {
+      const li = document.createElement("li");
+      li.className = b.won === true ? "won" : b.won === false ? "lost" : "";
+      const n = document.createElement("b"); n.textContent = b.id === O.you ? "Vous" : b.name;
+      const t = document.createElement("span");
+      t.textContent = !b.amt ? "passe" : `${b.yes ? "réussit" : "se trompe"} · ${b.amt}${b.won === true ? ` · +${b.amt}` : b.won === false ? ` · −${b.amt}` : ""}`;
+      li.append(n, t); return li;
+    }));
+    $("betWait").hidden = !(m.bet && (mine || my || have <= 0));
+    $("betWait").textContent = mine ? "Les autres parient sur vous…" : have <= 0 ? "Plus de jetons : vous regardez ce tour." : "Pari placé. En attente des autres…";
+  }
+  const placeBet = (yes, amt) => { if (!O.cur || !O.cur.bet) return; send({ t: "bet", yes, amt }); $("betCtrl").hidden = true; };
+  $("betYes").onclick = () => placeBet(true, betAmt);
+  $("betNo").onclick = () => placeBet(false, betAmt);
+  $("betPass").onclick = () => placeBet(false, 0);
+  function goAnswer(m) { // les paris sont fermés : celui qui répond peut répondre
+    if (!O.cur) return;
+    O.cur.bet = false; O.cur.bets = m.bets;
+    const mine = O.cur.who === O.you;
+    document.querySelectorAll("#mcq .btn").forEach((b) => (b.disabled = !mine || O.answered));
+    $("alive").textContent = mine ? "À vous de répondre !" : `${O.cur.name} répond…`;
+    renderBets();
     startClock(m.ms);
   }
 
@@ -302,13 +361,21 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
       const w = O.cur.options[m.picked];
       btns.forEach((b) => b.textContent === w && b.classList.add("wrong"));
     }
+    let mood = m.correct; // le flash : bonne réponse, ou (pour un parieur) pari gagné
     if (m.teams) { // Équipes : personne n'est éliminé, on montre les scores
       $("alive").textContent = `${m.correct ? "Bonne réponse" : m.picked < 0 ? "Temps écoulé" : "Mauvaise réponse"} · ${teamLine(m.teams)}`;
+    } else if (m.bets) { // Les Parieurs : la réponse, puis ce que chacun gagne ou perd
+      const my = m.bets.find((b) => b.id === O.you), verdict = m.correct ? "Bonne réponse" : m.picked < 0 ? "Temps écoulé" : "Mauvaise réponse";
+      $("whoLives").textContent = jetons(m.tokens);
+      $("alive").textContent = m.who === O.you ? `${verdict}${m.gain ? ` · +${m.gain} jetons` : ""}`
+        : my ? `${verdict} · pari ${my.won ? `gagné : +${my.amt}` : `perdu : −${my.amt}`} · vous avez ${jetons(my.tokens)}` : verdict;
+      if (my) mood = my.won;
+      if (O.cur) { O.cur.bet = false; O.cur.bets = m.bets; O.cur.board = m.board; renderBets(); }
     } else {
       $("whoLives").textContent = `${HEART} ${Math.max(m.lives, 0)}`;
       $("alive").textContent = m.correct ? "Bonne réponse" : m.dead ? `${m.name} est éliminé` : m.picked < 0 ? "Temps écoulé" : "Mauvaise réponse";
     }
-    flash(m.correct ? "ok" : "ko");
+    flash(mood ? "ok" : "ko");
     $("dockNext").hidden = !(m.who === O.you || O.host === O.you); // le joueur (ou l'hôte) appuie sur Continuer
   }
 
@@ -326,8 +393,9 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
 
   function renderEnd(m) {
     stopClock();
-    const chrono = m.kind === "chrono", mill = m.kind === "million", teams = m.kind === "equipes";
-    if (stat) stat.game(chrono ? "chrono" : mill ? "omillion" : teams ? "oteams" : "online");
+    const chrono = m.kind === "chrono", mill = m.kind === "million", teams = m.kind === "equipes", bets = m.kind === "parieurs";
+    if (stat) stat.game(chrono ? "chrono" : mill ? "omillion" : teams ? "oteams" : bets ? "obets" : "online");
+    $("betBox").hidden = true;
     if (stat && stat.win && !teams && m.winner && m.ranking && m.ranking.length > 1 && m.ranking[0].id === O.you) stat.win(); // victoire : pour les défis
     O.chrono = false; O.cur = null; O.mout = false; O.watch = false; mu.stopClock(); $("liveBoard").hidden = true;
     $("endLead").textContent = m.winner ? "Vainqueur" : "Partie terminée";
@@ -351,7 +419,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
       const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = p.name;
       const av = avatarEl(p.name, p.photo || photoOf(p.id));
       const st = document.createElement("span"); st.className = "st";
-      st.textContent = teams ? `${p.points} pts` : mill ? `${euros(p.points)} · ${p.score} bonne${p.score > 1 ? "s" : ""}` : chrono ? `${p.points} pts · ${p.score} bonne${p.score > 1 ? "s" : ""}` : `${p.score} bonne${p.score > 1 ? "s" : ""} · ${HEART} ${p.lives}`;
+      st.textContent = teams ? `${p.points} pts` : bets ? `${jetons(p.points)} · ${p.score} bonne${p.score > 1 ? "s" : ""}` : mill ? `${euros(p.points)} · ${p.score} bonne${p.score > 1 ? "s" : ""}` : chrono ? `${p.points} pts · ${p.score} bonne${p.score > 1 ? "s" : ""}` : `${p.score} bonne${p.score > 1 ? "s" : ""} · ${HEART} ${p.lives}`;
       li.append(pos, av, nm, st);
       ol.append(li);
     });
@@ -486,7 +554,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
   function teamLine(teams) { return teams.map((t) => `${t.name} ${t.points}`).join(" · ") + " pts"; }
 
   /* ----- Mode TV : en Survie, la question est sur la télé, le téléphone sert de manette ----- */
-  function tvMode(on, kind) { document.body.classList.toggle("tvmode", !!on && ["survie", "equipes"].includes(kind || "survie")); }
+  function tvMode(on, kind) { document.body.classList.toggle("tvmode", !!on && ["survie", "equipes", "parieurs"].includes(kind || "survie")); }
 
   /* ----- Millionnaire : textes ----- */
   function millInfo() {

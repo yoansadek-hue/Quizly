@@ -624,12 +624,13 @@ async function takeQuestion(room) {
 /* --- déroulement --- */
 function startGame(room) {
   Object.assign(room, { phase: "load", diff: 1, qn: 0, buf: [], asked: [], used: new Set(), soft: null, played: new Set(), i: -1, elim: 0, loads: new Map() });
-  players(room).forEach((p) => Object.assign(p, { lives: room.cfg.lives, score: 0, points: 0, dead: false, outAt: 0 }));
+  players(room).forEach((p) => Object.assign(p, { lives: room.cfg.lives, score: 0, points: room.cfg.kind === "parieurs" ? BET_START : 0, dead: false, outAt: 0 }));
   if (room.cfg.kind === "equipes") makeTeams(room);
+  if (room.cfg.kind === "parieurs") makeBetOrder(room);
   nextTurn(room);
 }
 function nextTurn(room) {
-  if (room.cfg.kind === "equipes") return teamTurn(room);
+  if (room.cfg.kind === "equipes" || room.cfg.kind === "parieurs") return teamTurn(room);
   if (alive(room).length <= 1) return endGame(room);
   const ps = players(room);
   do { room.i = (room.i + 1) % ps.length; } while (ps[room.i].dead);
@@ -644,11 +645,14 @@ async function loadQuestion(room) {
   const ps = players(room), p = ps[room.i];
   if (!p || p.dead) return nextTurn(room);
   room.q = { ...q, options: shuffle(q.o) };
-  room.phase = "q";
-  const ms = room.cfg.time * 1000;
+  const bet = room.cfg.kind === "parieurs";
+  room.phase = bet ? "bet" : "q"; // Les Parieurs : d'abord les paris, ensuite la réponse
+  const ms = bet ? BET_MS : room.cfg.time * 1000;
   clearTimeout(room.timer);
-  if (ms) room.timer = setTimeout(() => resolveTurn(room, false, -1), ms);
+  if (bet) { room.bets = new Map(); room.timer = setTimeout(() => betsDone(room), BET_MS); }
+  else if (ms) room.timer = setTimeout(() => resolveTurn(room, false, -1), ms);
   cast(room, {
+    ...(bet ? { bet: true, bets: [], tokens: p.points } : {}),
     ...teamInfo(room, p),
     t: "q", who: p.id, name: p.name, lives: p.lives, alive: alive(room).length, total: ps.filter((x) => !x.left).length + ps.filter((x) => x.left && !x.dead).length,
     tag: `${q.t} · ${LEVELS[room.diff]}`, q: q.q, img: q.img || null, audio: q.audio || null, options: room.q.options, ms, diff: room.diff,
@@ -669,16 +673,18 @@ function resolveTurn(room, correct, picked) {
   clearTimeout(room.timer);
   room.phase = "result";
   const p = players(room)[room.i];
-  if (correct) { p.score++; p.points += 10 * room.diff; }
-  else if (room.cfg.kind !== "equipes") { p.lives--; if (p.lives <= 0) { p.dead = true; p.outAt = ++room.elim; } } // en Équipes, personne n'est éliminé
-  cast(room, { ...teamInfo(room, p), t: "result", who: p.id, name: p.name, correct, picked, answer: room.q.a, lives: p.lives, dead: p.dead, board: boardOf(room) });
+  const bet = room.cfg.kind === "parieurs";
+  if (correct) { p.score++; p.points += (bet ? BET_WIN : 10) * room.diff; }
+  else if (room.cfg.kind !== "equipes" && !bet) { p.lives--; if (p.lives <= 0) { p.dead = true; p.outAt = ++room.elim; } } // en Équipes et chez les Parieurs, personne n'est éliminé
+  const extra = bet ? { bets: settleBets(room, correct), gain: correct ? BET_WIN * room.diff : 0, tokens: p.points } : {};
+  cast(room, { ...teamInfo(room, p), ...extra, t: "result", who: p.id, name: p.name, correct, picked, answer: room.q.a, lives: p.lives, dead: p.dead, board: boardOf(room) });
   room.timer = setTimeout(() => afterTurn(room), 25000); // filet de sécurité : normalement le bouton « Continuer » fait avancer
 }
 function afterTurn(room) {
   if (!rooms.has(room.code)) return;
   clearTimeout(room.timer);
-  if (room.cfg.kind === "equipes") { // un tour complet de toutes les équipes : on passe au niveau
-    if (room.turn >= room.order.length * TEAM_ROUNDS) return endTeams(room);
+  if (room.cfg.kind === "equipes" || room.cfg.kind === "parieurs") { // un tour complet : on passe au niveau
+    if (room.turn >= room.order.length * TEAM_ROUNDS) return room.cfg.kind === "parieurs" ? endBets(room) : endTeams(room);
     if (room.turn % room.order.length) return nextTurn(room);
     return askLevel(room);
   }
@@ -734,16 +740,16 @@ function teamInfo(room, p) {
   if (room.cfg.kind !== "equipes" || !p) return {};
   return { team: TEAM_NAMES[p.team], teams: teamScores(room), turn: room.turn, turns: room.order.length * TEAM_ROUNDS };
 }
-function teamTurn(room) {
-  const ps = players(room);
+function teamTurn(room) { // Équipes et Parieurs : un ordre de passage fixe, 3 questions par joueur
+  const ps = players(room), end = () => (room.cfg.kind === "parieurs" ? endBets(room) : endTeams(room));
   for (let k = 0; k < room.order.length; k++) { // on saute les joueurs partis
-    if (room.turn >= room.order.length * TEAM_ROUNDS) return endTeams(room);
+    if (room.turn >= room.order.length * TEAM_ROUNDS) return end();
     const id = room.order[room.turn % room.order.length];
     room.turn++;
     const i = ps.findIndex((p) => p.id === id && !p.left);
     if (i >= 0) { room.i = i; return loadQuestion(room); }
   }
-  endTeams(room);
+  end();
 }
 function endTeams(room) {
   if (room.phase === "end") return;
@@ -756,6 +762,59 @@ function endTeams(room) {
     t: "end", kind: "equipes", winner: tie ? null : `Équipe ${teams[0].name}`,
     mvp: mvp && mvp.points > 0 ? { name: mvp.name, points: mvp.points } : null, // pas de « meilleur joueur » à 0 point
     ranking: teams.map((t, k) => ({ id: `t${k}`, name: `${t.name} (${t.members.map((p) => p.name).join(", ")})`, score: t.members.length, points: t.points, lives: 0, photo: "" }))
+  });
+}
+
+/* ====================== Les Parieurs en ligne ====================== */
+// Chacun répond à son tour (3 questions par joueur). La question s'affiche avec le nom de celui qui répond,
+// et avant qu'il réponde, les autres parient leurs jetons : réussira-t-il ou non ?
+// Bonne réponse : +20 jetons × niveau. Bon pari : on gagne sa mise ; mauvais pari : on la perd. Le plus riche gagne.
+const BET_START = 100, BET_WIN = 20, BET_MS = +process.env.BET_MS || 15000;
+function makeBetOrder(room) {
+  room.order = shuffle(players(room).filter((p) => !p.left).map((p) => p.id));
+  room.turn = 0;
+}
+// ceux qui peuvent parier : tout le monde sauf celui qui répond (et ceux qui n'ont plus de jetons)
+const bettors = (room) => players(room).filter((x) => !x.left && !x.away && x.id !== players(room)[room.i]?.id && x.points > 0);
+const betList = (room) => [...(room.bets || [])].map(([id, b]) => ({ id, name: room.players.get(id)?.name || "?", yes: b.yes, amt: b.amt }));
+function placeBet(room, me, yes, amt) {
+  if (room.phase !== "bet" || players(room)[room.i]?.id === me.id || room.bets.has(me.id) || me.points <= 0) return;
+  amt = Math.floor(Number(amt));
+  if (!Number.isFinite(amt) || amt < 0) return;
+  room.bets.set(me.id, { yes: !!yes, amt: Math.min(amt, me.points) }); // 0 : il passe son tour
+  cast(room, { t: "bets", list: betList(room) });
+  if (bettors(room).every((x) => room.bets.has(x.id))) betsDone(room); // tout le monde a parié : on n'attend plus
+}
+function betsDone(room) { // les paris sont fermés : celui qui répond peut répondre
+  if (room.phase !== "bet") return;
+  clearTimeout(room.timer);
+  room.phase = "q";
+  const ms = room.cfg.time * 1000;
+  if (ms) room.timer = setTimeout(() => resolveTurn(room, false, -1), ms);
+  const go = { t: "go", ms, bets: betList(room) };
+  if (room.last && room.last.t === "q") room.last = { ...room.last, bet: false, bets: go.bets, ms, at: Date.now() }; // pour qui revient après une coupure
+  players(room).forEach((p) => send(p.ws, go)); tvs(room).forEach((ws) => send(ws, go));
+}
+function settleBets(room, correct) {
+  const out = [];
+  (room.bets || new Map()).forEach((b, id) => {
+    const x = room.players.get(id); if (!x || !b.amt) return; // ceux qui ont passé ne gagnent ni ne perdent
+    const won = b.yes === correct;
+    x.points = Math.max(0, x.points + (won ? b.amt : -b.amt));
+    out.push({ id, name: x.name, yes: b.yes, amt: b.amt, won, tokens: x.points });
+  });
+  room.bets = new Map();
+  return out;
+}
+function endBets(room) {
+  if (room.phase === "end") return;
+  clearTimeout(room.timer);
+  room.phase = "end";
+  const order = [...players(room)].sort((a, b) => b.points - a.points || b.score - a.score);
+  const tie = order.length > 1 && order[0].points === order[1].points && order[0].score === order[1].score;
+  cast(room, {
+    t: "end", kind: "parieurs", winner: tie ? null : order[0]?.name || null,
+    ranking: order.map((p) => ({ id: p.id, name: p.name, score: p.score, points: p.points, lives: 0, photo: p.photo }))
   });
 }
 
@@ -1054,7 +1113,8 @@ function drop(ws) {
     if (other) { room.hostId = other.id; cast(room, { t: "host", host: other.id }); if (room.phase === "level") askLevel(room); }
   }
   const k = room.cfg.kind;
-  if ((k === "survie" || k === "equipes") && room.phase === "q" && players(room)[room.i]?.id === me.id && !room.cfg.time) {
+  if (k === "parieurs" && room.phase === "bet" && bettors(room).every((x) => room.bets.has(x.id))) betsDone(room); // on n'attend pas son pari
+  if ((k === "survie" || k === "equipes" || k === "parieurs") && room.phase === "q" && players(room)[room.i]?.id === me.id && !room.cfg.time) {
     clearTimeout(room.timer); room.timer = setTimeout(() => resolveTurn(room, false, -1), 30000); // son tour, sans minuteur : on n'attend pas indéfiniment
   }
   if (k === "million") mCheck(room); // on n'attend pas sa réponse pour continuer
@@ -1088,9 +1148,10 @@ function rejoin(ws, m) {
     if (L && L.t === "load") send(ws, L);
     return;
   }
-  if (L) { // Survie, Équipes, fin de partie : on renvoie le dernier écran
+  if (L) { // Survie, Équipes, Parieurs, fin de partie : on renvoie le dernier écran
     const o = { ...L };
     if (o.t === "q" && o.ms) o.ms = Math.max(1000, o.ms - (Date.now() - L.at));
+    if (o.t === "q" && room.phase === "bet") o.bets = betList(room); // les paris déjà placés (dont le sien)
     send(ws, o);
   }
 }
@@ -1119,10 +1180,12 @@ function leave(ws) {
   if (lobbyLike) return castLobby(room);
   if (room.cfg.kind === "chrono") { clearTimeout(me.ctimer); me.done = true; me.cq = null; castBoard(room); return checkChronoEnd(room); }
   if (room.cfg.kind === "million") { if (!me.mout) { me.mout = true; me.mq = null; } return mCheck(room); }
-  if (room.cfg.kind === "equipes") {
-    if (present.length < 2) return endTeams(room); // il faut au moins deux joueurs
+  if (room.cfg.kind === "equipes" || room.cfg.kind === "parieurs") {
+    const bet = room.cfg.kind === "parieurs";
+    if (present.length < 2) return bet ? endBets(room) : endTeams(room); // il faut au moins deux joueurs
     const cur = players(room)[room.i];
-    if (cur && cur.id === me.id && room.phase === "q") { clearTimeout(room.timer); return afterTurn(room); }
+    if (cur && cur.id === me.id && (room.phase === "q" || room.phase === "bet")) { clearTimeout(room.timer); room.bets = new Map(); return afterTurn(room); } // paris annulés : personne ne perd
+    if (bet && room.phase === "bet") { room.bets.delete(me.id); if (bettors(room).every((x) => room.bets.has(x.id))) betsDone(room); }
     if (room.phase === "level") askLevel(room);
     return;
   }
@@ -1136,7 +1199,7 @@ function leave(ws) {
 function readCfg(m) {
   const themes = (Array.isArray(m.themes) ? m.themes : []).map((t) => clean(t, 50)).filter(Boolean).slice(0, 60);
   if (!themes.length) return "Choisissez au moins un thème.";
-  return { auto: !!m.auto, kind: ["chrono", "million", "equipes"].includes(m.kind) ? m.kind : "survie", themes, time: clamp(+m.time, 0, 120), lives: clamp(+m.lives || 2, 1, 5) };
+  return { auto: !!m.auto, kind: ["chrono", "million", "equipes", "parieurs"].includes(m.kind) ? m.kind : "survie", themes, time: clamp(+m.time, 0, 120), lives: clamp(+m.lives || 2, 1, 5) };
 }
 
 function handle(ws, m) {
@@ -1210,6 +1273,7 @@ function handle(ws, m) {
     else answer(room, me, Number(m.i));
   }
   else if (m.t === "mjoker" && room.cfg.kind === "million") mJoker(room, me, String(m.k));
+  else if (m.t === "bet" && room.cfg.kind === "parieurs") placeBet(room, me, m.yes, m.amt);
   else if (m.t === "mstop" && room.cfg.kind === "million") mStop(room, me);
   else if (m.t === "retry" && host && room.phase === "merror") mNext(room, true);
   else if (m.t === "level" && host && room.phase === "level") chooseLevel(room, !!m.up);

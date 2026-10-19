@@ -5,7 +5,7 @@ import { THEMES } from "./questions.js";
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
-const KIND = { survie: "Survie", chrono: "Chrono 60 s", million: "Qui veut gagner des millions", equipes: "Équipes" };
+const KIND = { survie: "Survie", chrono: "Chrono 60 s", million: "Qui veut gagner des millions", equipes: "Équipes", parieurs: "Les Parieurs" };
 const TAUNTS = ["Trop facile", "Tu dors ?", "Pleure pas", "Même pas peur", "Je suis trop fort", "Cadeau !"];
 const T = { ws: null, code: "", pl: {}, kind: "survie", raf: 0, last: null, board: [], mboard: [], who: null, craf: 0 };
 
@@ -54,6 +54,8 @@ function onMsg(m) {
     case "mboard": T.mboard = m.list; renderMSide(); break;
     case "mspec": renderMSpec(m); break;
     case "mout": break; // visible dans la colonne de droite
+    case "bets": betChips(m.list); break;
+    case "go": betsGo(m); break;
     case "end": renderEnd(m); break;
     case "react": bubble(m.name, TAUNTS[m.r] || "", `r${m.r} ${m.sk || ""}`); break;
     case "chat": chat(m.name, m.text, m.sk); break;
@@ -134,14 +136,30 @@ function renderQ(m) {
   const sec = m.ms ? m.ms / 1000 : 0;
   ring("gArc", "gClock", "gRing", sec, sec);
   renderSide(m.board, m.who, m.teams);
+  if (m.bet) { verdict(`Faites vos paris : ${m.name} va-t-il réussir ?`, "bet"); betChips(m.bets); }
   show("tGame");
   if (T.who !== m.who && (m.board || []).length > 1) splash(m.name, photo(m.who));
   T.who = m.who;
 }
+// Les Parieurs : les paris de chacun, sous la question (puis gagnés ou perdus)
+function betChips(list) {
+  $("gLive").replaceChildren(...(list || []).map((b) => {
+    const c = el("span", "chip" + (b.won === true ? " won" : b.won === false ? " lost" : ""));
+    c.append(avatarEl(b.name, photo(b.id)), document.createTextNode(` ${b.name} · ${!b.amt ? "passe" : `${b.yes ? "réussit" : "se trompe"} · ${b.amt}`}${b.won === true ? ` · +${b.amt}` : b.won === false ? ` · −${b.amt}` : ""}`));
+    return c;
+  }));
+}
+function betsGo(m) { // les paris sont fermés : la réponse arrive
+  $("gVerdict").hidden = true;
+  betChips(m.bets);
+  const sec = m.ms ? m.ms / 1000 : 0;
+  ring("gArc", "gClock", "gRing", sec, sec);
+}
 function renderResult(m) {
   stopRing();
   reveal(m.answer, m.picked);
-  verdict(m.correct ? `Bonne réponse de ${m.name} !` : m.dead ? `${m.name} est éliminé` : m.picked < 0 ? "Temps écoulé !" : `Raté pour ${m.name}`, m.correct ? "ok" : "ko");
+  verdict(m.correct ? `Bonne réponse de ${m.name} !${m.gain ? ` +${m.gain} jetons` : ""}` : m.dead ? `${m.name} est éliminé` : m.picked < 0 ? "Temps écoulé !" : `Raté pour ${m.name}`, m.correct ? "ok" : "ko");
+  if (m.bets) betChips(m.bets);
   renderSide(m.board, m.who, m.teams);
 }
 // colonne de droite : les joueurs (Survie) ou les équipes
@@ -157,6 +175,14 @@ function renderSide(board, cur, teams) {
       board.filter((p) => p.team === k).forEach((p) => ms.append(el("span", p.id === cur ? "cur" : "", p.name)));
       d.style.opacity = 0.75 + 0.25 * (t.points / max);
       d.append(h, ms); return d;
+    }));
+    return;
+  }
+  if (T.kind === "parieurs") { // les plus riches en haut
+    side.replaceChildren(el("h3", null, "Jetons"), ...[...board].sort((a, b) => b.points - a.points).map((p) => {
+      const r = el("div", "prow" + (p.id === cur ? " cur" : ""));
+      r.append(avatarEl(p.name, photo(p.id)), el("span", "pn", p.name), el("span", "pv", `${p.points}`));
+      return r;
     }));
     return;
   }
@@ -241,7 +267,7 @@ function renderRace() {
 /* ---------- fin : podium et confettis ---------- */
 function renderEnd(m) {
   stopRing(); cancelAnimationFrame(T.craf);
-  const fmt = (p) => (m.kind === "million" ? euros(p.points) : m.kind === "chrono" || m.kind === "equipes" ? `${p.points} pts` : `${p.score} bonne${p.score > 1 ? "s" : ""}`);
+  const fmt = (p) => (m.kind === "million" ? euros(p.points) : m.kind === "parieurs" ? `${p.points} jetons` : m.kind === "chrono" || m.kind === "equipes" ? `${p.points} pts` : `${p.score} bonne${p.score > 1 ? "s" : ""}`);
   $("tEndLead").textContent = m.winner ? "Vainqueur" : "Partie terminée";
   $("tWinner").textContent = m.winner || "Égalité";
   const top = m.ranking.slice(0, 3);
