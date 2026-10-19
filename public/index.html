@@ -479,8 +479,8 @@ addEventListener("error", function (e) {
   <!-- Minuteur -->
   <section id="s-time" class="screen" hidden>
     <button class="goback" data-back="s-themes">← Retour</button>
-    <h2>Temps par question</h2>
-    <p class="lead small">Choisissez la durée dont chaque joueur dispose.</p>
+    <h2 id="timeTitle">Temps par question</h2>
+    <p class="lead small" id="timeLead">Choisissez la durée dont chaque joueur dispose.</p>
     <div id="optTime" class="chips opts bigopts"></div>
     <div id="autoRow">
       <h2 class="subh">Difficulté</h2>
@@ -601,6 +601,12 @@ addEventListener("error", function (e) {
       <button class="chip" id="mSwap">Changer</button>
     </div>
     <div class="stack"><button class="btn coral" id="mStop">Je m'arrête</button></div>
+  </section>
+
+  <!-- L'Imposteur (un téléphone et en ligne) : rempli par impostor.js -->
+  <section id="s-imp" class="screen" hidden>
+    <p class="who"><span class="chip small" id="impRound">L'Imposteur</span></p>
+    <div id="impBody" class="impbody"></div>
   </section>
 
   <section id="s-end" class="screen center" hidden>

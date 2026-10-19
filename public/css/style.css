@@ -1296,3 +1296,44 @@ body.swipe .tabbar{-webkit-backdrop-filter:none;backdrop-filter:none;background:
    sinon, un écran court (Millionnaire…) tient sans défiler */
 #main{padding-bottom:calc(24px + env(safe-area-inset-bottom))}
 #main:has(.screen:not([hidden]) .dock:not([hidden])){padding-bottom:calc(124px + env(safe-area-inset-bottom))}
+/* ---------- 2.26 : L'Imposteur ---------- */
+.mode[data-m=impostor]{background:var(--ink);color:var(--coral);border-color:var(--coral);box-shadow:0 6px 0 var(--coral)}
+.mode[data-m=impostor] span{color:var(--lilac)}
+.mode[data-m=impostor]::after{width:110px;height:110px;right:-24px;top:-30px;border-radius:50% 50% 44% 44%;background:rgba(255,107,139,.16);box-shadow:inset 22px 34px 0 -12px rgba(255,107,139,.12)}
+.impbody{display:flex;flex-direction:column;gap:14px;margin-top:6px}
+.imppass{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;padding:26px 0 10px}
+.imppass .avatar.big{width:84px;height:84px;font-size:34px}
+.imppass .hero{margin:0}
+.imppass small{font:700 13px var(--font);color:var(--lilac)}
+.impcard{display:flex;flex-direction:column;align-items:flex-start;gap:10px;padding:20px;border:3px solid var(--ink);border-radius:26px;box-shadow:var(--edge);color:var(--ink);animation:pop .3s backwards}
+.impcard.good{background:var(--paper)}
+.impcard.bad{background:var(--coral)}
+.impcard.small{padding:14px 16px;box-shadow:var(--edge-s);gap:6px}
+.impcard .qimg{max-height:150px;border-radius:14px}
+.impq{margin:0;font:800 clamp(18px,5vw,24px)/1.2 var(--display)}
+.impcard.small .impq{font-size:16px}
+.impcard>small{font:600 13px var(--font);color:var(--muted)}
+.impcard.bad>small{color:var(--ink)}
+.improle{font:800 22px var(--display)}
+.impa{display:flex;flex-direction:column;gap:2px;margin:0;padding:10px 14px;border-radius:16px;background:var(--mint);border:3px solid var(--ink);color:var(--ink);align-self:stretch}
+.impa small{font:800 11px var(--display);text-transform:uppercase;letter-spacing:.06em}
+.impa b{font:800 20px var(--display)}
+.imptalk{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
+.imptalk h2{margin:0}
+.impclock{font:800 34px var(--display);color:var(--sun)}
+.impclock.urgent{color:var(--coral);animation:pop .5s infinite alternate}
+.impvote{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px}
+.impwho{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 6px;border:3px solid var(--ink);border-radius:20px;background:var(--paper);color:var(--ink);font:800 14px var(--display);box-shadow:var(--edge-s);cursor:pointer}
+.impwho .avatar.big{width:52px;height:52px;font-size:22px}
+.impwho:disabled{cursor:default;opacity:.55}
+.impwho.on{background:var(--coral);opacity:1}
+.impopts{grid-template-columns:1fr 1fr}
+.impres{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;padding:18px;border:3px solid var(--ink);border-radius:26px;box-shadow:var(--edge);color:var(--ink)}
+.impres.good{background:var(--mint)} .impres.bad{background:var(--coral)}
+.impres h2{margin:0;color:var(--ink)} .impres .lead{color:var(--ink);margin:0}
+.impres .avatar.big{width:70px;height:70px;font-size:28px}
+.impvotes{display:flex;flex-wrap:wrap;gap:6px;margin:0;padding:0;list-style:none}
+.impvotes li{padding:5px 12px;border-radius:99px;background:rgba(255,255,255,.1);font:700 13px var(--font)}
+.impvotes li.right{background:var(--mint);color:var(--ink)}
+.impboard{margin:0}
+.imprules{text-align:center}

@@ -6,7 +6,7 @@ const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
 const PALETTE = ["#ffe14d", "#34e3b0", "#ff6b8b", "#62c7ff", "#c4b8ff", "#ffb36b", "#f6f3ff", "#9df0d4"]; // couleurs des jetons
 const HEART = "\u2665\uFE0E"; // cœur « texte » (jamais l'emoji rouge)
 
-export function initOnline({ $, show, flash, confetti, me, record, millionUI, avatarEl, setAudio, stat, setMode, noteQ, recent, addFriend, isFriend }) {
+export function initOnline({ $, show, flash, confetti, me, record, millionUI, avatarEl, setAudio, stat, setMode, noteQ, recent, addFriend, isFriend, imp }) {
   const photoOf = (id) => (O.pl && O.pl[id] ? O.pl[id].photo : "") || ""; // photo d'un joueur du salon
   const theme = (tag) => String(tag || "").split(" · ")[0]; // « Drapeaux · Facile » → « Drapeaux »
   const mu = millionUI($); // écran « Qui veut gagner des millions »
@@ -120,6 +120,9 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
       // Les Parieurs en ligne
       case "bets": if (O.cur) { O.cur.bets = m.bets; O.cur.count = m.count; renderBets(); } break;
       case "go": goAnswer(m); break;
+      // L'Imposteur en ligne
+      case "imp": renderImp(m); break;
+      case "ivoted": if (O.imp && O.imp.phase === "vote") { O.imp.count = m.count; O.imp.total = m.total; impVoteScreen(); } break;
       case "tvflag": tvMode(m.tv, m.kind); break;
       // Chrono en ligne
       case "cgo": O.chrono = true; O.board = []; break;
@@ -200,7 +203,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     });
     const host = m.host === m.you;
     $("lobbyCount").textContent = `${m.players.length} / 20 joueurs`;
-    const chrono = m.cfg.kind === "chrono", mill = m.cfg.kind === "million", teams = m.cfg.kind === "equipes", bets = m.cfg.kind === "parieurs", need = chrono || mill ? 1 : 2; // Chrono et Millionnaire se jouent aussi seul
+    const chrono = m.cfg.kind === "chrono", mill = m.cfg.kind === "million", teams = m.cfg.kind === "equipes", bets = m.cfg.kind === "parieurs", impo = m.cfg.kind === "imposteur", need = chrono || mill ? 1 : impo ? 3 : 2; // Chrono et Millionnaire se jouent aussi seul
     $("betBox").hidden = true;
     tvMode(m.tv, m.cfg.kind);
     // salon télé : pas de code à donner, on rejoint seulement en scannant la télé
@@ -218,15 +221,16 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     $("lobbyInfo").textContent = chrono
       ? `Chrono 60 s · ${plural(m.cfg.themes.length, "thème")} · le plus de points gagne`
       : mill ? `Qui veut gagner des millions · toutes les catégories · ${m.cfg.time ? m.cfg.time + " s par question" : "sans limite"}`
+      : impo ? `L'Imposteur · ${plural(m.cfg.themes.length, "thème")} · ${m.cfg.time ? m.cfg.time + " s de discussion" : "discussion sans limite"} · 3 joueurs ou plus`
       : bets ? `Les Parieurs · ${plural(m.cfg.themes.length, "thème")} · ${m.cfg.time ? m.cfg.time + " s" : "sans limite"} · 3 questions par joueur · 100 jetons au départ`
       : teams ? `Équipes · ${plural(m.cfg.themes.length, "thème")} · ${m.cfg.time ? m.cfg.time + " s" : "sans limite"} · 3 questions par joueur${m.cfg.auto ? " · difficulté évolutive" : ""}`
       : `${plural(m.cfg.themes.length, "thème")} · ${m.cfg.time ? m.cfg.time + " s" : "sans limite"} · ${plural(m.cfg.lives, "vie")}${m.cfg.auto ? " · difficulté évolutive" : ""}`;
     $("btnLobbyStart").hidden = !host;
     $("btnLobbyStart").disabled = m.players.length < need;
-    $("btnLobbyStart").textContent = m.players.length < need ? "Il faut au moins 2 joueurs" : chrono ? "Lancer le chrono" : mill ? "Lancer l'échelle" : "Lancer la partie";
+    $("btnLobbyStart").textContent = m.players.length < need ? `Il faut au moins ${need} joueurs` : chrono ? "Lancer le chrono" : mill ? "Lancer l'échelle" : "Lancer la partie";
     $("btnLobbyEdit").hidden = !host;
     $("lobbyWait").hidden = host && m.players.length >= need;
-    $("lobbyWait").textContent = host ? "Il faut au moins 2 joueurs pour lancer." : "En attente de l'hôte…";
+    $("lobbyWait").textContent = host ? `Il faut au moins ${need} joueurs pour lancer.` : "En attente de l'hôte…";
     msg("");
   }
 
@@ -395,8 +399,9 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
 
   function renderEnd(m) {
     stopClock();
-    const chrono = m.kind === "chrono", mill = m.kind === "million", teams = m.kind === "equipes", bets = m.kind === "parieurs";
-    if (stat) stat.game(chrono ? "chrono" : mill ? "omillion" : teams ? "oteams" : bets ? "obets" : "online");
+    const chrono = m.kind === "chrono", mill = m.kind === "million", teams = m.kind === "equipes", bets = m.kind === "parieurs", impo = m.kind === "imposteur";
+    if (stat) stat.game(chrono ? "chrono" : mill ? "omillion" : teams ? "oteams" : bets ? "obets" : impo ? "oimp" : "online");
+    O.imp = null; if (imp) imp.stop();
     $("betBox").hidden = true;
     if (stat && stat.win && !teams && m.winner && m.ranking && m.ranking.length > 1 && m.ranking[0].id === O.you) stat.win(); // victoire : pour les défis
     O.chrono = false; O.cur = null; O.mout = false; O.watch = false; mu.stopClock(); $("liveBoard").hidden = true;
@@ -421,7 +426,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
       const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = p.name;
       const av = avatarEl(p.name, p.photo || photoOf(p.id));
       const st = document.createElement("span"); st.className = "st";
-      st.textContent = teams ? `${p.points} pts` : bets ? `${jetons(p.points)} · ${p.score} bonne${p.score > 1 ? "s" : ""}` : mill ? `${euros(p.points)} · ${p.score} bonne${p.score > 1 ? "s" : ""}` : chrono ? `${p.points} pts · ${p.score} bonne${p.score > 1 ? "s" : ""}` : `${p.score} bonne${p.score > 1 ? "s" : ""} · ${HEART} ${p.lives}`;
+      st.textContent = impo ? `${p.points} pts · imposteur ${p.score}×` : teams ? `${p.points} pts` : bets ? `${jetons(p.points)} · ${p.score} bonne${p.score > 1 ? "s" : ""}` : mill ? `${euros(p.points)} · ${p.score} bonne${p.score > 1 ? "s" : ""}` : chrono ? `${p.points} pts · ${p.score} bonne${p.score > 1 ? "s" : ""}` : `${p.score} bonne${p.score > 1 ? "s" : ""} · ${HEART} ${p.lives}`;
       li.append(pos, av, nm, st);
       ol.append(li);
     });
@@ -556,6 +561,26 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
   function teamLine(teams) { return teams.map((t) => `${t.name} ${t.points}`).join(" · ") + " pts"; }
 
   /* ----- Mode TV : en Survie, la question est sur la télé, le téléphone sert de manette ----- */
+  /* ----- L'Imposteur : sa carte en secret, la discussion, le vote, la dernière chance ----- */
+  function renderImp(m) {
+    O.imp = m; O.cur = null; $("betBox").hidden = true;
+    const host = O.host === O.you;
+    if (m.phase === "talk") imp.talk(m, host ? () => send({ t: "impvote" }) : null);
+    else if (m.phase === "vote") impVoteScreen();
+    else if (m.phase === "guess") imp.guess(m, m.you ? (i) => send({ t: "iguess", i }) : null);
+    else if (m.phase === "result") {
+      const me = m.board.find((p) => p.id === O.you);
+      flash(me && me.gain ? "ok" : "ko"); // vous avez gagné des points cette manche ?
+      imp.result(m, host ? () => send({ t: "next" }) : null, m.last ? "Voir le classement" : "Manche suivante");
+    }
+    show("s-imp");
+  }
+  function impVoteScreen() {
+    const m = O.imp;
+    imp.vote({ ...m, info: "Touchez celui que vous soupçonnez.", players: m.players.map((p) => ({ ...p, self: p.id === O.you })),
+      wait: m.picked != null ? `Vote enregistré · ${m.count || 0} / ${m.total || m.players.length} ont voté` : `${m.count || 0} / ${m.total || m.players.length} ont voté` },
+    (p) => { if (m.picked != null) return; m.picked = p.id; send({ t: "vote", id: p.id }); impVoteScreen(); });
+  }
   function tvMode(on, kind) { document.body.classList.toggle("tvmode", !!on && ["survie", "equipes", "parieurs"].includes(kind || "survie")); }
 
   /* ----- Millionnaire : textes ----- */
