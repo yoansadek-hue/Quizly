@@ -1291,3 +1291,8 @@ body.swipe .tabbar{-webkit-backdrop-filter:none;backdrop-filter:none;background:
 .ach.tier5 .pin{box-shadow:0 0 0 3px #7df9ff,0 0 14px 3px rgba(125,249,255,.6)}
 .ach.tier6 .pin{box-shadow:0 0 0 3px #ff6bd5,0 0 16px 4px rgba(255,107,213,.6)}
 .ach.max{background:linear-gradient(160deg,rgba(255,225,77,.16),rgba(255,255,255,.04))}
+/* ---------- 2.25.1 : plus de défilement inutile ---------- */
+/* la grande marge du bas n'est gardée que si un bouton fixe (« Continuer », « Valider »…) est affiché ;
+   sinon, un écran court (Millionnaire…) tient sans défiler */
+#main{padding-bottom:calc(24px + env(safe-area-inset-bottom))}
+#main:has(.screen:not([hidden]) .dock:not([hidden])){padding-bottom:calc(124px + env(safe-area-inset-bottom))}
