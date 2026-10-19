@@ -199,20 +199,55 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
     $("myCode").textContent = F.code;
     const link = `${location.origin}/?ami=${F.code}`;
     if ($("myQr").dataset.code !== F.code) { $("myQr").dataset.code = F.code; $("myQr").src = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=8&data=${encodeURIComponent(link)}`; }
-    $("friendList").replaceChildren(...(F.friends.length ? F.friends.map((f) => {
-      const go = document.createElement("span"); go.className = "chev"; go.textContent = "›";
-      const r = row(f, [go]);
-      r.classList.add("tap"); r.tabIndex = 0; r.setAttribute("role", "button");
-      r.onclick = () => openFriend(f);
-      const rec = document.createElement("span"); rec.className = "frec";
-      const x = f.records || {};
-      rec.textContent = `Solo ${x.best2 || 0} · Chrono ${x.bestChrono || 0} · ${euros(x.bestMillion || 0)}`;
-      r.querySelector(".fname").append(rec);
-      return r;
-    }) : [Object.assign(document.createElement("p"), { className: "lead small", textContent: "Pas encore d'amis." }), btn("Ajouter un ami", "sun", () => setPanel("add"))]));
+    renderFriendList();
     if (!F.panel) setPanel("mine"); // premier affichage : Mes amis (même vide, avec un bouton pour en ajouter)
     renderRanking();
     renderRequests();
+  }
+  /* ---------- la liste « Mes amis » : une carte claire par ami ---------- */
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+  const parisDay = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(Date.now());
+  function seen(t) { // « actif à l'instant », « actif il y a 3 h »…
+    if (!t) return "pas encore joué";
+    const m = Math.max(0, Math.round((Date.now() - t) / 60000));
+    if (m < 10) return "actif à l'instant";
+    if (m < 60) return `actif il y a ${m} min`;
+    if (m < 60 * 24) return `actif il y a ${Math.round(m / 60)} h`;
+    const d = Math.round(m / 1440);
+    return d < 30 ? `actif il y a ${d} j` : "pas vu depuis longtemps";
+  }
+  function friendCard(f) {
+    const c = el("div", "fcard tap"); c.tabIndex = 0; c.setAttribute("role", "button");
+    c.dataset.name = (f.name || "").toLowerCase();
+    c.onclick = () => openFriend(f);
+    c.onkeydown = (e) => (e.key === "Enter" || e.key === " ") && openFriend(f);
+    const body = el("div", "fbody");
+    const top = el("div", "ftop"), nm = el("span", "fname", f.name);
+    styleName(nm, f.cos); top.append(nm);
+    const ti = titleEl(f.cos); if (ti) top.append(ti);
+    const fresh = f.at && Date.now() - f.at < 15 * 60000;
+    const meta = el("div", "fmeta"); meta.append(el("i", "fdot" + (fresh ? " on" : "")), document.createTextNode(seen(f.at)));
+    const x = f.records || {}, chips = el("div", "fchips");
+    const chip = (label, v, cls) => { const s = el("span", cls || ""); s.append(el("small", null, label), el("b", null, v)); return s; };
+    chips.append(chip("Solo", `${x.best2 || 0}`), chip("Chrono", `${x.bestChrono || 0}`), chip("Millions", euros(x.bestMillion || 0)));
+    if (f.daily && f.daily.day === parisDay()) chips.append(chip("Défi du jour", `${f.daily.score} / 10`, "dd")); // il a fait le défi aujourd'hui
+    body.append(top, meta, chips);
+    c.append(avatarEl(f.name, f.photo, true), body, el("span", "chev", "›"));
+    return c;
+  }
+  function renderFriendList() {
+    const box = $("friendList");
+    if (!F.friends.length) return box.replaceChildren(el("div", "fempty", null), el("p", "lead small", "Pas encore d'amis. Ajoutez-en avec leur code ou leur QR code !"), btn("Ajouter un ami", "sun", () => setPanel("add")));
+    const list = [...F.friends].sort((a, b) => (b.at || 0) - (a.at || 0)); // les plus actifs en haut
+    const head = el("div", "fhead");
+    head.append(el("span", "fcount", `${list.length} ami${list.length > 1 ? "s" : ""}`));
+    const cards = list.map(friendCard);
+    if (list.length >= 6) { // une recherche quand la liste devient longue
+      const q = el("input", "fsearch"); q.type = "search"; q.placeholder = "Rechercher un ami"; q.autocomplete = "off";
+      q.oninput = () => { const v = q.value.trim().toLowerCase(); cards.forEach((c) => (c.hidden = !!v && !c.dataset.name.includes(v))); };
+      head.append(q);
+    }
+    box.replaceChildren(head, ...cards);
   }
   // classement entre amis : vous + vos amis, mode par mode
   const TABS = [["best2", "Solo"], ["bestChrono", "Chrono"], ["bestMillion", "Millionnaire"]];

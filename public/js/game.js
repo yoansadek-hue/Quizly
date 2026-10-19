@@ -11,7 +11,7 @@ import { initCosmetics, styleName, titleOf } from "./cosmetics.js";
 import { initQuests } from "./quests.js";
 import { impUI, IMP_PTS, answerMatches } from "./impostor.js";
 
-const VERSION = "2.27.1"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.28.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -1831,11 +1831,12 @@ $("btnDailyBack").onclick = openQuests;
 
 /* ---------- Paramètres (gardés sur cet appareil) ---------- */
 const SETKEY = "quizly:settings";
-const DEFAULTS = { autoplay: true, vibrate: true, calm: false, auto: true };
+const DEFAULTS = { autoplay: true, vibrate: true, calm: false, auto: true, dark: false };
 function settings() { try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(SETKEY) || "{}") }; } catch { return { ...DEFAULTS }; } }
 function setting(k) { return settings()[k]; }
 function saveSetting(k, v) { const s2 = settings(); s2[k] = v; try { localStorage.setItem(SETKEY, JSON.stringify(s2)); } catch {} applySettings(); }
 function applySettings() {
+  if (setting("dark")) document.documentElement.dataset.mode = "dark"; else delete document.documentElement.dataset.mode; // mode sombre
   document.body.classList.toggle("calm", !!setting("calm"));
   S.cfg.auto = !!setting("auto"); // difficulté proposée par défaut avant chaque partie
 }

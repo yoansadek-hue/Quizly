@@ -157,7 +157,7 @@ export function impUI($, avatarEl) {
       const r = el("div", `impres ${win ? "good" : "bad"}`);
       r.append(avatarEl(m.impName, m.impPhoto, true),
         el("h2", null, win ? "Imposteur démasqué !" : m.caught ? "Démasqué… mais il a trouvé !" : "L'imposteur s'en sort !"),
-        el("p", "lead small", m.caught ? `${m.impName} était bien l'imposteur.` : `${m.accusedName ? `${m.accusedName} était innocent. ` : "Pas de majorité. "}L'imposteur était ${m.impName}.`));
+        el("p", "lead small", m.caught ? `${m.impName} était bien l'imposteur.` : `${m.accusedName ? `${m.accusedName} n'était pas l'imposteur. ` : "Pas de majorité. "}L'imposteur était ${m.impName}.`));
       const a = el("p", "impa"); a.append(el("small", null, "La réponse"), el("b", null, m.answer));
       const parts = [r, a];
       if (m.guessText != null) parts.push(el("p", "lead small impwrote", `${m.impName} a écrit : « ${m.guessText || "rien"} »`));
