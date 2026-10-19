@@ -11,7 +11,7 @@ import { initCosmetics, styleName, titleOf } from "./cosmetics.js";
 import { initQuests } from "./quests.js";
 import { impUI, IMP_PTS, answerMatches } from "./impostor.js";
 
-const VERSION = "2.28.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.28.1"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -793,7 +793,6 @@ $("btnTeams").onclick = () => {
 // On se passe le téléphone : chacun découvre sa carte en secret (la question et la réponse ; l'imposteur, seulement
 // la question). On discute, puis le groupe désigne un suspect. Démasqué, l'imposteur a une dernière chance : trouver la réponse.
 const IMP = {};
-const impShuffle = (a) => a.map((x) => [Math.random(), x]).sort((p, q) => p[0] - q[0]).map((x) => x[1]);
 const impHead = () => ({ round: IMP.round, rounds: IMP.rounds });
 function impStart() {
   // des questions très dures, que l'imposteur ne peut pas trouver seul : pas de calcul, de logique, d'anagramme, ni d'extrait à écouter
@@ -814,11 +813,10 @@ async function impRound() {
   let q;
   try { q = await getQuestion(); } catch (e) { if (!S.inGame) return; $("loadText").textContent = `Génération impossible : ${e.message}`; $("loadErr").hidden = false; IMP.round--; return; }
   if (!S.inGame) return;
-  const opts = (q.o || []).includes(q.a) ? q.o : [q.a, ...(q.o || []).filter((o) => o !== q.a).slice(0, 3)];
   const others = S.players.map((p, i) => i).filter((i) => i !== IMP.last); // jamais deux fois de suite le même imposteur
   IMP.imp = others[Math.floor(Math.random() * others.length)]; IMP.last = IMP.imp;
   S.players[IMP.imp].imp++;
-  Object.assign(IMP, { q, options: impShuffle(opts), k: 0, guessText: null });
+  Object.assign(IMP, { q, k: 0, guessText: null });
   impPass();
 }
 const impCardOf = (i) => ({ ...impHead(), tag: `${IMP.q.t} · ${LEVELS[S.diff]}`, q: IMP.q.q, img: IMP.q.img || null, imposter: i === IMP.imp, answer: i === IMP.imp ? null : IMP.q.a }); // l'imposteur n'a aucun indice
@@ -910,7 +908,6 @@ function statGame(kind) {
   if (kind === "million" || kind === "omillion") quests.tick("million");
   checkAch();
 }
-const GAME_NAMES = { classic: "Classique", qcm: "QCM", solo: "Solo", teams: "Équipes", million: "Millionnaire", online: "En ligne", chrono: "Chrono", omillion: "Millionnaire en ligne", oteams: "Équipes en ligne", obets: "Les Parieurs", impostor: "L'Imposteur", oimp: "L'Imposteur en ligne" };
 function renderProfile() {
   const st = getStats();
   const best = (k) => { try { return +localStorage.getItem(`quizly:${S.uid}:${k}`) || 0; } catch { return 0; } };
@@ -1126,8 +1123,6 @@ function chooseMode(id) {
 
 const profKey = "quizly:profiles";
 const getProfiles = () => { try { return JSON.parse(localStorage.getItem(profKey) || "{}"); } catch { return {}; } };
-const saveProfiles = (p) => { try { localStorage.setItem(profKey, JSON.stringify(p)); } catch {} };
-const oldLocals = () => { try { return JSON.parse(localStorage.getItem("quizly:locals") || "[]"); } catch { return []; } };
 // QR code de la télé scanné avec l'appareil photo du téléphone : quizly…/?tv=ABCDEFGH rejoint le salon télé dès la connexion
 let pendingJoin = new URLSearchParams(location.search).get("tv");
 function enter(uid, name, photo) {
@@ -1955,7 +1950,6 @@ async function refreshScreen() {
 
 /* ---------- Série du Défi du jour ---------- */
 const dHistKey = () => `quizly:${S.uid}:dailyHist`;
-const dResKey = () => `quizly:${S.uid}:dailyRes`;
 function dailyDays() { try { return JSON.parse(localStorage.getItem(dHistKey()) || "[]"); } catch { return []; } }
 function noteDailyDay(d) {
   const days = dailyDays();
@@ -1965,8 +1959,6 @@ function noteDailyDay(d) {
     quests.tick("daily");
   }
   quests.best("dailyScore", d.score || 0);
-  // résultat gardé (pour « Hier » dans l'onglet Défis)
-  try { const r = JSON.parse(localStorage.getItem(dResKey()) || "{}"); r[d.day] = { score: d.score || 0, ms: d.ms || 0 }; const keep = Object.keys(r).sort().slice(-30); localStorage.setItem(dResKey(), JSON.stringify(Object.fromEntries(keep.map((k) => [k, r[k]])))); } catch {}
   friends.dailyDone(d.day, d); // pour le rappel du soir et le classement mondial
   checkAch();
 }

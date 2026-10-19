@@ -2,7 +2,7 @@
 // de la connaître en discutant. Ensuite, on vote pour le démasquer. S'il est démasqué, il a une dernière chance :
 // trouver la réponse parmi 4 choix.
 // Ce fichier n'affiche que l'écran (#s-imp) : la partie est menée par game.js (un téléphone) ou par le serveur (en ligne).
-export const IMP_PTS = { hidden: 3, guessed: 2, crew: 1, voter: 1 }; // les points d'une manche (voir rules())
+export const IMP_PTS = { hidden: 3, guessed: 2, crew: 1, voter: 1 }; // les points d'une manche (les mêmes sur le serveur)
 
 // la réponse écrite par l'imposteur démasqué : les fautes d'orthographe sont permises
 // (accents, majuscules, tirets, articles ignorés ; quelques lettres de travers acceptées selon la longueur)
@@ -68,7 +68,6 @@ export function impUI($, avatarEl) {
     clues.forEach((c, i) => { const li = el("li"); li.style.animationDelay = `${i * 120}ms`; li.append(el("b", null, c.name), el("span", null, c.clue || "…")); ul.append(li); });
     return ul;
   }
-  const rules = () => el("p", "lead small imprules", `Imposteur pas démasqué : +${IMP_PTS.hidden} pts. Démasqué mais il trouve la réponse : +${IMP_PTS.guessed} pts. Sinon, toute l'équipe gagne +${IMP_PTS.crew} pt, et +${IMP_PTS.voter} de plus pour ceux qui l'ont désigné.`);
 
   return {
     stop,
@@ -188,7 +187,6 @@ export function impUI($, avatarEl) {
       }
       parts.push(onNext ? btn(nextLabel || "Manche suivante", "sun", onNext) : el("p", "lead small", "L'hôte lance la manche suivante."));
       put(...parts);
-    },
-    rules
+    }
   };
 }

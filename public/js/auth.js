@@ -13,7 +13,6 @@ export const firebaseApp = () => app;
 export const googleUid = () => (auth && auth.currentUser ? auth.currentUser.uid : null);
 const configured = Boolean(auth);
 
-export const authReady = configured;
 
 export function watch(cb) {
   if (!configured) return cb(null);
