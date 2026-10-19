@@ -652,7 +652,7 @@ async function loadQuestion(room) {
   if (bet) { room.bets = new Map(); room.timer = setTimeout(() => betsDone(room), BET_MS); }
   else if (ms) room.timer = setTimeout(() => resolveTurn(room, false, -1), ms);
   cast(room, {
-    ...(bet ? { bet: true, bets: [], tokens: p.points } : {}),
+    ...(bet ? { bet: true, bets: [], count: 0, tokens: p.points } : {}),
     ...teamInfo(room, p),
     t: "q", who: p.id, name: p.name, lives: p.lives, alive: alive(room).length, total: ps.filter((x) => !x.left).length + ps.filter((x) => x.left && !x.dead).length,
     tag: `${q.t} · ${LEVELS[room.diff]}`, q: q.q, img: q.img || null, audio: q.audio || null, options: room.q.options, ms, diff: room.diff,
@@ -782,8 +782,15 @@ function placeBet(room, me, yes, amt) {
   amt = Math.floor(Number(amt));
   if (!Number.isFinite(amt) || amt < 0) return;
   room.bets.set(me.id, { yes: !!yes, amt: Math.min(amt, me.points) }); // 0 : il passe son tour
-  cast(room, { t: "bets", list: betList(room) });
+  castBets(room, { t: "bets" });
   if (bettors(room).every((x) => room.bets.has(x.id))) betsDone(room); // tout le monde a parié : on n'attend plus
+}
+// celui qui répond ne voit pas les paris sur lui (ni la télé, qu'il regarde aussi) : seulement leur nombre, jusqu'au résultat
+const betCount = (room) => betList(room).filter((b) => b.amt).length;
+const betsFor = (room, id) => (id === players(room)[room.i]?.id ? { bets: [], count: betCount(room) } : { bets: betList(room), count: betCount(room) });
+function castBets(room, o) {
+  players(room).forEach((p) => send(p.ws, { ...o, ...betsFor(room, p.id) }));
+  tvs(room).forEach((ws) => send(ws, { ...o, bets: [], count: betCount(room) }));
 }
 function betsDone(room) { // les paris sont fermés : celui qui répond peut répondre
   if (room.phase !== "bet") return;
@@ -791,9 +798,8 @@ function betsDone(room) { // les paris sont fermés : celui qui répond peut ré
   room.phase = "q";
   const ms = room.cfg.time * 1000;
   if (ms) room.timer = setTimeout(() => resolveTurn(room, false, -1), ms);
-  const go = { t: "go", ms, bets: betList(room) };
-  if (room.last && room.last.t === "q") room.last = { ...room.last, bet: false, bets: go.bets, ms, at: Date.now() }; // pour qui revient après une coupure
-  players(room).forEach((p) => send(p.ws, go)); tvs(room).forEach((ws) => send(ws, go));
+  if (room.last && room.last.t === "q") room.last = { ...room.last, bet: false, bets: [], ms, at: Date.now() }; // pour qui revient après une coupure
+  castBets(room, { t: "go", ms });
 }
 function settleBets(room, correct) {
   const out = [];
@@ -1151,7 +1157,7 @@ function rejoin(ws, m) {
   if (L) { // Survie, Équipes, Parieurs, fin de partie : on renvoie le dernier écran
     const o = { ...L };
     if (o.t === "q" && o.ms) o.ms = Math.max(1000, o.ms - (Date.now() - L.at));
-    if (o.t === "q" && room.phase === "bet") o.bets = betList(room); // les paris déjà placés (dont le sien)
+    if (o.t === "q" && (room.phase === "bet" || room.phase === "q") && room.cfg.kind === "parieurs") Object.assign(o, betsFor(room, p.id)); // les paris déjà placés (cachés à celui qui répond)
     send(ws, o);
   }
 }

@@ -1273,3 +1273,21 @@ body.swipe .tabbar{-webkit-backdrop-filter:none;backdrop-filter:none;background:
 .betlist li b{font-family:var(--display)}
 .betlist li.won{background:var(--mint);color:var(--ink)}
 .betlist li.lost{background:var(--coral);color:var(--ink)}
+/* ---------- 2.25 : succès améliorables (niveaux bronze → légende) ---------- */
+.achgrid{grid-template-columns:repeat(3,1fr)}
+@media (min-width:700px){.achgrid{grid-template-columns:repeat(4,1fr)}}
+@media (min-width:1000px){.achgrid{grid-template-columns:repeat(6,1fr)}}
+.ach{padding:12px 6px;background:rgba(255,255,255,.05)}
+.ach .lv{font-size:11px;letter-spacing:1px;color:var(--sun);min-height:13px;line-height:1}
+.ach.off .lv{color:rgba(196,184,255,.45)}
+.ach .achbar{display:block;width:84%;height:6px;margin-top:2px;border-radius:6px;background:rgba(255,255,255,.12);overflow:hidden}
+.ach .achbar i{display:block;height:100%;border-radius:6px;background:var(--sun);transition:width .6s cubic-bezier(.2,.8,.2,1)}
+.ach small.achn{font:800 10px var(--display);color:var(--paper)}
+/* le contour de la pastille dit le niveau : bronze, argent, or, platine, diamant, légende */
+.ach.tier1 .pin{box-shadow:0 0 0 3px #cd7f32,0 3px 0 3px var(--ink)}
+.ach.tier2 .pin{box-shadow:0 0 0 3px #d5dbe6,0 3px 0 3px var(--ink)}
+.ach.tier3 .pin{box-shadow:0 0 0 3px #ffd23f,0 3px 0 3px var(--ink)}
+.ach.tier4 .pin{box-shadow:0 0 0 3px #9df0d4,0 3px 0 3px var(--ink)}
+.ach.tier5 .pin{box-shadow:0 0 0 3px #7df9ff,0 0 14px 3px rgba(125,249,255,.6)}
+.ach.tier6 .pin{box-shadow:0 0 0 3px #ff6bd5,0 0 16px 4px rgba(255,107,213,.6)}
+.ach.max{background:linear-gradient(160deg,rgba(255,225,77,.16),rgba(255,255,255,.04))}

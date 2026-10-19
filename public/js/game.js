@@ -10,7 +10,7 @@ import { enablePush, disablePush, pushMuted, pushState, currentSub } from "./pus
 import { initCosmetics, styleName, titleOf } from "./cosmetics.js";
 import { initQuests } from "./quests.js";
 
-const VERSION = "2.24.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.25.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -868,7 +868,8 @@ function renderProfile() {
     li.append(nm, bar, v); return li;
   }));
   $("profEmpty").hidden = themes.length > 0;
-  renderAch($("achGrid"), $("achCount"), Object.keys(getAch()));
+  checkAch(); // de nouveaux niveaux peuvent déjà être atteints
+  renderAch($("achGrid"), $("achCount"), Object.keys(getAch()), achFacts());
   friends.syncRecords();
   const cs = cloudState();
   $("profCloud").textContent = cs === "cloud" ? "Sauvegardé" : cs === "error" ? "Hors ligne" : "Connexion…"; // petite pastille d'état
@@ -1878,25 +1879,37 @@ function dailyStreak() {
 }
 
 /* ---------- Succès ---------- */
-// id : [titre, comment l'obtenir, pastille, couleur, condition]
-const ACH = [
-  ["first", "Premiers pas", "Jouer une partie", "1", "sun", (x) => x.games >= 1],
-  ["regular", "Habitué", "Jouer 25 parties", "25", "mint", (x) => x.games >= 25],
-  ["addict", "Accro", "Jouer 100 parties", "100", "coral", (x) => x.games >= 100],
-  ["brain", "Cerveau", "100 bonnes réponses", "100", "sky", (x) => x.good >= 100],
-  ["encyclo", "Encyclopédie", "500 bonnes réponses", "500", "peach", (x) => x.good >= 500],
-  ["run10", "Inarrêtable", "10 bonnes réponses d'affilée", "10×", "sun", (x) => x.bestRun >= 10],
-  ["run25", "Machine", "25 bonnes réponses d'affilée", "25×", "coral", (x) => x.bestRun >= 25],
-  ["themes", "Curieux", "Jouer 10 thèmes différents", "10", "mint", (x) => x.themes >= 10],
-  ["solo200", "Survivant", "Record Solo de 200 points", "200", "sky", (x) => x.best2 >= 200],
-  ["chrono300", "Éclair", "Record Chrono de 300 points", "300", "peach", (x) => x.bestChrono >= 300],
-  ["safe", "Palier en poche", "Gagner 48 000 € au Millionnaire", "48k", "mint", (x) => x.bestMillion >= 48000],
-  ["million", "Millionnaire", "Gagner 1 000 000 €", "1M", "sun", (x) => x.bestMillion >= 1000000],
-  ["perfect", "Sans faute", "10 / 10 au Défi du jour", "10", "coral", (x) => x.perfect],
-  ["streak7", "Régulier", "7 défis du jour d'affilée", "7j", "sky", (x) => x.streak >= 7],
-  ["online", "Connecté", "10 parties en ligne", "10", "peach", (x) => x.onlineGames >= 10],
-  ["social", "Sociable", "Avoir 5 amis", "5", "mint", (x) => x.friends >= 5]
+// Succès améliorables : chaque famille a plusieurs niveaux (bronze, argent, or, platine, diamant…).
+// Chaque niveau reste un succès à part (mêmes id qu'avant pour les anciens : rien n'est perdu, 25 Q-Bucks par niveau).
+// famille : [titre, couleur, valeur, comment (seuil), pastille (seuil), niveaux : [id, seuil, nom]]
+const k1000 = (n) => (n >= 1000000 ? `${n / 1000000}M` : n >= 1000 ? `${n / 1000}k` : `${n}`);
+const ACH_FAM = [
+  ["Joueur", "sun", (x) => x.games, (n) => `Jouer ${n} partie${n > 1 ? "s" : ""}`, k1000,
+    [["first", 1, "Premiers pas"], ["play10", 10, "Amateur"], ["regular", 25, "Habitué"], ["addict", 100, "Accro"], ["play250", 250, "Passionné"], ["play500", 500, "Inépuisable"]]],
+  ["Savant", "sky", (x) => x.good, (n) => `${n} bonnes réponses`, k1000,
+    [["good50", 50, "Esprit vif"], ["brain", 100, "Cerveau"], ["encyclo", 500, "Encyclopédie"], ["good1000", 1000, "Puits de science"], ["good2500", 2500, "Génie universel"]]],
+  ["Série", "coral", (x) => x.bestRun, (n) => `${n} bonnes réponses d'affilée`, (n) => `${n}×`,
+    [["run5", 5, "En forme"], ["run10", 10, "Inarrêtable"], ["run25", 25, "Machine"], ["run50", 50, "Imbattable"]]],
+  ["Explorateur", "mint", (x) => x.themes, (n) => `Jouer ${n} thèmes différents`, k1000,
+    [["themes5", 5, "Touche-à-tout"], ["themes", 10, "Curieux"], ["themes20", 20, "Explorateur"], ["themes35", 35, "Globe-trotter"]]],
+  ["Solo", "sky", (x) => x.best2, (n) => `Record Solo de ${n} points`, k1000,
+    [["solo100", 100, "Résistant"], ["solo200", 200, "Survivant"], ["solo500", 500, "Increvable"], ["solo1000", 1000, "Immortel"]]],
+  ["Chrono", "peach", (x) => x.bestChrono, (n) => `Record Chrono de ${n} points`, k1000,
+    [["chrono150", 150, "Rapide"], ["chrono300", 300, "Éclair"], ["chrono500", 500, "Supersonique"]]],
+  ["Millionnaire", "sun", (x) => x.bestMillion, (n) => `Gagner ${euros(n)} au Millionnaire`, k1000,
+    [["mil1500", 1500, "Premier palier"], ["safe", 48000, "Palier en poche"], ["million", 1000000, "Millionnaire"]]],
+  ["Régularité", "coral", (x) => x.streak, (n) => `${n} défis du jour d'affilée`, (n) => `${n}j`,
+    [["streak3", 3, "Assidu"], ["streak7", 7, "Régulier"], ["streak30", 30, "Infatigable"]]],
+  ["Sans faute", "mint", (x) => (x.perfect ? 1 : 0), () => "10 / 10 au Défi du jour", () => "10",
+    [["perfect", 1, "Sans faute"]]],
+  ["En ligne", "peach", (x) => x.onlineGames, (n) => `${n} parties en ligne`, k1000,
+    [["online1", 1, "Premier salon"], ["online", 10, "Connecté"], ["online50", 50, "Habitué du salon"], ["online100", 100, "Star du réseau"]]],
+  ["Sociable", "mint", (x) => x.friends, (n) => `Avoir ${n} ami${n > 1 ? "s" : ""}`, k1000,
+    [["friends1", 1, "Premier ami"], ["social", 5, "Sociable"], ["friends10", 10, "Populaire"], ["friends25", 25, "Célébrité"]]]
 ];
+// la liste à plat de tous les niveaux : [id, titre, comment, pastille, couleur, condition]
+const ACH = ACH_FAM.flatMap(([, color, val, how, pin, tiers]) => tiers.map(([id, n, name]) => [id, name, how(n), pin(n), color, (x) => val(x) >= n]));
+const TIER_NAMES = ["Bronze", "Argent", "Or", "Platine", "Diamant", "Légende"];
 const achKey = () => `quizly:${S.uid}:ach`;
 function getAch() { try { return JSON.parse(localStorage.getItem(achKey()) || "{}"); } catch { return {}; } }
 function achFacts() {
@@ -1929,7 +1942,8 @@ function checkAchNow() {
   fresh.forEach(([id]) => (have[id] = Date.now()));
   cosm.earn(25 * fresh.length, "succès"); // 25 jetons par succès
   try { localStorage.setItem(achKey(), JSON.stringify(have)); } catch {}
-  fresh.forEach(([, title], i) => setTimeout(() => achToast(title), i * 2200)); // une annonce par succès
+  if (fresh.length > 3) achToast(`${fresh.length} succès débloqués !`); // beaucoup d'un coup (nouveaux niveaux) : une seule annonce
+  else fresh.forEach(([, title], i) => setTimeout(() => achToast(title), i * 2200)); // une annonce par succès
   friends.syncRecords(); // vos amis voient vos succès
 }
 function achToast(title) {
@@ -1939,16 +1953,31 @@ function achToast(title) {
   confetti();
   clearTimeout(el._t); el._t = setTimeout(() => (el.hidden = true), 3200);
 }
-// la grille des succès (le vôtre ou celui d'un ami)
-function renderAch(box, countEl, owned) {
+// la grille des succès (le vôtre ou celui d'un ami) : une carte par famille, avec son niveau (bronze, argent, or…)
+// et, pour vous, la progression vers le niveau suivant
+function renderAch(box, countEl, owned, facts) {
   const have = new Set(owned || []);
-  countEl.textContent = `${have.size} / ${ACH.length}`;
-  box.replaceChildren(...ACH.map(([id, title, how, pin, color]) => {
-    const d = document.createElement("div"); d.className = `ach ${have.has(id) ? "on " + color : "off"}`;
-    const p = document.createElement("span"); p.className = "pin"; p.textContent = have.has(id) ? pin : "?";
-    const t = document.createElement("b"); t.textContent = title;
-    const s = document.createElement("small"); s.textContent = how;
-    d.append(p, t, s); return d;
+  countEl.textContent = `${ACH.filter(([id]) => have.has(id)).length} / ${ACH.length}`;
+  box.replaceChildren(...ACH_FAM.map(([fam, color, val, how, pin, tiers]) => {
+    const got = tiers.reduce((g, [id], i) => (have.has(id) ? i + 1 : g), 0), cur = tiers[got - 1], next = tiers[got], max = !next;
+    const d = document.createElement("div"); d.className = `ach ${got ? `on ${color} tier${Math.min(got, 6)}` : "off"}${max ? " max" : ""}`;
+    const p = document.createElement("span"); p.className = "pin"; p.textContent = got ? pin(cur[1]) : "?";
+    const lv = document.createElement("span"); lv.className = "lv"; // le niveau atteint, en étoiles
+    lv.textContent = tiers.length > 1 ? tiers.map((_, i) => (i < got ? "★" : "☆")).join("") : "";
+    const t = document.createElement("b"); t.textContent = got ? cur[2] : fam;
+    const s = document.createElement("small");
+    s.textContent = max ? `${TIER_NAMES[Math.min(got, 6) - 1] || ""} · niveau max` : `${got ? `${TIER_NAMES[got - 1]} · ` : ""}Suivant : ${how(next[1]).toLowerCase()}`;
+    d.append(p, lv, t, s);
+    if (facts && !max) { // la barre vers le niveau suivant (seulement pour vous)
+      const v = Math.max(0, val(facts) || 0), from = cur ? cur[1] : 0;
+      const bar = document.createElement("span"); bar.className = "achbar";
+      const fill = document.createElement("i"); fill.style.width = `${Math.min(100, Math.max(0, (100 * (v - from)) / (next[1] - from)))}%`;
+      bar.append(fill);
+      const n = document.createElement("small"); n.className = "achn"; n.textContent = `${k1000(Math.min(v, next[1]))} / ${k1000(next[1])}`;
+      d.append(bar, n);
+    }
+    d.title = tiers.map(([, n, name], i) => `${i < got ? "✓" : "·"} ${name} : ${how(n)}`).join("\n");
+    return d;
   }));
 }
 window.__renderAch = renderAch; // utilisé par le profil d'un ami
