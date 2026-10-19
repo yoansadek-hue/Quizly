@@ -573,7 +573,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     if (m.phase === "clue") impClueScreen();
     else if (m.phase === "talk") imp.talk(m, host ? () => send({ t: "impvote" }) : null);
     else if (m.phase === "vote") impVoteScreen();
-    else if (m.phase === "guess") imp.guess(m, m.you ? (i) => send({ t: "iguess", i }) : null);
+    else if (m.phase === "guess") imp.guess(m, m.you ? (text) => send({ t: "iguess", text }) : null);
     else if (m.phase === "result") {
       const me = m.board.find((p) => p.id === O.you);
       flash(me && me.gain ? "ok" : "ko"); // vous avez gagné des points cette manche ?

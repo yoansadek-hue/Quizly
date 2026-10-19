@@ -149,8 +149,8 @@ function renderImp(m) {
     live.replaceChildren(el("span", "chip", `${m.count || 0} / ${m.total} ont voté`));
   } else if (m.phase === "guess") {
     $("tImpTitle").textContent = `${m.name} est démasqué !`;
-    $("tImpText").textContent = "Dernière chance : trouver la bonne réponse…";
-    live.replaceChildren(...m.options.map((o) => el("span", "chip", o)));
+    $("tImpText").textContent = "Dernière chance : il doit écrire la bonne réponse…";
+    live.replaceChildren();
   } else if (m.phase === "result") {
     $("tImpTitle").textContent = m.caught && !m.guessed ? `${m.impName} était l'imposteur !` : m.caught ? `${m.impName} a trouvé la réponse !` : `L'imposteur était ${m.impName} !`;
     $("tImpText").textContent = `La réponse : ${m.answer}`;

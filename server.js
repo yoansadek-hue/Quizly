@@ -3,6 +3,7 @@ import express from "express";
 import webpush from "web-push";
 import { firebaseConfig } from "./public/js/config.js";
 import { WebSocketServer } from "ws";
+import { answerMatches } from "./public/js/impostor.js";
 import { LOCAL_THEMES, IMP_LOCAL_OK, makeLocal, PRIZES, millionLevel, wonAt, safeAt, publicVote, SONG_THEME, songPool, songLabel, SONGS } from "./public/js/local.js";
 
 const app = express();
@@ -818,8 +819,8 @@ async function impRound(room) {
   ir.imp = bad.id; ir.last = bad.id; bad.imp++;
   const o = Array.isArray(q.o) ? q.o : [];
   room.q = { ...q, options: shuffle(o.includes(q.a) ? o : [q.a, ...o.filter((x) => x !== q.a).slice(0, 3)]) };
-  ir.votes = new Map(); ir.clues = new Map();
-  // 1. chacun écrit un indice en secret ; l'imposteur voit les 4 réponses possibles (dont la bonne) pour bluffer
+  ir.votes = new Map(); ir.clues = new Map(); ir.guessText = null;
+  // 1. chacun écrit un indice en secret ; l'imposteur, lui, n'a que la question (aucun indice)
   room.phase = "iclue";
   room.timer = setTimeout(() => impTalk(room), IMP_CLUE_MS);
   ir.base = { tag: `${q.t} · ${LEVELS[room.diff]}`, q: q.q, img: q.img || null };
@@ -829,7 +830,7 @@ async function impRound(room) {
 // ce que voit un joueur : la réponse (l'équipe) ou les 4 réponses possibles (l'imposteur)
 function impCard(room, p, extra) {
   const bad = p.id === room.ir.imp;
-  return { ...impHead(room), ...room.ir.base, ...extra, imposter: bad, answer: bad ? null : room.q.a, options: bad ? room.q.options : null };
+  return { ...impHead(room), ...room.ir.base, ...extra, imposter: bad, answer: bad ? null : room.q.a }; // l'imposteur n'a aucun indice
 }
 const plainOf = (x) => String(x || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]/g, "");
 function impClue(room, me, text) {
@@ -888,13 +889,15 @@ function impTally(room) {
   if (!bad || bad.left) return impResult(room, true, false);
   room.phase = "iguess";
   room.timer = setTimeout(() => impResult(room, true, false), IMP_GUESS_MS);
-  const o = { ...impHead(room), phase: "guess", name: bad.name, q: room.q.q, options: room.q.options, ms: IMP_GUESS_MS };
+  const o = { ...impHead(room), phase: "guess", name: bad.name, q: room.q.q, ms: IMP_GUESS_MS }; // il doit écrire la réponse, sans choix
   present(room).forEach((p) => impSend(p, { ...o, you: p.id === bad.id }));
   impTv(room, o);
 }
-function impGuess(room, me, i) {
-  if (room.phase !== "iguess" || me.id !== room.ir.imp || !Number.isInteger(i) || !room.q.options[i]) return;
-  impResult(room, true, room.q.options[i] === room.q.a);
+function impGuess(room, me, text) { // fautes d'orthographe permises (voir answerMatches)
+  text = clean(text, 60);
+  if (room.phase !== "iguess" || me.id !== room.ir.imp || !text) return;
+  room.ir.guessText = text;
+  impResult(room, true, answerMatches(text, room.q.a));
 }
 function impResult(room, caught, guessed) {
   clearTimeout(room.timer);
@@ -906,7 +909,7 @@ function impResult(room, caught, guessed) {
   const bad = room.players.get(ir.imp) || {}, name = (id) => room.players.get(id)?.name || "?";
   const o = {
     ...impHead(room), phase: "result", caught, guessed, imp: ir.imp, impName: bad.name, impPhoto: bad.photo || "", accusedName: ir.accused ? name(ir.accused) : null,
-    answer: room.q.a, last: ir.round >= ir.rounds,
+    answer: room.q.a, last: ir.round >= ir.rounds, guessText: caught ? ir.guessText || "" : null,
     votes: [...ir.votes].map(([from, to]) => ({ name: name(from), target: name(to), right: to === ir.imp })),
     tally: present(room).map((p) => ({ name: p.name, imp: p.id === ir.imp, n: [...ir.votes.values()].filter((t) => t === p.id).length })).sort((x, y) => y.n - x.n),
     clues: ir.list,
@@ -1476,7 +1479,7 @@ function handle(ws, m) {
   else if (m.t === "impvote" && host && room.phase === "italk") impVoteStart(room); // l'hôte lance le vote
   else if (m.t === "vote" && room.cfg.kind === "imposteur") impVote(room, me, m.id);
   else if (m.t === "iclue" && room.cfg.kind === "imposteur") impClue(room, me, m.text);
-  else if (m.t === "iguess" && room.cfg.kind === "imposteur") impGuess(room, me, Number(m.i));
+  else if (m.t === "iguess" && room.cfg.kind === "imposteur") impGuess(room, me, m.text);
   else if (m.t === "next" && host && room.phase === "ires") impRound(room);
   else if (m.t === "again") { if (host && room.phase === "end") { resetRoom(room); castLobby(room); } else send(ws, lobbyMsg(room, me)); }
   else if (m.t === "config" && host && room.phase === "lobby") {

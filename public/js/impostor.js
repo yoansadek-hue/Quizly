@@ -4,6 +4,27 @@
 // Ce fichier n'affiche que l'écran (#s-imp) : la partie est menée par game.js (un téléphone) ou par le serveur (en ligne).
 export const IMP_PTS = { hidden: 3, guessed: 2, crew: 1, voter: 1 }; // les points d'une manche (voir rules())
 
+// la réponse écrite par l'imposteur démasqué : les fautes d'orthographe sont permises
+// (accents, majuscules, tirets, articles ignorés ; quelques lettres de travers acceptées selon la longueur)
+const plain = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+  .replace(/^(le|la|les|l|un|une|des|du|de|the)\s+|^l'/, "").replace(/[^a-z0-9]/g, "");
+function distance(a, b) { // nombre de lettres à changer, ajouter ou enlever
+  const d = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    let prev = d[0]; d[0] = i;
+    for (let j = 1; j <= b.length; j++) { const t = d[j]; d[j] = Math.min(d[j] + 1, d[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = t; }
+  }
+  return d[b.length];
+}
+export function answerMatches(guess, answer) {
+  const g = plain(guess), a = plain(answer);
+  if (!g || !a) return false;
+  if (/^\d+$/.test(a)) return g === a; // un nombre : exact
+  if (g === a) return true;
+  const allowed = a.length <= 3 ? 0 : a.length <= 5 ? 1 : a.length <= 9 ? 2 : 3;
+  return distance(g, a) <= allowed;
+}
+
 export function impUI($, avatarEl) {
   let tid = null;
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
@@ -34,10 +55,6 @@ export function impUI($, avatarEl) {
     c.append(el("p", "impq", m.q));
     if (m.imposter) {
       c.append(el("b", "improle", "Tu es l'imposteur !"), el("small", null, "Tu ne connais pas la réponse : écoute les autres et fais semblant de la connaître."));
-      if (m.options && m.options.length) { // une piste : la bonne réponse est l'une de ces 4
-        const o = el("div", "impmaybe"); o.append(el("small", null, "C'est l'une de ces réponses :"), ...m.options.map((x) => el("span", "chip small", x)));
-        c.append(o);
-      }
     } else if (m.answer != null) {
       const a = el("p", "impa"); a.append(el("small", null, "La réponse"), el("b", null, m.answer));
       c.append(a, el("small", null, "Donne des indices sans jamais la dire, et trouve l'imposteur."));
@@ -92,21 +109,22 @@ export function impUI($, avatarEl) {
     },
     wait(m, text) { head(m); put(el("div", "imptalk", null), el("p", "lead", text)); },
     // démasqué : l'imposteur a une dernière chance de trouver la réponse
-    guess(m, onPick) {
+    // démasqué : l'imposteur doit ÉCRIRE la bonne réponse (aucun choix proposé, fautes d'orthographe permises)
+    guess(m, onSend) {
       head(m);
       const g = el("div", "imptalk");
-      g.append(el("h2", null, onPick ? "Démasqué !" : `${m.name} est démasqué !`),
-        el("p", "lead small", onPick ? "Dernière chance : trouve la bonne réponse pour gagner quand même." : `Dernière chance pour ${m.name} : trouver la bonne réponse.`));
+      g.append(el("h2", null, onSend ? "Démasqué !" : `${m.name} est démasqué !`),
+        el("p", "lead small", onSend ? "Dernière chance : écris la bonne réponse pour gagner quand même. Les fautes d'orthographe sont permises." : `Dernière chance pour ${m.name} : écrire la bonne réponse…`));
       const c = clock(m.ms); if (c) g.append(c);
       const q = el("p", "impq", m.q);
-      const box = el("div", "grid impopts");
-      m.options.forEach((o, i) => {
-        const b = el("button", "btn white", o);
-        b.disabled = !onPick;
-        if (onPick) b.onclick = () => { box.querySelectorAll(".btn").forEach((x) => (x.disabled = true)); b.classList.add("picked"); onPick(i, o); };
-        box.append(b);
-      });
-      put(g, q, box);
+      if (!onSend) return put(g, q);
+      const row = el("div", "chatrow impcluerow");
+      const inp = el("input"); inp.type = "text"; inp.maxLength = 60; inp.placeholder = "La réponse…"; inp.setAttribute("enterkeyhint", "send"); inp.autocomplete = "off";
+      const go = el("button", "btn sun sm", "Valider");
+      const sendIt = () => { const v = inp.value.trim(); if (!v) return; inp.disabled = go.disabled = true; onSend(v); };
+      go.onclick = sendIt; inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); sendIt(); } });
+      row.append(inp, go);
+      put(g, q, row);
     },
     // la fin de la manche : qui était l'imposteur, la réponse, les points
     // en ligne : chacun écrit un indice (un mot ou une courte phrase), sans donner la réponse
@@ -142,6 +160,7 @@ export function impUI($, avatarEl) {
         el("p", "lead small", m.caught ? `${m.impName} était bien l'imposteur.` : `${m.accusedName ? `${m.accusedName} était innocent. ` : "Pas de majorité. "}L'imposteur était ${m.impName}.`));
       const a = el("p", "impa"); a.append(el("small", null, "La réponse"), el("b", null, m.answer));
       const parts = [r, a];
+      if (m.guessText != null) parts.push(el("p", "lead small impwrote", `${m.impName} a écrit : « ${m.guessText || "rien"} »`));
       if (m.tally && m.tally.length) { // les votes contre chacun, en barres
         const max = Math.max(1, ...m.tally.map((x) => x.n));
         const tb = el("div", "imptally");
