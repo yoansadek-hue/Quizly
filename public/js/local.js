@@ -137,6 +137,8 @@ const WORDS = ["LUNE","CIEL","ROSE","PAIN","LAIT","TRAIN","TABLE","PLAGE","SABLE
   "MONTAGNE","CHOCOLAT","PAPILLON","ELEPHANT","CROISSANT","DINOSAURE","TELEPHONE","PARAPLUIE","ESCARGOT","PARACHUTE","TOURNESOL",
   "ORDINATEUR","CHAMPIGNON","HIRONDELLE","ASTRONAUTE","CHAMPIONNAT","BIBLIOTHEQUE","PAMPLEMOUSSE","REFRIGERATEUR"];
 
+// L'Imposteur : seuls les thèmes sans IA qu'on ne peut pas résoudre seul (pas de calcul, de logique, d'anagramme…)
+export const IMP_LOCAL_OK = ["Drapeaux", "Capitales", "Coupe du monde", "Logos"];
 export const LOCAL_THEMES = ["Drapeaux", "Capitales", "Calcul mental", "Suites logiques", "Anagrammes",
   "Vrai ou faux", "L'intrus", "Plus ou moins", "Devinettes emojis", "Proverbes", "Logique",
   "Chronologie", "Coupe du monde", "Logos", "Devine la chanson"];
@@ -151,6 +153,7 @@ const maxTier = (d) => Math.min(3, Math.ceil(d * 0.8));
 function poolFor(d, field) {
   let p = COUNTRIES.filter((c) => c.tier <= maxTier(d) && c[field]);
   if (d >= 4) p = p.filter((c) => c.tier >= 2);
+  if (d >= 5) p = p.filter((c) => c.tier >= 3); // Légende (et L'Imposteur) : seulement les pays les moins connus
   return p;
 }
 function wrong(c, d, field) {
@@ -680,7 +683,7 @@ const CUP_TEAMS = ["Uruguay", "Italie", "Allemagne de l'Ouest", "Brésil", "Angl
 const CUP_FROM = [0, 1998, 1978, 1958, 1930, 1930]; // années proposées selon le niveau
 
 function coupeDuMonde(d) {
-  const pool = WORLD_CUP.filter((c) => c.y >= CUP_FROM[d] && (d < 4 || c.y < 1998 || r(3) === 0));
+  const pool = WORLD_CUP.filter((c) => c.y >= CUP_FROM[d] && (d < 4 || c.y < 1998 || r(3) === 0) && (d < 5 || c.y < 1986)); // Légende : les plus anciennes
   const c = pick(pool.length ? pool : WORLD_CUP);
   if (r(10) < 6) { // vainqueur
     const o = [c.w, ...shuffle(CUP_TEAMS.filter((x) => x !== c.w && !(c.w.startsWith("Allemagne") && x.startsWith("Allemagne")))).slice(0, 3)];

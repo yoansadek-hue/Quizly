@@ -3,7 +3,7 @@ import express from "express";
 import webpush from "web-push";
 import { firebaseConfig } from "./public/js/config.js";
 import { WebSocketServer } from "ws";
-import { LOCAL_THEMES, makeLocal, PRIZES, millionLevel, wonAt, safeAt, publicVote, SONG_THEME, songPool, songLabel, SONGS } from "./public/js/local.js";
+import { LOCAL_THEMES, IMP_LOCAL_OK, makeLocal, PRIZES, millionLevel, wonAt, safeAt, publicVote, SONG_THEME, songPool, songLabel, SONGS } from "./public/js/local.js";
 
 const app = express();
 app.use(express.json({ limit: "60kb" }));
@@ -289,10 +289,13 @@ function wellFormed(x) {
   return true;
 }
 
-async function generate(themes, diff, count, avoid) {
+// L'Imposteur : l'imposteur ne doit jamais pouvoir trouver la réponse seul
+const HARD = `
+MODE IMPOSTEUR : questions EXTRÊMEMENT difficiles, encore plus que le niveau 5 : des faits pointus et vérifiables (noms propres, dates, lieux, titres, chiffres marquants) que seul un vrai spécialiste connaît. Personne ne doit pouvoir trouver la réponse par déduction, calcul, logique, étymologie ou élimination : la question ne donne aucun indice. Jamais de culture générale courante. Les 3 mauvaises réponses sont très proches et tout aussi crédibles.`;
+async function generate(themes, diff, count, avoid, hard = false) {
   if (!KEY) throw new Error("AI_API_KEY manquante côté serveur");
   const want = count + 3; // un peu plus : certaines seront écartées
-  const prompt = `${want} questions, thèmes : ${themes.map((t) => `« ${t} »`).join(", ")}. Difficulté ${diff}/5 (${LEVELS[diff]}). Répartis les questions entre les thèmes, varie les sous-sujets, les époques et les types de réponses (personnes, lieux, dates, œuvres, objets). Graine ${Math.random().toString(36).slice(2, 7)}.` +
+  const prompt = `${want} questions, thèmes : ${themes.map((t) => `« ${t} »`).join(", ")}. Difficulté ${diff}/5 (${LEVELS[diff]}).${hard ? HARD : ""} Répartis les questions entre les thèmes, varie les sous-sujets, les époques et les types de réponses (personnes, lieux, dates, œuvres, objets). Graine ${Math.random().toString(36).slice(2, 7)}.` +
     (avoid.length ? `\nDéjà posées (ne pas reposer ni reformuler) :\n- ${avoid.join("\n- ")}` : "");
   const list = await chat(SYSTEM, prompt, EFFORT === "low" ? "medium" : EFFORT, 0.7);
   let questions = list
@@ -512,7 +515,7 @@ app.post("/api/questions", async (req, res) => {
   const count = Math.min(Math.max(+req.body.count || 6, 1), 10);
   const avoid = (Array.isArray(req.body.avoid) ? req.body.avoid : []).slice(-20).map((x) => String(x).slice(0, 70));
   if (!themes.length) return res.status(400).json({ error: "Aucun thème" });
-  try { res.json({ questions: await generate(themes, diff, count, avoid) }); }
+  try { res.json({ questions: await generate(themes, diff, count, avoid, !!req.body.hard) }); }
   catch (e) {
     console.error(e.message);
     res.status(e.status || 502).json({ error: e.status === 429 ? e.message : "Génération impossible, réessayez." });
@@ -578,16 +581,16 @@ function join(ws, room, name, photo, hist, uid, cos) {
 
 function resetRoom(room) {
   clearTimeout(room.timer);
-  Object.assign(room, { phase: "lobby", diff: 1, buf: [], asked: [], played: new Set(), i: -1, elim: 0, q: null, loads: new Map() });
+  Object.assign(room, { qThemes: null, phase: "lobby", diff: 1, buf: [], asked: [], played: new Set(), i: -1, elim: 0, q: null, loads: new Map() });
   room.players.forEach((p, id) => { clearTimeout(p.ctimer); if (p.left) room.players.delete(id); });
 }
 
 /* --- questions d'une salle --- */
 function fill(room, d = room.diff) {
   if (room.loads.has(d)) return room.loads.get(d);
-  const themes = shuffle(room.cfg.themes.filter((t) => !LOCAL_THEMES.includes(t))).slice(0, 5);
+  const themes = shuffle((room.qThemes || room.cfg.themes).filter((t) => !LOCAL_THEMES.includes(t))).slice(0, 5);
   if (!themes.length) return Promise.resolve();
-  const p = generate(themes, d, 6, room.asked.filter((q) => !q.startsWith("~")).slice(-15).map((q) => q.slice(0, 70)))
+  const p = generate(themes, d, 6, room.asked.filter((q) => !q.startsWith("~")).slice(-15).map((q) => q.slice(0, 70)), room.cfg.kind === "imposteur")
     .then((qs) => qs.forEach((q) => {
       if (!room.asked.some((a) => norm(a) === norm(q.q)) && !room.buf.some((b) => norm(b.q) === norm(q.q))) room.buf.push({ ...q, d });
     }))
@@ -597,9 +600,10 @@ function fill(room, d = room.diff) {
 }
 async function takeQuestion(room) {
   // thèmes « sans IA » (drapeaux, capitales, calcul…) : fabriqués ici, toujours justes
-  const locals = room.cfg.themes.filter((t) => LOCAL_THEMES.includes(t));
-  const withAI = room.cfg.themes.length > locals.length;
-  if (locals.length && (!withAI || Math.random() < locals.length / room.cfg.themes.length)) {
+  const all = room.qThemes || room.cfg.themes; // L'Imposteur a sa propre liste de thèmes (voir impStart)
+  const locals = all.filter((t) => LOCAL_THEMES.includes(t));
+  const withAI = all.length > locals.length;
+  if (locals.length && (!withAI || Math.random() < locals.length / all.length)) {
     const lq = await pickLocal(locals, room.diff, room.used || (room.used = new Set()), softOf(room));
     if (lq) { room.asked.push(lq.key); return lq; }
   }
@@ -616,14 +620,14 @@ async function takeQuestion(room) {
     try { await fill(room); } catch { break; } // IA indisponible : on passe aux questions sans IA
   }
   // l'IA ne répond pas : la partie continue avec des questions sans IA plutôt que de s'arrêter
-  const lq = await pickLocal(locals.length ? locals : LOCAL_THEMES.filter((t) => t !== SONG_THEME), room.diff, used, softOf(room));
+  const lq = await pickLocal(locals.length ? locals : room.qThemes ? IMP_LOCAL_OK : LOCAL_THEMES.filter((t) => t !== SONG_THEME), room.diff, used, softOf(room));
   if (lq) { room.asked.push(lq.key); return lq; }
   throw new Error("L'IA n'a renvoyé aucune nouvelle question.");
 }
 
 /* --- déroulement --- */
 function startGame(room) {
-  Object.assign(room, { phase: "load", diff: 1, qn: 0, buf: [], asked: [], used: new Set(), soft: null, played: new Set(), i: -1, elim: 0, loads: new Map() });
+  Object.assign(room, { qThemes: null, phase: "load", diff: 1, qn: 0, buf: [], asked: [], used: new Set(), soft: null, played: new Set(), i: -1, elim: 0, loads: new Map() });
   players(room).forEach((p) => Object.assign(p, { lives: room.cfg.lives, score: 0, points: room.cfg.kind === "parieurs" ? BET_START : 0, dead: false, outAt: 0 }));
   if (room.cfg.kind === "equipes") makeTeams(room);
   if (room.cfg.kind === "parieurs") makeBetOrder(room);
@@ -778,6 +782,9 @@ function impSend(p, o) { p.impLast = { ...o, at: Date.now() }; send(p.ws, o); }
 function impTv(room, o) { room.impTv = { ...o, at: Date.now() }; tvs(room).forEach((ws) => send(ws, o)); }
 function impStart(room) {
   present(room).forEach((p) => { p.points = 0; p.imp = 0; p.impLast = null; });
+  // des questions très dures, que l'imposteur ne peut pas trouver seul : pas de calcul, de logique, d'anagramme…
+  const ok = room.cfg.themes.filter((t) => !LOCAL_THEMES.includes(t) || IMP_LOCAL_OK.includes(t));
+  room.qThemes = ok.length ? ok : ["Histoire", "Géographie", "Science", "Cinéma", "Art", "Littérature", "Sport"];
   room.ir = { round: 0, rounds: Math.min(6, Math.max(3, present(room).length)), last: null };
   impRound(room);
 }
@@ -787,7 +794,7 @@ async function impRound(room) {
   if (present(room).length < 3) return impEnd(room);
   if (ir.round >= ir.rounds) return impEnd(room);
   ir.round++;
-  room.diff = Math.min(5, 2 + Math.floor((ir.round - 1) / 2)); // de plus en plus dur : l'imposteur devine moins facilement
+  room.diff = 5; // toujours le niveau le plus dur : l'imposteur ne doit pas pouvoir deviner
   room.phase = "load"; cast(room, { t: "load", msg: "L'IA prépare la question…" });
   let q;
   try { q = await takeQuestion(room); }
