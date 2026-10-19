@@ -319,7 +319,14 @@ body.typing .dock{display:none}
 #mOpts .btn span{flex:1}
 #mOpts .pct{font-size:13px;font-weight:700;color:var(--muted);white-space:nowrap}
 #mOpts .pct:empty{display:none}
-#mOpts .btn.gone{visibility:hidden}
+#mOpts .btn.gone{background:transparent!important;color:transparent!important;border:3px dashed rgba(196,184,255,.35)!important;box-shadow:none!important;transform:scale(.94);animation:ghostin .3s ease-out both!important}
+@keyframes ghostin{from{opacity:0}to{opacity:1}}
+#mOpts .btn.gone .pct{display:none}
+/* 50 / 50 : la réponse éliminée rougit, tremble, est barrée puis s'efface */
+#mOpts .btn.going{position:relative;overflow:hidden}
+#mOpts .btn.going::after{content:"";position:absolute;left:10px;right:10px;top:50%;height:4px;margin-top:-2px;border-radius:4px;background:var(--ink);transform-origin:left center;animation:elimline .3s var(--d,.26s) cubic-bezier(.2,.8,.2,1) both}
+@keyframes elim{0%{transform:none}10%{transform:translateX(-8px) rotate(-1.5deg);background:var(--coral);color:var(--ink)}22%{transform:translateX(8px) rotate(1.5deg)}34%{transform:translateX(-5px)}46%{transform:none;background:var(--coral);opacity:1}70%{transform:scale(1.04);opacity:1}100%{transform:scale(.6);opacity:0;background:var(--coral)}}
+@keyframes elimline{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 .mjokers{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:18px 0 12px}
 .mjokers .chip{cursor:pointer;background:var(--sun);color:var(--ink);font:800 14px var(--display);box-shadow:var(--edge-s)}
 .mjokers .chip.used{background:transparent;color:var(--lilac);border-color:var(--lilac);text-decoration:line-through;cursor:default;box-shadow:none}
