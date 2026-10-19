@@ -8,7 +8,7 @@ import { styleName, titleEl, titleOf } from "./cosmetics.js";
 const ALPHA = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // sans I, O, 0, 1 : pas de confusion à la lecture
 const INVITE_TTL = 10 * 60 * 1000; // une invitation de plus de 10 minutes est ignorée
 
-export function initFriends({ $, ask, avatarEl, euros, me, records, summary, daily, achs, cos, joinRoom, roomInfo, openFriends, openNotifs, showScreen, week = () => null, earn = () => {} }) {
+export function initFriends({ $, ask, avatarEl, euros, me, records, summary, daily, achs, cos, joinRoom, roomInfo, openFriends, openNotifs, showScreen, week = () => null, earn = () => {}, dev = () => false }) {
   const F = { uid: null, fs: null, code: "", friends: [], unsub: [], tab: "best2", inv: null, panel: null };
   // onglets de l'écran Amis
   function setPanel(p) {
@@ -163,8 +163,12 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
   /* ---------- liste d'amis ---------- */
   async function loadFriends() {
     if (!ready()) return;
-    const list = await F.fs.getDocs(F.fs.collection(F.fs.db, "friends", F.uid, "list"));
     const out = [];
+    if (dev()) { // le compte du développeur a tous les joueurs de Quizly en amis
+      const all = await F.fs.getDocs(F.fs.collection(F.fs.db, "profiles"));
+      all.docs.forEach((d) => { if (d.id !== F.uid && d.data().name) out.push({ uid: d.id, ...d.data() }); });
+    }
+    const list = dev() ? { docs: [] } : await F.fs.getDocs(F.fs.collection(F.fs.db, "friends", F.uid, "list"));
     for (const d of list.docs) {
       try { const p = await F.fs.getDoc(ref("profiles", d.id)); if (p.exists()) out.push({ uid: d.id, ...p.data() }); } catch {}
     }

@@ -90,8 +90,17 @@ export function millionUI($) {
     $("mStop").disabled = true;
     ["mFifty", "mPublic", "mSwap"].forEach((id) => ($(id).disabled = true));
   }
+  // 50 / 50 : les deux mauvaises réponses sont éliminées l'une après l'autre (elles rougissent, tremblent,
+  // sont barrées puis s'effacent) ; leur place reste marquée en pointillés
   function fifty(keep) {
-    btns().forEach((b) => { if (!keep.includes(+b.dataset.i)) { b.disabled = true; b.classList.add("gone"); } });
+    const calm = matchMedia("(prefers-reduced-motion: reduce)").matches || document.body.classList.contains("calm");
+    btns().filter((b) => !keep.includes(+b.dataset.i)).forEach((b, k) => {
+      b.disabled = true;
+      if (calm) { b.classList.add("gone"); return; }
+      const d = k * 320; // l'une après l'autre
+      b.style.animation = `elim .76s cubic-bezier(.3,.7,.4,1) ${d}ms both`; b.style.setProperty("--d", `${d + 260}ms`); b.classList.add("going");
+      setTimeout(() => { b.classList.remove("going"); b.style.animation = ""; b.classList.add("gone"); }, d + 760);
+    });
   }
   function showPublic(perc) {
     btns().forEach((b) => { const v = perc[+b.dataset.i] || 0; b.querySelector(".pct").textContent = b.classList.contains("gone") ? "" : `Public : ${v} %`; });

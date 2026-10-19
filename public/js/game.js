@@ -10,7 +10,7 @@ import { enablePush, disablePush, pushMuted, pushState, currentSub } from "./pus
 import { initCosmetics, styleName, titleOf } from "./cosmetics.js";
 import { initQuests } from "./quests.js";
 
-const VERSION = "2.21.1"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.22.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -1051,6 +1051,7 @@ function enter(uid, name, photo) {
 const friends = initFriends({
   $, ask, avatarEl, euros,
   week: () => quests.weekStats(), earn: (n, why) => cosm.earn(n, why), // défis du club
+  dev: () => S.uid === DEV_UID, // le développeur a tout le monde en amis
   me: () => ({ name: S.firstName || "Joueur", photo: S.photo || "" }),
   records: () => { const b = (k) => { try { return +localStorage.getItem(`quizly:${S.uid}:${k}`) || 0; } catch { return 0; } }; return { best2: b("best2"), bestChrono: b("bestChrono"), bestMillion: b("bestMillion") }; },
   joinRoom: (code) => { chooseMode("online"); online.join(code); },
@@ -2032,11 +2033,10 @@ document.querySelectorAll("#qTabs .ftab").forEach((b) => (b.onclick = () => qTab
 function renderQuestDaily() {
   const d = getDaily(), sk = dailyStreak(), box = $("qDaily");
   box.className = "qdaily" + (d ? " done" : "");
-  const k = document.createElement("span"); k.className = "dk"; k.textContent = "Défi du jour";
-  const t = document.createElement("b"); t.textContent = d ? `Fait : ${d.score} / 10` : "10 questions, une seule tentative";
+  const t = document.createElement("b"); // pas d'étiquette « Défi du jour » : l'onglet le dit déjà t.textContent = d ? `Fait : ${d.score} / 10` : "10 questions, une seule tentative";
   const sm = document.createElement("small"); sm.textContent = d ? `Temps : ${Math.round((d.ms || 0) / 1000)} s · série : ${sk} jour${sk > 1 ? "s" : ""}` : "Les mêmes pour tout le monde. +10 Q-Bucks.";
   const btn = document.createElement("button"); btn.className = "btn sm " + (d ? "white" : "sun"); btn.textContent = d ? "Voir mon résultat" : "Jouer"; btn.onclick = openDaily;
-  box.replaceChildren(k, t, sm, btn);
+  box.replaceChildren(t, sm, btn);
 }
 // classement du Défi du jour : aujourd'hui ou hier, entre amis ou dans le monde
 const QR = { day: "today", scope: "friends" };
