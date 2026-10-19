@@ -10,7 +10,7 @@ import { enablePush, disablePush, pushMuted, pushState, currentSub } from "./pus
 import { initCosmetics, styleName, titleOf } from "./cosmetics.js";
 import { initQuests } from "./quests.js";
 
-const VERSION = "2.22.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.22.1"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -2021,7 +2021,7 @@ const cosm = initCosmetics({
 /* ---------- Défis : défi du jour, défis quotidiens et hebdomadaires, la veille ---------- */
 const quests = initQuests({ $, uid: () => S.uid, earn: (n, why) => cosm.earn(n, why), onChange: (n) => questBadge(n) });
 function questBadge(n) { $("questBadge").hidden = !n; $("questBadge").textContent = n > 9 ? "9+" : n; }
-function openQuests() { renderQuestDaily(); quests.render(); renderQuestRank(); qTab(QTAB); show("s-quests"); }
+function openQuests() { renderQuestDaily(); quests.render(); qTab(QTAB); show("s-quests"); }
 // onglets des Défis : Défi du jour · Du jour · Semaine
 let QTAB = "daily";
 function qTab(t) {
@@ -2033,33 +2033,11 @@ document.querySelectorAll("#qTabs .ftab").forEach((b) => (b.onclick = () => qTab
 function renderQuestDaily() {
   const d = getDaily(), sk = dailyStreak(), box = $("qDaily");
   box.className = "qdaily" + (d ? " done" : "");
-  const t = document.createElement("b"); // pas d'étiquette « Défi du jour » : l'onglet le dit déjà t.textContent = d ? `Fait : ${d.score} / 10` : "10 questions, une seule tentative";
+  const k = document.createElement("span"); k.className = "dk"; k.textContent = "Défi du jour";
+  const t = document.createElement("b"); t.textContent = d ? `Fait : ${d.score} / 10` : "10 questions, une seule tentative";
   const sm = document.createElement("small"); sm.textContent = d ? `Temps : ${Math.round((d.ms || 0) / 1000)} s · série : ${sk} jour${sk > 1 ? "s" : ""}` : "Les mêmes pour tout le monde. +10 Q-Bucks.";
   const btn = document.createElement("button"); btn.className = "btn sm " + (d ? "white" : "sun"); btn.textContent = d ? "Voir mon résultat" : "Jouer"; btn.onclick = openDaily;
-  box.replaceChildren(t, sm, btn);
+  box.replaceChildren(k, t, sm, btn);
 }
-// classement du Défi du jour : aujourd'hui ou hier, entre amis ou dans le monde
-const QR = { day: "today", scope: "friends" };
-async function renderQuestRank() {
-  const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(Date.now() - (QR.day === "yest" ? 86400000 : 0)), want = `${QR.day}-${QR.scope}`;
-  document.querySelectorAll("#qrDay button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.d === QR.day)));
-  document.querySelectorAll("#qrScope button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.s === QR.scope)));
-  const fmt = (p) => `${p.daily.score} / 10 · ${Math.round(p.daily.ms / 1000)} s`;
-  let mine = null; try { mine = JSON.parse(localStorage.getItem(dResKey()) || "{}")[day] || null; } catch {}
-  if (QR.day === "today") mine = getDaily() || mine;
-  $("qrList").replaceChildren(Object.assign(document.createElement("p"), { className: "lead small", textContent: "Chargement du classement…" }));
-  let list = [];
-  try {
-    if (QR.scope === "friends" && QR.day === "today") list = friends.ready() ? friends.dailyBoard(day) : [];
-    else if (friends.ready()) { list = await friends.worldDaily(day); if (QR.scope === "friends") list = list.filter((p) => p.you || friends.isFriend(p.uid)); }
-  } catch { list = []; }
-  if (`${QR.day}-${QR.scope}` !== want) return; // on a changé d'onglet entre-temps
-  if (mine && !list.some((p) => p.you)) { list.push({ name: S.firstName, photo: S.photo, you: true, daily: { score: mine.score || 0, ms: mine.ms || 0 } }); list.sort((a, b) => b.daily.score - a.daily.score || a.daily.ms - b.daily.ms); }
-  const i = list.findIndex((p) => p.you);
-  $("qrMine").textContent = !list.length ? (QR.day === "today" ? "Personne n'a encore fait le défi aujourd'hui." : "Personne n'a fait le défi hier.") : i >= 0 ? `Votre place : ${i + 1}e sur ${list.length}` : QR.day === "today" ? "Vous ne l'avez pas encore fait." : "Vous ne l'avez pas fait hier.";
-  $("qrList").replaceChildren(...list.map((p, k) => rankRow(p, k, fmt(p))));
-}
-document.querySelectorAll("#qrDay button").forEach((b) => (b.onclick = () => { QR.day = b.dataset.d; renderQuestRank(); }));
-document.querySelectorAll("#qrScope button").forEach((b) => (b.onclick = () => { QR.scope = b.dataset.s; renderQuestRank(); }));
 
 $("btnCoins").onclick = () => { cosm.render(); show("s-shop"); };
