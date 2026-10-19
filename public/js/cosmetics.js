@@ -72,6 +72,7 @@ export function initCosmetics({ $, ask, uid, name, photo, achs, avatarEl, onChan
   function earn(n, why) {
     if (!uid() || !n) return;
     write("coins", coins() + n);
+    $("coinCount").textContent = coins(); // le compteur du haut
     const t = $("coinPop");
     t.textContent = `+${n} Q-Buck${n > 1 ? "s" : ""}${why ? ` · ${why}` : ""}`;
     t.hidden = false; t.classList.remove("go"); void t.offsetWidth; t.classList.add("go");
@@ -89,6 +90,7 @@ export function initCosmetics({ $, ask, uid, name, photo, achs, avatarEl, onChan
 
   function apply() { // ce qui est équipé s'affiche partout
     refund();
+    $("coinCount").textContent = coins();
     const e = equipped();
     if (name()) setFrame(name(), e.frame);
     document.body.dataset.banner = e.banner;
@@ -150,8 +152,12 @@ export function initCosmetics({ $, ask, uid, name, photo, achs, avatarEl, onChan
   function render() {
     $("coinCount").textContent = coins();
     $("shopCoins").textContent = coins();
-    document.querySelectorAll("#shopTabs button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.c === tab)));
     const e = equipped(), own = owned(), d = deal();
+    document.querySelectorAll("#shopTabs button").forEach((b) => { // chaque onglet montre combien d'articles sont à vous
+      b.setAttribute("aria-pressed", String(b.dataset.c === tab));
+      const all = Object.keys(ITEMS).filter((id) => ITEMS[id][0] === b.dataset.c);
+      b.querySelector("small").textContent = `${all.filter((id) => own.has(id)).length}/${all.length}`;
+    });
     // offre du jour
     const [, dn, dp] = ITEMS[d.id];
     $("dealPv").replaceChildren(preview(d.id)); $("dealName").textContent = dn; $("dealOld").textContent = dp; $("dealNew").textContent = d.price;
@@ -159,22 +165,33 @@ export function initCosmetics({ $, ask, uid, name, photo, achs, avatarEl, onChan
     $("dealLeft").textContent = own.has(d.id) ? "déjà à vous" : `encore ${left} h`;
     $("dealCard").classList.toggle("got", own.has(d.id));
     $("dealCard").onclick = () => { tab = ITEMS[d.id][0]; sel = d.id; render(); };
-    // la grille
+    // la grille, rangée en trois parties : à vous (l'équipé d'abord), à acheter (du moins cher au plus cher), exclusifs
     const ids = Object.keys(ITEMS).filter((id) => ITEMS[id][0] === tab);
-    $("shopOwned").textContent = `${ids.filter((id) => own.has(id)).length} / ${ids.length} possédés`;
-    $("shopGrid").replaceChildren(...ids.map((id) => {
-      const [cat, nm, , need] = ITEMS[id], [rl, rk] = rarity(id);
-      const card = document.createElement("button"); card.className = `item r-${rk}` + (e[cat] === id ? " on" : "") + (sel === id ? " sel" : "");
-      const rb = document.createElement("span"); rb.className = `rar r-${rk}`; rb.textContent = rl;
-      const t = document.createElement("b"); t.textContent = nm;
-      const st = document.createElement("small"); st.className = "st";
-      st.textContent = e[cat] === id ? "Équipé" : own.has(id) ? "Possédé" : need ? (unlocked(id) ? "Offert" : "Verrouillé") : `${priceOf(id)} Q-Bucks${d.id === id ? " · −40 %" : ""}`;
-      if (!own.has(id) && !need) st.classList.add("price");
-      card.append(rb, preview(id), t, st);
-      card.onclick = () => { sel = id; $("shopMsg").textContent = ""; render(); $("tryOn").scrollIntoView({ behavior: "smooth", block: "nearest" }); };
-      return card;
-    }));
+    const mine = ids.filter((id) => own.has(id)).sort((a, b) => (e[tab] === b) - (e[tab] === a));
+    const shop = ids.filter((id) => !own.has(id) && !ITEMS[id][3]).sort((a, b) => priceOf(a) - priceOf(b));
+    const excl = ids.filter((id) => !own.has(id) && ITEMS[id][3]);
+    const part = (title, note, list) => {
+      if (!list.length) return [];
+      const h = document.createElement("h3"); h.className = "shoph"; h.textContent = title;
+      if (note) { const n = document.createElement("small"); n.textContent = note; h.append(n); }
+      const g = document.createElement("div"); g.className = "shopgrid"; g.append(...list.map(card));
+      return [h, g];
+    };
+    $("shopGrid").replaceChildren(...part("À vous", `${mine.length}/${ids.length}`, mine), ...part("À acheter", "", shop), ...part("Exclusifs", "grâce aux succès", excl));
     tryOn();
+  }
+  function card(id) { // une carte de la grille
+    const e = equipped(), own = owned(), d = deal();
+    const [cat, nm, , need] = ITEMS[id], [rl, rk] = rarity(id);
+    const card = document.createElement("button"); card.className = `item r-${rk}` + (e[cat] === id ? " on" : "") + (sel === id ? " sel" : "");
+    const t = document.createElement("b"); t.textContent = nm;
+    const st = document.createElement("small"); st.className = "st";
+    st.textContent = e[cat] === id ? "Équipé" : own.has(id) ? "Possédé" : need ? (unlocked(id) ? "Offert" : "Verrouillé") : `${priceOf(id)} Q-Bucks${d.id === id ? " · −40 %" : ""}`;
+    if (!own.has(id) && !need) st.classList.add("price");
+    card.append(preview(id), t, st);
+    card.title = rl; // la rareté se voit à la couleur du haut de la carte
+    card.onclick = () => { sel = id; $("shopMsg").textContent = ""; render(); $("tryOn").scrollIntoView({ behavior: "smooth", block: "nearest" }); };
+    return card;
   }
   function buy(id) {
     const nm = ITEMS[id][1], price = priceOf(id);
@@ -187,7 +204,7 @@ export function initCosmetics({ $, ask, uid, name, photo, achs, avatarEl, onChan
   }
   // les onglets Cadres · Bulles · Bannières · Titres · Pseudo · Thèmes
   $("shopTabs").replaceChildren(...CATS.map(([c, label]) => {
-    const b = document.createElement("button"); b.dataset.c = c; b.textContent = label;
+    const b = document.createElement("button"); b.dataset.c = c; b.append(label, document.createElement("small"));
     b.onclick = () => { tab = c; sel = null; $("shopMsg").textContent = ""; render(); };
     return b;
   }));

@@ -10,7 +10,7 @@ import { enablePush, disablePush, pushMuted, pushState, currentSub } from "./pus
 import { initCosmetics, styleName, titleOf } from "./cosmetics.js";
 import { initQuests } from "./quests.js";
 
-const VERSION = "2.20.4"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.21.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -58,8 +58,10 @@ let curScreen = "";
 function userLabel() {
   let on = false; try { on = online.active(); } catch {}
   const quit = (PLAYING.includes(curScreen) && (S.inGame || on)) || (on && curScreen === "s-lobby");
-  $("userName").textContent = `${S.firstName || "Compte"} · ${quit ? "Quitter" : "Profil"}`;
-  $("btnUser").setAttribute("aria-label", quit ? "Quitter la partie" : "Ouvrir mon profil");
+  $("userName").textContent = `${S.firstName || "Compte"} · Quitter`;
+  // hors partie : vos Q-Bucks à la place du bouton Profil (le Profil est dans la barre du bas) ; un appui ouvre la Boutique
+  $("btnUser").hidden = !quit; $("btnCoins").hidden = quit;
+  try { $("coinCount").textContent = cosm.coins(); } catch {}
 }
 function show(id) {
   if (curScreen === "s-scan" && id !== "s-scan") stopScan(); // on coupe la caméra en quittant le scanner
@@ -70,8 +72,11 @@ function show(id) {
   tabbar(id); // la barre d'onglets du bas
   if (id === "s-end") setTimeout(() => friends.syncRecords(), 800); // nouveaux records visibles par les amis
   // rond des réactions : seulement pendant une partie en ligne
-  let onl = false; try { onl = online.active(); online.closeReacts(); } catch {}
-  $("reactFab").hidden = !(onl && ["s-game", "s-million", "s-load"].includes(id));
+  // le chat reste ouvert d'une question à l'autre (on peut finir sa phrase) ; il se ferme seulement hors du jeu
+  let onl = false; try { onl = online.active(); } catch {}
+  const chat = onl && ["s-game", "s-million", "s-load"].includes(id);
+  if (!chat) try { online.closeReacts(); } catch {}
+  $("reactFab").hidden = !chat;
   if (id !== "s-game") stopAudio(); // l'extrait s'arrête quand on quitte la question
   document.querySelectorAll(".screen").forEach((s) => { s.hidden = s.id !== id; if (s.id !== id) s.classList.remove("noanim"); swipeClean(s); }); // jamais d'écran resté décalé
   userLabel();
@@ -1356,7 +1361,7 @@ if (window.visualViewport) visualViewport.addEventListener("resize", () => {
 });
 // petite animation d'appui sur les boutons du haut (et :active fonctionne aussi sur iPhone)
 document.addEventListener("touchstart", () => {}, { passive: true });
-["btnUser", "btnNotifs"].forEach((id) => $(id).addEventListener("pointerdown", (e) => {
+["btnUser", "btnCoins", "btnNotifs"].forEach((id) => $(id).addEventListener("pointerdown", (e) => {
   const b = e.currentTarget; b.classList.remove("tap"); void b.offsetWidth; b.classList.add("tap");
   setTimeout(() => b.classList.remove("tap"), 400);
 }));
@@ -2016,7 +2021,15 @@ const cosm = initCosmetics({
 /* ---------- Défis : défi du jour, défis quotidiens et hebdomadaires, la veille ---------- */
 const quests = initQuests({ $, uid: () => S.uid, earn: (n, why) => cosm.earn(n, why), onChange: (n) => questBadge(n) });
 function questBadge(n) { $("questBadge").hidden = !n; $("questBadge").textContent = n > 9 ? "9+" : n; }
-function openQuests() { renderQuestDaily(); quests.render(); renderQuestRank(); show("s-quests"); }
+function openQuests() { renderQuestDaily(); quests.render(); renderQuestRank(); qTab(QTAB); show("s-quests"); }
+// onglets des Défis : Défi du jour · Du jour · Semaine
+let QTAB = "daily";
+function qTab(t) {
+  QTAB = t;
+  [["daily", "qpDaily"], ["day", "qpDay"], ["week", "qpWeek"]].forEach(([k, id]) => ($(id).hidden = k !== t));
+  document.querySelectorAll("#qTabs .ftab").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === t)));
+}
+document.querySelectorAll("#qTabs .ftab").forEach((b) => (b.onclick = () => qTab(b.dataset.tab)));
 function renderQuestDaily() {
   const d = getDaily(), sk = dailyStreak(), box = $("qDaily");
   box.className = "qdaily" + (d ? " done" : "");
@@ -2050,4 +2063,4 @@ async function renderQuestRank() {
 document.querySelectorAll("#qrDay button").forEach((b) => (b.onclick = () => { QR.day = b.dataset.d; renderQuestRank(); }));
 document.querySelectorAll("#qrScope button").forEach((b) => (b.onclick = () => { QR.scope = b.dataset.s; renderQuestRank(); }));
 
-$("btnShop").onclick = () => { cosm.render(); show("s-shop"); };
+$("btnCoins").onclick = () => { cosm.render(); show("s-shop"); };
