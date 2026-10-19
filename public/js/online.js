@@ -118,7 +118,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
       case "end": renderEnd(m); break;
       case "host": O.host = m.host; break;
       // Les Parieurs en ligne
-      case "bets": if (O.cur) { O.cur.bets = m.list; renderBets(); } break;
+      case "bets": if (O.cur) { O.cur.bets = m.bets; O.cur.count = m.count; renderBets(); } break;
       case "go": goAnswer(m); break;
       case "tvflag": tvMode(m.tv, m.kind); break;
       // Chrono en ligne
@@ -335,8 +335,10 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
       t.textContent = !b.amt ? "passe" : `${b.yes ? "réussit" : "se trompe"} · ${b.amt}${b.won === true ? ` · +${b.amt}` : b.won === false ? ` · −${b.amt}` : ""}`;
       li.append(n, t); return li;
     }));
-    $("betWait").hidden = !(m.bet && (mine || my || have <= 0));
-    $("betWait").textContent = mine ? "Les autres parient sur vous…" : have <= 0 ? "Plus de jetons : vous regardez ce tour." : "Pari placé. En attente des autres…";
+    // celui qui répond ne voit que le nombre de paris sur lui : les montants restent secrets jusqu'au résultat
+    const n = m.count || 0, secret = `${n ? `${n} pari${n > 1 ? "s" : ""} sur vous` : "Pas encore de pari sur vous"} · montants secrets`;
+    $("betWait").hidden = !(mine ? !m.done : m.bet && (my || have <= 0));
+    $("betWait").textContent = mine ? (m.bet ? `Les autres parient sur vous… ${secret}` : secret) : have <= 0 ? "Plus de jetons : vous regardez ce tour." : "Pari placé. En attente des autres…";
   }
   const placeBet = (yes, amt) => { if (!O.cur || !O.cur.bet) return; send({ t: "bet", yes, amt }); $("betCtrl").hidden = true; };
   $("betYes").onclick = () => placeBet(true, betAmt);
@@ -344,7 +346,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
   $("betPass").onclick = () => placeBet(false, 0);
   function goAnswer(m) { // les paris sont fermés : celui qui répond peut répondre
     if (!O.cur) return;
-    O.cur.bet = false; O.cur.bets = m.bets;
+    O.cur.bet = false; O.cur.bets = m.bets; O.cur.count = m.count;
     const mine = O.cur.who === O.you;
     document.querySelectorAll("#mcq .btn").forEach((b) => (b.disabled = !mine || O.answered));
     $("alive").textContent = mine ? "À vous de répondre !" : `${O.cur.name} répond…`;
@@ -370,7 +372,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
       $("alive").textContent = m.who === O.you ? `${verdict}${m.gain ? ` · +${m.gain} jetons` : ""}`
         : my ? `${verdict} · pari ${my.won ? `gagné : +${my.amt}` : `perdu : −${my.amt}`} · vous avez ${jetons(my.tokens)}` : verdict;
       if (my) mood = my.won;
-      if (O.cur) { O.cur.bet = false; O.cur.bets = m.bets; O.cur.board = m.board; renderBets(); }
+      if (O.cur) { O.cur.bet = false; O.cur.done = true; O.cur.bets = m.bets; O.cur.board = m.board; renderBets(); } // le résultat dévoile tous les paris
     } else {
       $("whoLives").textContent = `${HEART} ${Math.max(m.lives, 0)}`;
       $("alive").textContent = m.correct ? "Bonne réponse" : m.dead ? `${m.name} est éliminé` : m.picked < 0 ? "Temps écoulé" : "Mauvaise réponse";

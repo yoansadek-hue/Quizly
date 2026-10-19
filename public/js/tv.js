@@ -54,7 +54,7 @@ function onMsg(m) {
     case "mboard": T.mboard = m.list; renderMSide(); break;
     case "mspec": renderMSpec(m); break;
     case "mout": break; // visible dans la colonne de droite
-    case "bets": betChips(m.list); break;
+    case "bets": betCount(m.count); break;
     case "go": betsGo(m); break;
     case "end": renderEnd(m); break;
     case "react": bubble(m.name, TAUNTS[m.r] || "", `r${m.r} ${m.sk || ""}`); break;
@@ -136,7 +136,7 @@ function renderQ(m) {
   const sec = m.ms ? m.ms / 1000 : 0;
   ring("gArc", "gClock", "gRing", sec, sec);
   renderSide(m.board, m.who, m.teams);
-  if (m.bet) { verdict(`Faites vos paris : ${m.name} va-t-il réussir ?`, "bet"); betChips(m.bets); }
+  if (m.bet) { verdict(`Faites vos paris : ${m.name} va-t-il réussir ?`, "bet"); betCount(0); }
   show("tGame");
   if (T.who !== m.who && (m.board || []).length > 1) splash(m.name, photo(m.who));
   T.who = m.who;
@@ -149,9 +149,13 @@ function betChips(list) {
     return c;
   }));
 }
+// avant le résultat, la télé ne montre que le nombre de paris (celui qui répond la regarde aussi)
+function betCount(n) {
+  $("gLive").replaceChildren(el("span", "chip", n ? `${n} pari${n > 1 ? "s" : ""} placé${n > 1 ? "s" : ""} · montants secrets` : "En attente des paris…"));
+}
 function betsGo(m) { // les paris sont fermés : la réponse arrive
   $("gVerdict").hidden = true;
-  betChips(m.bets);
+  betCount(m.count);
   const sec = m.ms ? m.ms / 1000 : 0;
   ring("gArc", "gClock", "gRing", sec, sec);
 }
