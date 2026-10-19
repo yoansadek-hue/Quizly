@@ -6,7 +6,7 @@ import { THEMES } from "./questions.js";
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
 const KIND = { survie: "Survie", chrono: "Chrono 60 s", million: "Qui veut gagner des millions", equipes: "Équipes", parieurs: "Les Parieurs", imposteur: "L'Imposteur" };
-const TAUNTS = ["Trop facile", "Tu dors ?", "Pleure pas", "Même pas peur", "Je suis trop fort", "Cadeau !"];
+const TAUNTS = ["Trop facile", "Tu dors ?", "Pleure pas", "Même pas peur", "Je suis trop fort", "Cadeau !", "Bruh"];
 const T = { ws: null, code: "", pl: {}, kind: "survie", raf: 0, last: null, board: [], mboard: [], who: null, craf: 0 };
 
 function show(id) {
@@ -57,6 +57,7 @@ function onMsg(m) {
     case "bets": betCount(m.count); break;
     case "imp": renderImp(m); break;
     case "ivoted": $("tImpLive").replaceChildren(el("span", "chip", `${m.count} / ${m.total} ont voté`)); break;
+    case "iclued": $("tImpLive").replaceChildren(el("span", "chip", `${m.count} / ${m.total} indices écrits`)); break;
     case "go": betsGo(m); break;
     case "end": renderEnd(m); break;
     case "react": bubble(m.name, TAUNTS[m.r] || "", `r${m.r} ${m.sk || ""}`); break;
@@ -134,10 +135,14 @@ function renderImp(m) {
   stopRing();
   $("tImpRound").textContent = `L'Imposteur · manche ${m.round} / ${m.rounds}`;
   const live = $("tImpLive");
-  if (m.phase === "talk") {
+  if (m.phase === "clue") {
     $("tImpTitle").textContent = m.q;
-    $("tImpText").textContent = `Discutez ! Chacun donne un indice sur la réponse, sans la dire. Un imposteur ne la connaît pas…${m.starter ? ` ${m.starter} commence.` : ""}`;
-    live.replaceChildren();
+    $("tImpText").textContent = "Chacun écrit un indice sur son téléphone… L'imposteur, lui, ne connaît pas la réponse !";
+    live.replaceChildren(el("span", "chip", `${m.count || 0} / ${m.total} indices écrits`));
+  } else if (m.phase === "talk") {
+    $("tImpTitle").textContent = m.q;
+    $("tImpText").textContent = m.clues ? "Les indices sont tombés ! Lequel sonne faux ?" : "Discutez ! Un imposteur ne connaît pas la réponse…";
+    live.replaceChildren(...(m.clues || []).map((c) => el("span", "chip", `${c.name} : ${c.clue}`)));
   } else if (m.phase === "vote") {
     $("tImpTitle").textContent = "Qui est l'imposteur ?";
     $("tImpText").textContent = "Votez sur vos téléphones.";
@@ -166,7 +171,7 @@ function renderQ(m) {
   const sec = m.ms ? m.ms / 1000 : 0;
   ring("gArc", "gClock", "gRing", sec, sec);
   renderSide(m.board, m.who, m.teams);
-  if (m.bet) { verdict(`Faites vos paris : ${m.name} va-t-il réussir ?`, "bet"); betCount(0); }
+  if (m.bet) { verdict(`${m.final ? "Manche finale, gains doublés ! " : ""}Faites vos paris : ${m.name} va-t-il réussir ?`, "bet"); betCount(0); }
   show("tGame");
   if (T.who !== m.who && (m.board || []).length > 1) splash(m.name, photo(m.who));
   T.who = m.who;
@@ -175,7 +180,7 @@ function renderQ(m) {
 function betChips(list) {
   $("gLive").replaceChildren(...(list || []).map((b) => {
     const c = el("span", "chip" + (b.won === true ? " won" : b.won === false ? " lost" : ""));
-    c.append(avatarEl(b.name, photo(b.id)), document.createTextNode(` ${b.name} · ${!b.amt ? "passe" : `${b.yes ? "réussit" : "se trompe"} · ${b.amt}`}${b.won === true ? ` · +${b.amt}` : b.won === false ? ` · −${b.amt}` : ""}`));
+    c.append(avatarEl(b.name, photo(b.id)), document.createTextNode(` ${b.name} · ${!b.amt ? "passe" : `${b.yes ? "réussit" : "se trompe"} · ${b.amt}`}${b.won === true ? ` · +${b.delta ?? b.amt}` : b.won === false ? ` · −${b.amt}` : ""}`));
     return c;
   }));
 }
@@ -192,7 +197,7 @@ function betsGo(m) { // les paris sont fermés : la réponse arrive
 function renderResult(m) {
   stopRing();
   reveal(m.answer, m.picked);
-  verdict(m.correct ? `Bonne réponse de ${m.name} !${m.gain ? ` +${m.gain} jetons` : ""}` : m.dead ? `${m.name} est éliminé` : m.picked < 0 ? "Temps écoulé !" : `Raté pour ${m.name}`, m.correct ? "ok" : "ko");
+  verdict(m.correct ? `Bonne réponse de ${m.name} !${m.gain ? ` +${m.gain} jetons` : ""}${m.revenge ? ` · vengeance +${m.revenge}` : ""}` : m.dead ? `${m.name} est éliminé` : m.picked < 0 ? "Temps écoulé !" : `Raté pour ${m.name}`, m.correct ? "ok" : "ko");
   if (m.bets) betChips(m.bets);
   renderSide(m.board, m.who, m.teams);
 }

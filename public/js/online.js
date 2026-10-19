@@ -118,11 +118,13 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
       case "end": renderEnd(m); break;
       case "host": O.host = m.host; break;
       // Les Parieurs en ligne
-      case "bets": if (O.cur) { O.cur.bets = m.bets; O.cur.count = m.count; renderBets(); } break;
+      case "bets": if (O.cur) { O.cur.bets = m.bets; O.cur.count = m.count; if (m.odds) O.cur.odds = m.odds; renderBets(); } break;
       case "go": goAnswer(m); break;
       // L'Imposteur en ligne
       case "imp": renderImp(m); break;
       case "ivoted": if (O.imp && O.imp.phase === "vote") { O.imp.count = m.count; O.imp.total = m.total; impVoteScreen(); } break;
+      case "iclued": if (O.imp && O.imp.phase === "clue") { O.imp.count = m.count; O.imp.total = m.total; if (m.id === O.you) O.imp.mine = m.text; if (m.id === O.you || O.imp.mine != null) impClueScreen(); } break;
+      case "iclueerr": imp.clueError(m.msg); break;
       case "tvflag": tvMode(m.tv, m.kind); break;
       // Chrono en ligne
       case "cgo": O.chrono = true; O.board = []; break;
@@ -319,7 +321,8 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     const can = m.bet && !mine && !my && have > 0;
     $("betCtrl").hidden = !can;
     if (can) {
-      $("betQ").textContent = `Vous avez ${jetons(have)}. Combien misez-vous ?`;
+      const boost = (m.rescued || []).includes(me().name) ? "Coup de pouce : +10 jetons ! " : "";
+      $("betQ").textContent = `${m.final ? "Manche finale : gains doublés ! " : ""}${boost}Vous avez ${jetons(have)}. Combien misez-vous ?`;
       const amts = [10, 25, 50].filter((a) => a < have).concat(have);
       if (!amts.includes(betAmt)) betAmt = amts[0];
       $("betAmts").replaceChildren(...amts.map((a) => {
@@ -328,7 +331,8 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
         b.onclick = () => { betAmt = a; renderBets(); };
         return b;
       }));
-      $("betYes").textContent = `${m.name} réussit`; $("betNo").textContent = `${m.name} se trompe`;
+      const odds = m.odds || { yes: 3, no: 3 }, x = m.final ? 2 : 1; // la cote : parier contre la majorité rapporte plus
+      $("betYes").textContent = `${m.name} réussit · ×${+(odds.yes * x).toFixed(1)}`; $("betNo").textContent = `${m.name} se trompe · ×${+(odds.no * x).toFixed(1)}`;
     }
     // les paris de tout le monde, en direct (puis gagnés ou perdus)
     $("betList").replaceChildren(...list.map((b) => {
@@ -336,7 +340,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
       li.className = b.won === true ? "won" : b.won === false ? "lost" : "";
       const n = document.createElement("b"); n.textContent = b.id === O.you ? "Vous" : b.name;
       const t = document.createElement("span");
-      t.textContent = !b.amt ? "passe" : `${b.yes ? "réussit" : "se trompe"} · ${b.amt}${b.won === true ? ` · +${b.amt}` : b.won === false ? ` · −${b.amt}` : ""}`;
+      t.textContent = !b.amt ? "passe" : `${b.yes ? "réussit" : "se trompe"} · ${b.amt}${b.won === true ? ` · +${b.delta ?? b.amt}` : b.won === false ? ` · −${b.amt}` : ""}`;
       li.append(n, t); return li;
     }));
     // celui qui répond ne voit que le nombre de paris sur lui : les montants restent secrets jusqu'au résultat
@@ -373,8 +377,8 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     } else if (m.bets) { // Les Parieurs : la réponse, puis ce que chacun gagne ou perd
       const my = m.bets.find((b) => b.id === O.you), verdict = m.correct ? "Bonne réponse" : m.picked < 0 ? "Temps écoulé" : "Mauvaise réponse";
       $("whoLives").textContent = jetons(m.tokens);
-      $("alive").textContent = m.who === O.you ? `${verdict}${m.gain ? ` · +${m.gain} jetons` : ""}`
-        : my ? `${verdict} · pari ${my.won ? `gagné : +${my.amt}` : `perdu : −${my.amt}`} · vous avez ${jetons(my.tokens)}` : verdict;
+      $("alive").textContent = m.who === O.you ? `${verdict}${m.gain ? ` · +${m.gain} jetons` : ""}${m.revenge ? ` · vengeance +${m.revenge} !` : ""}`
+        : my ? `${verdict} · pari ${my.won ? `gagné : +${my.delta} (cote ×${my.cote}${m.final ? ", doublé" : ""})` : `perdu : −${my.amt}`} · vous avez ${jetons(my.tokens)}` : verdict;
       if (my) mood = my.won;
       if (O.cur) { O.cur.bet = false; O.cur.done = true; O.cur.bets = m.bets; O.cur.board = m.board; renderBets(); } // le résultat dévoile tous les paris
     } else {
@@ -454,9 +458,10 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
   $("btnKick").onclick = () => { if (O.sel) send({ t: "kick", id: O.sel }); $("lobbyActions").hidden = true; O.sel = null; };
 
   /* ----- réactions : des mots qui s'envolent, vus par tout le salon ----- */
-  const REACTS = ["Trop facile", "Tu dors ?", "Pleure pas", "Même pas peur", "Je suis trop fort", "Cadeau !"]; // des piques pour chambrer les autres
+  const REACTS = ["Trop facile", "Tu dors ?", "Pleure pas", "Même pas peur", "Je suis trop fort", "Cadeau !", "Bruh"]; // des piques pour chambrer les autres
   // le rond des réactions : un appui ouvre le menu, un appui sur une réaction l'envoie et referme
   const menu = $("reactMenu"), fab = $("reactFab");
+  const quick = document.createElement("div"); quick.className = "quick"; menu.append(quick); // les réactions rapides, en haut du panneau
   REACTS.forEach((t, i) => {
     const b = document.createElement("button");
     b.className = `chip react r${i}`; b.textContent = t;
@@ -466,7 +471,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
       if (Date.now() - (O.reacted || 0) < 900) return; // pas de rafale
       O.reacted = Date.now(); send({ t: "react", r: i });
     };
-    menu.append(b);
+    quick.append(b);
   });
   // écrire un message (80 caractères) : il s'envole chez tout le monde, comme les réactions
   const row = document.createElement("div"); row.className = "chatrow";
@@ -565,7 +570,8 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
   function renderImp(m) {
     O.imp = m; O.cur = null; $("betBox").hidden = true;
     const host = O.host === O.you;
-    if (m.phase === "talk") imp.talk(m, host ? () => send({ t: "impvote" }) : null);
+    if (m.phase === "clue") impClueScreen();
+    else if (m.phase === "talk") imp.talk(m, host ? () => send({ t: "impvote" }) : null);
     else if (m.phase === "vote") impVoteScreen();
     else if (m.phase === "guess") imp.guess(m, m.you ? (i) => send({ t: "iguess", i }) : null);
     else if (m.phase === "result") {
@@ -575,6 +581,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     }
     show("s-imp");
   }
+  function impClueScreen() { imp.clue(O.imp, (text) => send({ t: "iclue", text })); }
   function impVoteScreen() {
     const m = O.imp;
     imp.vote({ ...m, info: "Touchez celui que vous soupçonnez.", players: m.players.map((p) => ({ ...p, self: p.id === O.you })),

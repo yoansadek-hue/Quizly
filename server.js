@@ -654,10 +654,15 @@ async function loadQuestion(room) {
   room.phase = bet ? "bet" : "q"; // Les Parieurs : d'abord les paris, ensuite la réponse
   const ms = bet ? BET_MS : room.cfg.time * 1000;
   clearTimeout(room.timer);
-  if (bet) { room.bets = new Map(); room.timer = setTimeout(() => betsDone(room), BET_MS); }
+  let rescued = [];
+  if (bet) {
+    room.bets = new Map(); room.timer = setTimeout(() => betsDone(room), BET_MS);
+    // coup de pouce : ceux qui n'ont plus de jetons en reçoivent 10 pour continuer à parier
+    rescued = players(room).filter((x) => !x.left && x.id !== p.id && x.points <= 0).map((x) => { x.points = BET_RESCUE; return x.name; });
+  }
   else if (ms) room.timer = setTimeout(() => resolveTurn(room, false, -1), ms);
   cast(room, {
-    ...(bet ? { bet: true, bets: [], count: 0, tokens: p.points } : {}),
+    ...(bet ? { bet: true, bets: [], count: 0, tokens: p.points, final: betFinal(room), odds: { yes: 3, no: 3 }, rescued } : {}),
     ...teamInfo(room, p),
     t: "q", who: p.id, name: p.name, lives: p.lives, alive: alive(room).length, total: ps.filter((x) => !x.left).length + ps.filter((x) => x.left && !x.dead).length,
     tag: `${q.t} · ${LEVELS[room.diff]}`, q: q.q, img: q.img || null, audio: q.audio || null, options: room.q.options, ms, diff: room.diff,
@@ -681,7 +686,13 @@ function resolveTurn(room, correct, picked) {
   const bet = room.cfg.kind === "parieurs";
   if (correct) { p.score++; p.points += (bet ? BET_WIN : 10) * room.diff; }
   else if (room.cfg.kind !== "equipes" && !bet) { p.lives--; if (p.lives <= 0) { p.dead = true; p.outAt = ++room.elim; } } // en Équipes et chez les Parieurs, personne n'est éliminé
-  const extra = bet ? { bets: settleBets(room, correct), gain: correct ? BET_WIN * room.diff : 0, tokens: p.points } : {};
+  let revenge = 0;
+  if (bet && correct) { // la vengeance : +10 par joueur qui a parié contre lui
+    revenge = BET_REVENGE * [...(room.bets || new Map()).values()].filter((b) => !b.yes && b.amt).length;
+    p.points += revenge;
+  }
+  const final = bet && betFinal(room);
+  const extra = bet ? { bets: settleBets(room, correct), gain: correct ? BET_WIN * room.diff : 0, revenge, final, tokens: p.points } : {};
   cast(room, { ...teamInfo(room, p), ...extra, t: "result", who: p.id, name: p.name, correct, picked, answer: room.q.a, lives: p.lives, dead: p.dead, board: boardOf(room) });
   room.timer = setTimeout(() => afterTurn(room), 25000); // filet de sécurité : normalement le bouton « Continuer » fait avancer
 }
@@ -774,7 +785,7 @@ function endTeams(room) {
 // Tout le monde reçoit la question et la réponse, sauf l'imposteur (la question seule). On discute (chat ou à voix haute),
 // puis chacun vote. Démasqué (majorité nette), l'imposteur a une dernière chance : trouver la réponse parmi 4 choix.
 const IMP_PTS = { hidden: 3, guessed: 2, crew: 1, voter: 1 }; // les mêmes que dans impostor.js
-const IMP_VOTE_MS = +process.env.IMP_VOTE_MS || 40000, IMP_GUESS_MS = +process.env.IMP_GUESS_MS || 20000;
+const IMP_VOTE_MS = +process.env.IMP_VOTE_MS || 40000, IMP_GUESS_MS = +process.env.IMP_GUESS_MS || 20000, IMP_CLUE_MS = +process.env.IMP_CLUE_MS || 45000;
 const present = (room) => players(room).filter((p) => !p.left);
 const impHead = (room) => ({ t: "imp", round: room.ir.round, rounds: room.ir.rounds, host: room.hostId });
 // chaque joueur garde le dernier écran reçu (pour revenir après une coupure) ; la télé n'a jamais la réponse avant la fin
@@ -807,20 +818,51 @@ async function impRound(room) {
   ir.imp = bad.id; ir.last = bad.id; bad.imp++;
   const o = Array.isArray(q.o) ? q.o : [];
   room.q = { ...q, options: shuffle(o.includes(q.a) ? o : [q.a, ...o.filter((x) => x !== q.a).slice(0, 3)]) };
-  ir.votes = new Map();
+  ir.votes = new Map(); ir.clues = new Map();
+  // 1. chacun écrit un indice en secret ; l'imposteur voit les 4 réponses possibles (dont la bonne) pour bluffer
+  room.phase = "iclue";
+  room.timer = setTimeout(() => impTalk(room), IMP_CLUE_MS);
+  ir.base = { tag: `${q.t} · ${LEVELS[room.diff]}`, q: q.q, img: q.img || null };
+  ps.forEach((p) => impSend(p, impCard(room, p, { phase: "clue", ms: IMP_CLUE_MS, count: 0, total: ps.length })));
+  impTv(room, { ...impHead(room), ...ir.base, phase: "clue", ms: IMP_CLUE_MS, count: 0, total: ps.length, imposter: false, answer: null });
+}
+// ce que voit un joueur : la réponse (l'équipe) ou les 4 réponses possibles (l'imposteur)
+function impCard(room, p, extra) {
+  const bad = p.id === room.ir.imp;
+  return { ...impHead(room), ...room.ir.base, ...extra, imposter: bad, answer: bad ? null : room.q.a, options: bad ? room.q.options : null };
+}
+const plainOf = (x) => String(x || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]/g, "");
+function impClue(room, me, text) {
+  text = clean(text, 30);
+  if (room.phase !== "iclue" || !text || room.ir.clues.has(me.id)) return;
+  const a = plainOf(room.q.a);
+  if (me.id !== room.ir.imp && a.length >= 3 && plainOf(text).includes(a)) return send(me.ws, { t: "iclueerr", msg: "Ton indice contient la réponse : trouve autre chose !" });
+  room.ir.clues.set(me.id, text);
+  if (me.impLast && me.impLast.phase === "clue") me.impLast.mine = text;
+  const o = { t: "iclued", count: room.ir.clues.size, total: present(room).length, id: me.id, text };
+  present(room).forEach((p) => send(p.ws, p.id === me.id ? o : { ...o, text: undefined, id: undefined })); tvs(room).forEach((ws) => send(ws, { ...o, text: undefined, id: undefined }));
+  if (impVoters(room).every((p) => room.ir.clues.has(p.id))) impTalk(room); // tout le monde a écrit
+}
+const impClues = (room) => shuffle(present(room).map((p) => ({ name: p.name, clue: room.ir.clues.get(p.id) || "(pas d'indice)" })));
+// 2. les indices sont dévoilés tous en même temps : on discute (chat ouvert), puis on vote
+function impTalk(room) {
+  if (room.phase !== "iclue") return;
+  clearTimeout(room.timer);
+  const ir = room.ir;
+  ir.list = impClues(room);
   room.phase = "italk";
   const ms = room.cfg.time * 1000;
   if (ms) room.timer = setTimeout(() => impVoteStart(room), ms);
-  const base = { ...impHead(room), phase: "talk", tag: `${q.t} · ${LEVELS[room.diff]}`, q: q.q, img: q.img || null, ms, starter: pick(ps).name };
-  ps.forEach((p) => impSend(p, { ...base, imposter: p.id === bad.id, answer: p.id === bad.id ? null : q.a }));
-  impTv(room, { ...base, imposter: false, answer: null });
+  const extra = { phase: "talk", ms, clues: ir.list };
+  present(room).forEach((p) => impSend(p, impCard(room, p, extra)));
+  impTv(room, { ...impHead(room), ...ir.base, ...extra, imposter: false, answer: null });
 }
 function impVoteStart(room) {
   if (room.phase !== "italk") return;
   clearTimeout(room.timer);
   room.phase = "ivote";
   room.timer = setTimeout(() => impTally(room), IMP_VOTE_MS);
-  const o = { ...impHead(room), phase: "vote", ms: IMP_VOTE_MS, players: present(room).map(({ id, name, photo }) => ({ id, name, photo })), count: 0, total: present(room).length };
+  const o = { ...impHead(room), phase: "vote", ms: IMP_VOTE_MS, players: present(room).map(({ id, name, photo }) => ({ id, name, photo })), count: 0, total: present(room).length, clues: room.ir.list };
   present(room).forEach((p) => impSend(p, o));
   impTv(room, o);
 }
@@ -866,6 +908,8 @@ function impResult(room, caught, guessed) {
     ...impHead(room), phase: "result", caught, guessed, imp: ir.imp, impName: bad.name, impPhoto: bad.photo || "", accusedName: ir.accused ? name(ir.accused) : null,
     answer: room.q.a, last: ir.round >= ir.rounds,
     votes: [...ir.votes].map(([from, to]) => ({ name: name(from), target: name(to), right: to === ir.imp })),
+    tally: present(room).map((p) => ({ name: p.name, imp: p.id === ir.imp, n: [...ir.votes.values()].filter((t) => t === p.id).length })).sort((x, y) => y.n - x.n),
+    clues: ir.list,
     board: present(room).map((p) => ({ id: p.id, name: p.name, photo: p.photo, points: p.points, gain: gains.get(p.id) || 0 }))
   };
   present(room).forEach((p) => impSend(p, o));
@@ -886,8 +930,18 @@ function impEnd(room) {
 /* ====================== Les Parieurs en ligne ====================== */
 // Chacun répond à son tour (3 questions par joueur). La question s'affiche avec le nom de celui qui répond,
 // et avant qu'il réponde, les autres parient leurs jetons : réussira-t-il ou non ?
-// Bonne réponse : +20 jetons × niveau. Bon pari : on gagne sa mise ; mauvais pari : on la perd. Le plus riche gagne.
-const BET_START = 100, BET_WIN = 20, BET_MS = +process.env.BET_MS || 15000;
+// Bonne réponse : +20 jetons × niveau, et +10 par joueur qui a parié contre vous (la vengeance).
+// Bon pari : on gagne sa mise × la cote (parier contre la majorité rapporte jusqu'à ×3) ; mauvais pari : on la perd.
+// Manche finale : gains des paris doublés. Plus de jetons : 10 jetons de coup de pouce. Le plus riche gagne.
+const BET_START = 100, BET_WIN = 20, BET_REVENGE = 10, BET_RESCUE = 10, BET_MS = +process.env.BET_MS || 15000;
+const betFinal = (room) => room.cfg.kind === "parieurs" && room.order && room.turn > room.order.length * (TEAM_ROUNDS - 1); // la dernière manche
+// la cote d'un côté : 1 + (mises de l'autre côté / mises de ce côté), entre ×1 et ×3 ; personne de ce côté : ×3
+function betOdds(room) {
+  let yes = 0, no = 0;
+  (room.bets || new Map()).forEach((b) => { if (b.amt) b.yes ? (yes += b.amt) : (no += b.amt); });
+  const cote = (mine, other) => (mine ? Math.min(3, Math.round((1 + other / mine) * 10) / 10) : 3);
+  return { yes: cote(yes, no), no: cote(no, yes) };
+}
 function makeBetOrder(room) {
   room.order = shuffle(players(room).filter((p) => !p.left).map((p) => p.id));
   room.turn = 0;
@@ -905,10 +959,10 @@ function placeBet(room, me, yes, amt) {
 }
 // celui qui répond ne voit pas les paris sur lui (ni la télé, qu'il regarde aussi) : seulement leur nombre, jusqu'au résultat
 const betCount = (room) => betList(room).filter((b) => b.amt).length;
-const betsFor = (room, id) => (id === players(room)[room.i]?.id ? { bets: [], count: betCount(room) } : { bets: betList(room), count: betCount(room) });
+const betsFor = (room, id) => (id === players(room)[room.i]?.id ? { bets: [], count: betCount(room), final: betFinal(room) } : { bets: betList(room), count: betCount(room), odds: betOdds(room), final: betFinal(room) }); // les cotes trahiraient les paris : cachées à celui qui répond
 function castBets(room, o) {
   players(room).forEach((p) => send(p.ws, { ...o, ...betsFor(room, p.id) }));
-  tvs(room).forEach((ws) => send(ws, { ...o, bets: [], count: betCount(room) }));
+  tvs(room).forEach((ws) => send(ws, { ...o, bets: [], count: betCount(room), final: betFinal(room) }));
 }
 function betsDone(room) { // les paris sont fermés : celui qui répond peut répondre
   if (room.phase !== "bet") return;
@@ -920,12 +974,13 @@ function betsDone(room) { // les paris sont fermés : celui qui répond peut ré
   castBets(room, { t: "go", ms });
 }
 function settleBets(room, correct) {
-  const out = [];
+  const out = [], odds = betOdds(room), mult = betFinal(room) ? 2 : 1;
   (room.bets || new Map()).forEach((b, id) => {
     const x = room.players.get(id); if (!x || !b.amt) return; // ceux qui ont passé ne gagnent ni ne perdent
-    const won = b.yes === correct;
-    x.points = Math.max(0, x.points + (won ? b.amt : -b.amt));
-    out.push({ id, name: x.name, yes: b.yes, amt: b.amt, won, tokens: x.points });
+    const won = b.yes === correct, cote = b.yes ? odds.yes : odds.no;
+    const delta = won ? Math.round(b.amt * cote * mult) : -b.amt;
+    x.points = Math.max(0, x.points + delta);
+    out.push({ id, name: x.name, yes: b.yes, amt: b.amt, won, delta, cote, tokens: x.points });
   });
   room.bets = new Map();
   return out;
@@ -1239,6 +1294,7 @@ function drop(ws) {
   const k = room.cfg.kind;
   if (k === "parieurs" && room.phase === "bet" && bettors(room).every((x) => room.bets.has(x.id))) betsDone(room); // on n'attend pas son pari
   if (k === "imposteur" && room.phase === "ivote" && impVoters(room).every((p) => room.ir.votes.has(p.id))) impTally(room); // ni son vote
+  if (k === "imposteur" && room.phase === "iclue" && impVoters(room).every((p) => room.ir.clues.has(p.id))) impTalk(room); // ni son indice
   if ((k === "survie" || k === "equipes" || k === "parieurs") && room.phase === "q" && players(room)[room.i]?.id === me.id && !room.cfg.time) {
     clearTimeout(room.timer); room.timer = setTimeout(() => resolveTurn(room, false, -1), 30000); // son tour, sans minuteur : on n'attend pas indéfiniment
   }
@@ -1273,7 +1329,7 @@ function rejoin(ws, m) {
     if (L && L.t === "load") send(ws, L);
     return;
   }
-  if (k === "imposteur" && ["italk", "ivote", "iguess", "ires"].includes(room.phase) && p.impLast) { // son propre écran (sa carte)
+  if (k === "imposteur" && ["iclue", "italk", "ivote", "iguess", "ires"].includes(room.phase) && p.impLast) { // son propre écran (sa carte)
     const o = { ...p.impLast };
     if (o.ms) o.ms = Math.max(1000, o.ms - (Date.now() - p.impLast.at));
     return send(ws, o);
@@ -1312,8 +1368,9 @@ function leave(ws) {
   if (room.cfg.kind === "million") { if (!me.mout) { me.mout = true; me.mq = null; } return mCheck(room); }
   if (room.cfg.kind === "imposteur") {
     if (present.length < 3) return impEnd(room); // il faut au moins trois joueurs
-    if (me.id === room.ir?.imp && ["italk", "ivote", "iguess"].includes(room.phase)) { room.ir.round--; return impRound(room); } // l'imposteur est parti : on rejoue la manche
+    if (me.id === room.ir?.imp && ["iclue", "italk", "ivote", "iguess"].includes(room.phase)) { room.ir.round--; return impRound(room); } // l'imposteur est parti : on rejoue la manche
     if (room.phase === "ivote") { room.ir.votes.delete(me.id); if (impVoters(room).every((p) => room.ir.votes.has(p.id))) impTally(room); }
+    if (room.phase === "iclue" && impVoters(room).every((p) => room.ir.clues.has(p.id))) impTalk(room);
     return;
   }
   if (room.cfg.kind === "equipes" || room.cfg.kind === "parieurs") {
@@ -1366,7 +1423,7 @@ function handle(ws, m) {
     tvNotify(room); // les téléphones savent qu'une télé est branchée
     if (room.phase === "chrono") castBoard(room);
     if (room.phase === "mq" || room.phase === "mres") mBoard(room);
-    if (["italk", "ivote", "iguess", "ires"].includes(room.phase) && room.impTv) send(ws, room.impTv); // L'Imposteur (jamais la réponse avant la fin)
+    if (["iclue", "italk", "ivote", "iguess", "ires"].includes(room.phase) && room.impTv) send(ws, room.impTv); // L'Imposteur (jamais la réponse avant la fin)
     return;
   }
   if (m.t === "create") {
@@ -1418,6 +1475,7 @@ function handle(ws, m) {
   else if (m.t === "retry" && host && room.phase === "error") room.cfg.kind === "imposteur" ? impRound(room) : loadQuestion(room);
   else if (m.t === "impvote" && host && room.phase === "italk") impVoteStart(room); // l'hôte lance le vote
   else if (m.t === "vote" && room.cfg.kind === "imposteur") impVote(room, me, m.id);
+  else if (m.t === "iclue" && room.cfg.kind === "imposteur") impClue(room, me, m.text);
   else if (m.t === "iguess" && room.cfg.kind === "imposteur") impGuess(room, me, Number(m.i));
   else if (m.t === "next" && host && room.phase === "ires") impRound(room);
   else if (m.t === "again") { if (host && room.phase === "end") { resetRoom(room); castLobby(room); } else send(ws, lobbyMsg(room, me)); }
@@ -1446,7 +1504,7 @@ function handle(ws, m) {
   }
   else if (m.t === "react") { // réaction envoyée à tout le salon (et à la télé)
     const now = Date.now(), r = Number(m.r);
-    if (now - (me.lastReact || 0) < 800 || !Number.isInteger(r) || r < 0 || r > 5) return;
+    if (now - (me.lastReact || 0) < 800 || !Number.isInteger(r) || r < 0 || r > 6) return; // 7 réactions rapides (dont « Bruh »)
     me.lastReact = now;
     cast(room, { t: "react", r, id: me.id, name: me.name, sk: (me.cos || {}).bubble });
   }

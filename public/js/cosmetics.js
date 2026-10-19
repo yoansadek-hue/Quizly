@@ -208,5 +208,5 @@ export function initCosmetics({ $, ask, uid, name, photo, achs, avatarEl, onChan
     b.onclick = () => { tab = c; sel = null; $("shopMsg").textContent = ""; render(); };
     return b;
   }));
-  return { earn, backpay, apply, render, coins, equipped, get: () => equipped() };
+  return { earn, backpay, apply, render, coins, equipped, get: () => equipped(), owned: () => (dev() ? 0 : read("owned", []).length) }; // owned : articles achetés (succès Collectionneur)
 }
