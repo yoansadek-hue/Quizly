@@ -171,6 +171,7 @@
   /* réactions et messages des joueurs */
   .bubble{position:fixed;bottom:6vh;z-index:20;display:flex;gap:.4em;align-items:center;max-width:60vw;padding:.5em 1.1em;border:4px solid var(--ink);border-radius:999px;box-shadow:0 6px 0 var(--ink);color:var(--ink);font:800 clamp(18px,3vh,36px) var(--display);pointer-events:none;animation:floatup 3.4s ease-out forwards}
   .bubble b{font-family:var(--font)}
+  .bubble.r6{background:var(--lilac)}
   .bubble.r0{background:var(--sun)} .bubble.r1{background:var(--mint)} .bubble.r2{background:var(--coral)} .bubble.r3{background:var(--sky)} .bubble.r4{background:var(--paper)} .bubble.r5{background:var(--peach)}
   @keyframes floatup{0%{transform:translateY(20px) scale(.6);opacity:0}12%{transform:none;opacity:1}100%{transform:translateY(-55vh) rotate(-6deg);opacity:0}}
 /* le chat, en bas à droite */

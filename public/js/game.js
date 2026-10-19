@@ -11,7 +11,7 @@ import { initCosmetics, styleName, titleOf } from "./cosmetics.js";
 import { initQuests } from "./quests.js";
 import { impUI, IMP_PTS } from "./impostor.js";
 
-const VERSION = "2.26.1"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.27.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -821,7 +821,7 @@ async function impRound() {
   Object.assign(IMP, { q, options: impShuffle(opts), k: 0 });
   impPass();
 }
-const impCardOf = (i) => ({ ...impHead(), tag: `${IMP.q.t} · ${LEVELS[S.diff]}`, q: IMP.q.q, img: IMP.q.img || null, imposter: i === IMP.imp, answer: i === IMP.imp ? null : IMP.q.a });
+const impCardOf = (i) => ({ ...impHead(), tag: `${IMP.q.t} · ${LEVELS[S.diff]}`, q: IMP.q.q, img: IMP.q.img || null, imposter: i === IMP.imp, answer: i === IMP.imp ? null : IMP.q.a, options: i === IMP.imp ? IMP.options : null }); // l'imposteur voit les 4 réponses possibles
 function impPass() { // au suivant de découvrir sa carte
   if (IMP.k >= S.players.length) return impTalk();
   const p = S.players[IMP.k];
@@ -2005,7 +2005,28 @@ const ACH_FAM = [
   ["En ligne", "peach", (x) => x.onlineGames, (n) => `${n} parties en ligne`, k1000,
     [["online1", 1, "Premier salon"], ["online", 10, "Connecté"], ["online50", 50, "Habitué du salon"], ["online100", 100, "Star du réseau"]]],
   ["Sociable", "mint", (x) => x.friends, (n) => `Avoir ${n} ami${n > 1 ? "s" : ""}`, k1000,
-    [["friends1", 1, "Premier ami"], ["social", 5, "Sociable"], ["friends10", 10, "Populaire"], ["friends25", 25, "Célébrité"]]]
+    [["friends1", 1, "Premier ami"], ["social", 5, "Sociable"], ["friends10", 10, "Populaire"], ["friends25", 25, "Célébrité"]]],
+  // 2.27 : nouvelles familles
+  ["Fidèle", "sky", (x) => x.dailies, (n) => `Faire ${n} défi${n > 1 ? "s" : ""} du jour`, k1000,
+    [["daily1", 1, "Premier défi"], ["daily10", 10, "Fidèle"], ["daily50", 50, "Pilier"], ["daily100", 100, "Monument"], ["daily365", 365, "Une année entière"]]],
+  ["Party", "coral", (x) => x.party, (n) => `${n} parties Party sur un téléphone`, k1000,
+    [["party5", 5, "Animateur"], ["party25", 25, "Roi de la soirée"], ["party100", 100, "Légende des soirées"]]],
+  ["Comédien", "coral", (x) => x.imp, (n) => `Jouer ${n} partie${n > 1 ? "s" : ""} de L'Imposteur`, k1000,
+    [["imp1", 1, "Suspect"], ["imp10", 10, "Comédien"], ["imp50", 50, "Maître du bluff"]]],
+  ["Flambeur", "peach", (x) => x.bets, (n) => `Jouer ${n} partie${n > 1 ? "s" : ""} des Parieurs`, k1000,
+    [["bets1", 1, "Petit joueur"], ["bets10", 10, "Flambeur"], ["bets50", 50, "Croupier"]]],
+  ["Plateau télé", "sun", (x) => x.mill, (n) => `${n} parties de Qui veut gagner des millions`, k1000,
+    [["mill5", 5, "Candidat"], ["mill25", 25, "Habitué du plateau"], ["mill100", 100, "Star du jeu"]]],
+  ["Spécialiste", "mint", (x) => x.themeBest, (n) => `${n} bonnes réponses dans un même thème`, k1000,
+    [["spec25", 25, "Connaisseur"], ["spec100", 100, "Spécialiste"], ["spec250", 250, "Référence"], ["spec500", 500, "Sommité"]]],
+  ["Précision", "sky", (x) => x.pct, (n) => `${n} % de bonnes réponses (après 100 questions)`, (n) => `${n}%`,
+    [["pct60", 60, "Fiable"], ["pct75", 75, "Tireur d'élite"], ["pct90", 90, "Infaillible"]]],
+  ["Collectionneur", "peach", (x) => x.owned, (n) => `Acheter ${n} article${n > 1 ? "s" : ""} dans la Boutique`, k1000,
+    [["own1", 1, "Premier achat"], ["own10", 10, "Collectionneur"], ["own30", 30, "Garde-robe"], ["own60", 60, "Musée"]]],
+  ["Fortune", "sun", (x) => x.coins, (n) => `Avoir ${n} Q-Bucks`, k1000,
+    [["coins500", 500, "Économe"], ["coins2000", 2000, "Riche"], ["coins5000", 5000, "Fortuné"]]],
+  ["Chasseur", "mint", (x) => x.achs, (n) => `Débloquer ${n} succès`, k1000,
+    [["ach10", 10, "Chasseur de succès"], ["ach30", 30, "Trophées"], ["ach60", 60, "Vitrine pleine"], ["ach70", 70, "Platine"]]]
 ];
 // la liste à plat de tous les niveaux : [id, titre, comment, pastille, couleur, condition]
 const ACH = ACH_FAM.flatMap(([, color, val, how, pin, tiers]) => tiers.map(([id, n, name]) => [id, name, how(n), pin(n), color, (x) => val(x) >= n]));
@@ -2019,7 +2040,13 @@ function achFacts() {
     games: Object.values(g).reduce((a, v) => a + v, 0), good: t.reduce((a, x) => a + x.ok, 0), themes: Object.keys(st.themes || {}).length,
     bestRun: st.bestRun || 0, best2: b("best2"), bestChrono: b("bestChrono"), bestMillion: b("bestMillion"),
     perfect: !!(d && d.done !== false && d.score === 10) || !!getAch().perfect, streak: dailyStreak(),
-    onlineGames: (g.online || 0) + (g.chrono || 0) + (g.omillion || 0) + (g.oteams || 0) + (g.obets || 0) + (g.oimp || 0), friends: friends.ready() ? friends.count() : 0
+    onlineGames: (g.online || 0) + (g.chrono || 0) + (g.omillion || 0) + (g.oteams || 0) + (g.obets || 0) + (g.oimp || 0), friends: friends.ready() ? friends.count() : 0,
+    // 2.27 : nouvelles familles de succès
+    dailies: dailyDays().length, party: (g.classic || 0) + (g.qcm || 0) + (g.teams || 0) + (g.million || 0) + (g.impostor || 0),
+    imp: (g.impostor || 0) + (g.oimp || 0), bets: g.obets || 0, mill: (g.million || 0) + (g.omillion || 0),
+    themeBest: Math.max(0, ...t.map((x) => x.ok)), // le plus de bonnes réponses dans un même thème
+    pct: (() => { const n = t.reduce((a, x) => a + x.n, 0); return n >= 100 ? Math.round((100 * t.reduce((a, x) => a + x.ok, 0)) / n) : 0; })(), // précision, après 100 questions
+    owned: cosm.owned(), coins: cosm.coins(), achs: Object.keys(getAch()).length
   };
 }
 // jetons en cadeau pour ce qui a été fait avant la Boutique : 1 par bonne réponse, 2 par partie, 10 par Défi du jour, 25 par succès

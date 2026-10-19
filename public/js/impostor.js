@@ -8,7 +8,7 @@ export function impUI($, avatarEl) {
   let tid = null;
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
   const btn = (text, look, fn) => { const b = el("button", `btn ${look}`, text); b.onclick = fn; return b; };
-  const stop = () => { clearInterval(tid); tid = null; };
+  const stop = () => { clearInterval(tid); clearTimeout(tid); tid = null; };
   function head(m) { // « Manche 2 / 4 »
     $("impRound").textContent = m.round ? `Manche ${m.round} / ${m.rounds}` : "L'Imposteur";
   }
@@ -34,11 +34,22 @@ export function impUI($, avatarEl) {
     c.append(el("p", "impq", m.q));
     if (m.imposter) {
       c.append(el("b", "improle", "Tu es l'imposteur !"), el("small", null, "Tu ne connais pas la réponse : écoute les autres et fais semblant de la connaître."));
+      if (m.options && m.options.length) { // une piste : la bonne réponse est l'une de ces 4
+        const o = el("div", "impmaybe"); o.append(el("small", null, "C'est l'une de ces réponses :"), ...m.options.map((x) => el("span", "chip small", x)));
+        c.append(o);
+      }
     } else if (m.answer != null) {
       const a = el("p", "impa"); a.append(el("small", null, "La réponse"), el("b", null, m.answer));
       c.append(a, el("small", null, "Donne des indices sans jamais la dire, et trouve l'imposteur."));
     }
     return c;
+  }
+  // les indices de chacun, dévoilés tous en même temps
+  function cluesEl(clues) {
+    if (!clues || !clues.length) return null;
+    const ul = el("ul", "impclues");
+    clues.forEach((c, i) => { const li = el("li"); li.style.animationDelay = `${i * 120}ms`; li.append(el("b", null, c.name), el("span", null, c.clue || "…")); ul.append(li); });
+    return ul;
   }
   const rules = () => el("p", "lead small imprules", `Imposteur pas démasqué : +${IMP_PTS.hidden} pts. Démasqué mais il trouve la réponse : +${IMP_PTS.guessed} pts. Sinon, toute l'équipe gagne +${IMP_PTS.crew} pt, et +${IMP_PTS.voter} de plus pour ceux qui l'ont désigné.`);
 
@@ -59,9 +70,9 @@ export function impUI($, avatarEl) {
     talk(m, onVote, onEnd) {
       head(m);
       const t = el("div", "imptalk");
-      t.append(el("h2", null, "Discutez !"), el("p", "lead small", `À tour de rôle, chacun donne un indice sur la réponse… sans la dire.${m.starter ? ` ${m.starter} commence.` : ""}`));
+      t.append(el("h2", null, "Discutez !"), el("p", "lead small", m.clues ? "Voici les indices de chacun. Lequel sonne faux ? Défendez-vous, accusez, bluffez !" : `À tour de rôle, chacun donne un indice sur la réponse… sans la dire.${m.starter ? ` ${m.starter} commence.` : ""}`));
       const c = clock(m.ms, onEnd); if (c) t.append(c);
-      put(t, cardEl(m, true), onVote ? btn("Passer au vote", "sun", onVote) : el("p", "lead small", "L'hôte lance le vote quand vous êtes prêts."));
+      put(t, cluesEl(m.clues), cardEl(m, true), onVote ? btn("Passer au vote", "sun", onVote) : el("p", "lead small", "L'hôte lance le vote quand vous êtes prêts."));
     },
     // le vote : on touche celui qu'on soupçonne
     vote(m, onPick) {
@@ -77,7 +88,7 @@ export function impUI($, avatarEl) {
         if (onPick && !p.self) b.onclick = () => onPick(p);
         g.append(b);
       });
-      put(v, g, m.wait ? el("p", "lead small", m.wait) : null);
+      put(v, g, m.wait ? el("p", "lead small", m.wait) : null, cluesEl(m.clues));
     },
     wait(m, text) { head(m); put(el("div", "imptalk", null), el("p", "lead", text)); },
     // démasqué : l'imposteur a une dernière chance de trouver la réponse
@@ -98,8 +109,32 @@ export function impUI($, avatarEl) {
       put(g, q, box);
     },
     // la fin de la manche : qui était l'imposteur, la réponse, les points
+    // en ligne : chacun écrit un indice (un mot ou une courte phrase), sans donner la réponse
+    clue(m, onSend) {
+      head(m);
+      const t = el("div", "imptalk");
+      t.append(el("h2", null, "Ton indice"), el("p", "lead small", m.imposter ? "Écris un indice crédible pour ne pas te faire repérer…" : "Un mot ou deux qui prouvent que tu connais la réponse, sans la donner à l'imposteur."));
+      const c = clock(m.ms); if (c) t.append(c);
+      const row = el("div", "chatrow impcluerow");
+      const inp = el("input"); inp.type = "text"; inp.maxLength = 30; inp.placeholder = "Ton indice…"; inp.setAttribute("enterkeyhint", "send"); inp.autocomplete = "off";
+      const go = el("button", "btn sun sm", "Envoyer");
+      const msg = el("p", "msg impcluemsg"); msg.id = "impClueMsg";
+      const sendIt = () => { const v = inp.value.trim(); if (!v) return; onSend(v); };
+      go.onclick = sendIt; inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); sendIt(); } });
+      row.append(inp, go);
+      const done = m.mine != null;
+      put(t, cardEl(m, true), done ? el("p", "lead impsent", `Indice envoyé : « ${m.mine} »`) : row, msg, el("p", "lead small", `${m.count || 0} / ${m.total || "?"} indices`));
+    },
+    clueError(text) { const e = document.getElementById("impClueMsg"); if (e) e.textContent = text; },
     result(m, onNext, nextLabel) {
       head(m);
+      if (!m.shown) { // le suspense : un roulement de tambour avant de dévoiler l'imposteur
+        m.shown = true;
+        const s = el("div", "impdrum"); s.append(el("p", "lead", "L'imposteur était…"), el("span", "impdrumdots", "?"));
+        put(s);
+        tid = setTimeout(() => this.result(m, onNext, nextLabel), 1700);
+        return;
+      }
       const win = m.caught && !m.guessed;
       const r = el("div", `impres ${win ? "good" : "bad"}`);
       r.append(avatarEl(m.impName, m.impPhoto, true),
@@ -107,6 +142,17 @@ export function impUI($, avatarEl) {
         el("p", "lead small", m.caught ? `${m.impName} était bien l'imposteur.` : `${m.accusedName ? `${m.accusedName} était innocent. ` : "Pas de majorité. "}L'imposteur était ${m.impName}.`));
       const a = el("p", "impa"); a.append(el("small", null, "La réponse"), el("b", null, m.answer));
       const parts = [r, a];
+      if (m.tally && m.tally.length) { // les votes contre chacun, en barres
+        const max = Math.max(1, ...m.tally.map((x) => x.n));
+        const tb = el("div", "imptally");
+        m.tally.forEach((x) => {
+          const row = el("div", "trow" + (x.imp ? " imp" : ""));
+          const bar = el("span", "tbar"); const fill = el("i"); fill.style.width = `${(100 * x.n) / max}%`; bar.append(fill);
+          row.append(el("b", null, x.name), bar, el("span", null, `${x.n} vote${x.n > 1 ? "s" : ""}`)); tb.append(row);
+        });
+        parts.push(tb);
+      }
+      if (m.clues) parts.push(cluesEl(m.clues));
       if (m.votes && m.votes.length) {
         const ul = el("ul", "impvotes");
         m.votes.forEach((v) => ul.append(el("li", v.right ? "right" : "", `${v.name} → ${v.target}`)));
