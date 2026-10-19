@@ -171,6 +171,26 @@
   .bubble b{font-family:var(--font)}
   .bubble.r0{background:var(--sun)} .bubble.r1{background:var(--mint)} .bubble.r2{background:var(--coral)} .bubble.r3{background:var(--sky)} .bubble.r4{background:var(--paper)} .bubble.r5{background:var(--peach)}
   @keyframes floatup{0%{transform:translateY(20px) scale(.6);opacity:0}12%{transform:none;opacity:1}100%{transform:translateY(-55vh) rotate(-6deg);opacity:0}}
+/* le chat, en bas à droite */
+.tchat{position:fixed;right:2.5vw;bottom:3vh;z-index:21;display:flex;flex-direction:column;align-items:flex-end;gap:1vh;width:min(27vw,520px);pointer-events:none}
+.cmsg{display:flex;flex-direction:column;gap:.15em;max-width:100%;padding:.55em 1em;border:4px solid var(--ink);border-radius:22px 22px 6px 22px;background:var(--paper);color:var(--ink);box-shadow:0 5px 0 var(--ink);font:700 clamp(14px,2.2vh,26px) var(--font);overflow-wrap:anywhere;animation:cin .35s cubic-bezier(.2,1.3,.4,1) both;transition:opacity .4s,transform .4s}
+.cmsg b{font:800 .8em var(--display)}
+.cmsg.out{opacity:0;transform:translateX(30px)}
+@keyframes cin{from{opacity:0;transform:translateX(40px) scale(.8)}to{opacity:1;transform:none}}
+.cmsg.sk-ink{background:var(--ink)!important;color:var(--sun);border-color:var(--sun)} .cmsg.sk-pastel{background:#ffd6e7!important;border-color:#b05a85}
+.cmsg.sk-neon{background:#140a33!important;color:#7df9ff;border-color:#7df9ff;box-shadow:0 0 14px rgba(125,249,255,.8)} .cmsg.sk-gold{background:linear-gradient(135deg,#fff3b0,#ffd23f 50%,#e3a600)!important;border-color:#8a6400}
+.cmsg.sk-candy{background:repeating-linear-gradient(45deg,#ffd6e7 0 10px,#fff 10px 20px)!important;border-color:#b05a85} .cmsg.sk-mint{background:#34e3b0!important} .cmsg.sk-sky{background:#62c7ff!important}
+.cmsg.sk-lava{background:linear-gradient(135deg,#ff6a2a,#ffb02e)!important;border-color:#5a1200} .cmsg.sk-galaxy{background:linear-gradient(135deg,#140a33,#3b1d8f)!important;color:#fff;border-color:#9b6bff}
+@media (max-aspect-ratio:1/1){.tchat{width:60vw}}
+/* thème de l'appli de l'hôte */
+:root[data-theme="th-night"]{--bg:#17123a;--bg-deep:#0d0a24}
+:root[data-theme="th-ocean"]{--bg:#0f4c81;--bg-deep:#0a365c}
+:root[data-theme="th-forest"]{--bg:#1d5e3b;--bg-deep:#134128}
+:root[data-theme="th-sunset"]{--bg:#86295c;--bg-deep:#5f1a40}
+:root[data-theme="th-cherry"]{--bg:#a0153f;--bg-deep:#740b2c}
+:root[data-theme="th-cosmos"]{--bg:#120a2e;--bg-deep:#1f1252}
+:root[data-theme="th-cosmos"] body{background-image:radial-gradient(rgba(255,255,255,.55) 1.2px,transparent 1.8px),radial-gradient(rgba(155,107,255,.35) 1.4px,transparent 2px);background-size:60px 60px,30px 30px;background-position:0 0,14px 22px}
+body{transition:background-color .6s}
 /* cadres de photo (cosmétiques) */
 .avatar.fr-sun{border-color:var(--sun);box-shadow:0 0 0 2px var(--ink)}
 .avatar.fr-mint{border-color:var(--mint);box-shadow:0 0 0 2px var(--ink)}
@@ -204,6 +224,7 @@
 </style>
 </head>
 <body>
+<div id="tChat" class="tchat" aria-live="polite"></div>
 
 <!-- 1. Connexion (la télé crée son propre salon) -->
 <section id="tJoin" class="screen center">
