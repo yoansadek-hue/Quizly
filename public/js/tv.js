@@ -56,7 +56,8 @@ function onMsg(m) {
     case "mout": break; // visible dans la colonne de droite
     case "end": renderEnd(m); break;
     case "react": bubble(m.name, TAUNTS[m.r] || "", `r${m.r} ${m.sk || ""}`); break;
-    case "chat": bubble(m.name, m.text, `r4 ${m.sk || ""}`); break;
+    case "chat": chat(m.name, m.text, m.sk); break;
+    case "host": T.host = m.host; hostTheme(); break;
   }
 }
 
@@ -64,6 +65,7 @@ function onMsg(m) {
 function renderLobby(m) {
   T.kind = m.cfg.kind || "survie";
   T.pl = Object.fromEntries(m.players.map((p) => [p.id, p]));
+  T.host = m.host; hostTheme();
   m.players.forEach((p) => setFrame(p.name, (p.cos || {}).frame)); // cadres des joueurs
   if (m.phase !== "lobby") return;
   const link = `${location.origin}/?tv=${m.code}`; // lu par le scanner de l'appli (ou l'appareil photo)
@@ -268,6 +270,19 @@ function confetti() {
 }
 
 /* ---------- réactions et messages des joueurs ---------- */
+// la télé prend le thème de l'appli de l'hôte (Myrtille, Minuit, Océan…)
+function hostTheme() {
+  const th = ((T.pl[T.host] || {}).cos || {}).theme;
+  if (th) document.documentElement.dataset.theme = th; else delete document.documentElement.dataset.theme;
+}
+// le chat : les messages s'empilent en bas à droite, restent quelques secondes puis s'effacent
+function chat(name, text, sk) {
+  const box = $("tChat"), d = el("div", `cmsg ${sk || ""}`);
+  d.append(el("b", null, name), el("span", null, text));
+  box.append(d);
+  while (box.children.length > 5) box.firstElementChild.remove(); // les plus anciens laissent la place
+  setTimeout(() => { d.classList.add("out"); setTimeout(() => d.remove(), 400); }, 9000);
+}
 function bubble(name, text, cls) {
   const d = el("div", `bubble ${cls}`);
   d.append(el("b", null, name), document.createTextNode(` ${text}`));
