@@ -10,7 +10,7 @@ import { enablePush, disablePush, pushMuted, pushState, currentSub } from "./pus
 import { initCosmetics, styleName, titleOf } from "./cosmetics.js";
 import { initQuests } from "./quests.js";
 
-const VERSION = "2.20.3"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.20.4"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -81,7 +81,7 @@ function show(id) {
   if (sp) { sp.classList.add("off"); setTimeout(() => sp.remove(), 450); }
 }
 function flash(kind) {
-  if (setting("vibrate") && navigator.vibrate) navigator.vibrate(kind === "ok" ? 30 : [40, 60, 40]); // réglage « vibrations »
+  if (setting("vibrate")) { if (navigator.vibrate) navigator.vibrate(kind === "ok" ? 30 : [40, 60, 40]); else if (hapSw) hapSw.click(); } // réglage « vibrations » (iPhone : un tic)
   const fx = $("fx");
   fx.className = ""; void fx.offsetWidth; fx.className = kind;
   if (kind === "ko") { // secousse sans toucher aux ancêtres des boutons fixes
@@ -1110,6 +1110,29 @@ const bar = $("tabbar"), pill = $("tabPill"), TABS = [...bar.querySelectorAll(".
 const P = { x: 0, shown: false, anim: null };
 const still = () => matchMedia("(prefers-reduced-motion: reduce)").matches || setting("calm");
 const place = (x, sx = 1, sy = 1) => { P.x = x; pill.style.transform = `translate3d(${x}px,0,0) scale(${sx},${sy})`; };
+// petit « tic » ressenti quand la bulle passe d'un onglet à l'autre (comme Instagram) : navigator.vibrate sur Android ;
+// sur iPhone (iOS 18+), basculer un interrupteur caché fait vibrer le téléphone
+const hapSw = (() => {
+  if ("vibrate" in navigator) return null;
+  const i = document.createElement("input"); i.type = "checkbox"; i.setAttribute("switch", ""); i.tabIndex = -1;
+  if (!("switch" in i)) return null; // trop ancien pour vibrer
+  const l = document.createElement("label"); l.setAttribute("aria-hidden", "true"); l.append(i);
+  l.style.cssText = "position:fixed;left:-99px;top:0;width:1px;height:1px;opacity:0;pointer-events:none";
+  document.body.append(l); return l;
+})();
+function haptic() { if (!setting("vibrate")) return; if (navigator.vibrate) navigator.vibrate(8); else if (hapSw) hapSw.click(); }
+// la bulle se cale au même rythme que les pages qui glissent (même durée, même courbe)
+function pillGlide(t) {
+  if (!t) return;
+  if (P.anim) { P.anim.cancel(); P.anim = null; }
+  const x0 = P.x, x = t.offsetLeft;
+  if (Math.abs(x - x0) > 1 && !still()) {
+    P.anim = pill.animate([{ transform: pill.style.transform }, { transform: `translate3d(${x}px,0,0) scale(1,1)` }], { duration: 280, easing: "cubic-bezier(.2,.85,.25,1)" });
+    P.anim.onfinish = () => (P.anim = null);
+  }
+  place(x);
+}
+const tabsOn = (id) => TABS.forEach((b) => b.classList.toggle("on", b.dataset.go === id));
 function pillTo(t, from) {
   if (!t) { pill.classList.remove("show"); P.shown = false; return; }
   const x = t.offsetLeft, w = t.offsetWidth, x0 = from ?? P.x;
@@ -1138,19 +1161,20 @@ function dragLoop() { // une image sur deux n'attend pas : la bulle suit le doig
     // au-delà d'Accueil ou de Réglages : la bulle résiste et la barre s'étire de ce côté (élastique, comme Instagram)
     const out = raw < lo ? raw - lo : raw > hi ? raw - hi : 0;
     const x = out ? (out < 0 ? lo : hi) + out * 0.3 : raw;
+    if (!!out !== drag.edge) { drag.edge = !!out; if (out) haptic(); } // on bute contre le bord
     if (out) { bar.style.transformOrigin = out < 0 ? "right center" : "left center"; bar.style.scale = `${1 + Math.min(0.14, Math.abs(out) / bar.offsetWidth * 0.55)} 1`; }
     else bar.style.scale = "";
     drag.v *= 0.82; // l'étirement retombe quand le doigt ralentit
     const k = Math.min(0.4, Math.abs(drag.v) * 0.09);
     place(x, 1 + k, 1 - k * 0.3);
     const mid = x + w / 2, over = g.reduce((a, b) => (Math.abs(mid - (b.x + b.w / 2)) < Math.abs(mid - (a.x + a.w / 2)) ? b : a)).t;
-    if (over !== drag.over) { drag.over.classList.remove("over"); over.classList.add("over"); drag.over = over; }
+    if (over !== drag.over) { drag.over.classList.remove("over"); over.classList.add("over"); drag.over = over; haptic(); }
   }
   requestAnimationFrame(dragLoop);
 }
 bar.addEventListener("pointerdown", (e) => {
   const t = e.target.closest(".tab"); if (!t || (e.pointerType === "mouse" && e.button !== 0)) return;
-  drag = { id: e.pointerId, x0: e.clientX, cx: e.clientX, t: performance.now(), v: 0, left: bar.getBoundingClientRect().left, moved: false, tab: t, over: t, geo: TABS.map((b) => ({ t: b, x: b.offsetLeft, w: b.offsetWidth })) };
+  drag = { id: e.pointerId, x0: e.clientX, cx: e.clientX, t: performance.now(), v: 0, left: bar.getBoundingClientRect().left, moved: false, edge: false, tab: t, over: t, geo: TABS.map((b) => ({ t: b, x: b.offsetLeft, w: b.offsetWidth })) };
   try { bar.setPointerCapture(e.pointerId); } catch {}
   bar.classList.add("press");
   pillTo(t); // la bulle file sous le doigt et devient une loupe
@@ -1165,11 +1189,11 @@ bar.addEventListener("pointermove", (e) => {
 });
 function dragEnd(e, cancel) {
   if (!drag || e.pointerId !== drag.id) return;
-  const t = cancel ? null : drag.moved ? drag.over : drag.tab;
+  const t = cancel ? null : drag.moved ? drag.over : drag.tab, drag0 = drag;
   drag = null;
   bar.classList.remove("press", "drag"); TABS.forEach((b) => b.classList.remove("over"));
   bar.style.scale = ""; // la barre reprend sa taille avec un rebond
-  if (t) { TABS.forEach((b) => b.classList.toggle("on", b === t)); pillTo(t, P.x); goSoon(t); } else pillTo(bar.querySelector(".tab.on"), P.x);
+  if (t) { if (!drag0.moved && !t.classList.contains("on")) haptic(); TABS.forEach((b) => b.classList.toggle("on", b === t)); pillTo(t, P.x); goSoon(t); } else pillTo(bar.querySelector(".tab.on"), P.x);
 }
 bar.addEventListener("pointerup", (e) => dragEnd(e));
 bar.addEventListener("pointercancel", (e) => dragEnd(e, true));
@@ -1240,7 +1264,14 @@ function prepAround(id) {
     slideTo(sw.cur, dx); slideTo(sw.bar, dx);
     if (sw.nextEl) slideTo(sw.nextEl, dx + sw.dir * W);
     if (sw.hdr) { sw.hdr.hidden = !sw.nextEl; slideTo(sw.hdr, dx + sw.dir * W); }
-    if (sw.next && sw.pa != null && sw.pb != null) { if (P.anim) { P.anim.cancel(); P.anim = null; } place(sw.pa + (sw.pb - sw.pa) * Math.min(1, Math.abs(dx) / W)); } // la bulle suit le geste
+    if (sw.next && sw.pa != null && sw.pb != null) { // la bulle suit les pages, exactement au même rythme, et s'étire selon la vitesse
+      if (P.anim) { P.anim.cancel(); P.anim = null; }
+      const k = Math.min(0.3, Math.abs(sw.v) * 0.08);
+      place(sw.pa + (sw.pb - sw.pa) * Math.min(1, Math.abs(dx) / W), 1 + k, 1 - k * 0.3);
+    }
+    // au bout (Accueil, Réglages) : la barre s'étire de ce côté, comme quand on tire la bulle
+    if (!sw.next && dx) { bar.style.transformOrigin = dx > 0 ? "right center" : "left center"; bar.style.scale = `${1 + Math.min(0.08, Math.abs(dx) / W * 0.35)} 1`; }
+    else if (bar.style.scale) bar.style.scale = "";
   }
   function move(e) {
     if (!sw) return;
@@ -1249,7 +1280,7 @@ function prepAround(id) {
     if (!sw.lock) {
       if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
       if (Math.abs(dx) < Math.abs(dy) * 1.2 || !e.cancelable) { sw = null; return; } // geste vertical (ou défilement déjà lancé) : on laisse défiler
-      sw.lock = true; sw.cur.classList.add("swiping");
+      sw.lock = true; sw.half = false; sw.edge = false; sw.cur.classList.add("swiping"); bar.classList.add("pull"); // la barre suit le doigt sans retard
       sw.W = $("main").clientWidth; sw.bar = $("bar"); // mesuré une fois pour tout le geste
       document.body.classList.add("swipe"); // la barre du bas arrête son flou pendant le geste (très coûteux sur iPhone)
     }
@@ -1258,6 +1289,10 @@ function prepAround(id) {
     if (dir !== sw.dir) neighbor(dir);
     const now = performance.now(); sw.v = (t.clientX - sw.lx) / Math.max(1, now - sw.lt); sw.lx = t.clientX; sw.lt = now;
     sw.dx = sw.next ? dx : dx * 0.28; // au bout (Accueil, Réglages) : ça résiste
+    // la bulle passe sur l'onglet voisin à mi-chemin : l'icône s'allume et le téléphone vibre (comme Instagram)
+    const half = !!sw.next && Math.abs(dx) > sw.W / 2;
+    if (half !== sw.half) { sw.half = half; tabsOn(half ? sw.next : sw.from); haptic(); }
+    if (!sw.next !== sw.edge) { sw.edge = !sw.next; if (sw.edge) haptic(); } // on bute contre le bord
     if (!sw.raf) sw.raf = requestAnimationFrame(() => { if (sw) { sw.raf = 0; paint(sw.dx); } }); // au plus un dessin par image
   }
   function finish(go) {
@@ -1268,7 +1303,10 @@ function prepAround(id) {
     const W = s.W, ease = "transform .28s cubic-bezier(.2,.85,.25,1)";
     slideTo(s.cur, go ? -s.dir * W : 0, ease); slideTo($("bar"), go ? -s.dir * W : 0, ease);
     slideTo(s.nextEl, go ? 0 : s.dir * W, ease); slideTo(s.hdr, go ? 0 : s.dir * W, ease);
-    if (!go) pillTo(TABS.find((b) => b.dataset.go === s.from));
+    bar.classList.remove("pull"); bar.style.scale = ""; // la barre reprend sa taille avec un rebond
+    if (go && !s.half) haptic(); // lancé d'un coup sec : le tic arrive au changement d'onglet
+    tabsOn(go ? s.next : s.from);
+    pillGlide(TABS.find((b) => b.dataset.go === (go ? s.next : s.from))); // la bulle se cale avec les pages
     pend = { run: () => { if (go) show(s.next); swipeReset(); }, t: setTimeout(() => settle(), 290) };
   }
   function abort() { if (sw && sw.lock) finish(false); else { if (sw && sw.hdr) sw.hdr.remove(); sw = null; removeEventListener("touchmove", move, { passive: false }); } }
@@ -1708,10 +1746,10 @@ function renderSettings() {
   });
   $("setDiffRow").querySelector("small").textContent = st.auto ? "Évolutive : elle monte toute seule à chaque tour." : "Au choix : on vous demande à chaque tour.";
   // vibrations : seulement si l'appareil sait vibrer (pas l'iPhone)
-  const canVib = "vibrate" in navigator;
+  const canVib = "vibrate" in navigator || !!hapSw; // iPhone : à partir d'iOS 18
   $("setVibRow").classList.toggle("off", !canVib);
   $("setVibRow").querySelector(".tgl").disabled = !canVib;
-  $("setVibTxt").textContent = canVib ? "Une petite vibration à chaque réponse." : "Non disponible sur cet appareil (iPhone).";
+  $("setVibTxt").textContent = canVib ? "Une petite vibration à chaque réponse et en changeant d'onglet." : "Non disponible sur cet appareil.";
   // notifications
   // notifications : un interrupteur (coupées sur cet appareil = plus rien n'arrive, même appli fermée)
   const p = pushState(), on = p === "granted" && !pushMuted();
