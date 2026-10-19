@@ -40,6 +40,7 @@ addEventListener("error", function (e) {
       <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H11l-4.5 4v-4h0A2.5 2.5 0 0 1 4 13.5z" fill="currentColor"/></svg>
     </button>
   <button id="btnUser" class="chip" aria-label="Retour au choix du mode"><img id="userPhoto" class="avatar" alt="" referrerpolicy="no-referrer" hidden><span id="userInit" class="avatar"></span><span id="userName"></span></button>
+  <button id="btnCoins" class="chip coinchip" aria-label="Mes Q-Bucks · ouvrir la Boutique" hidden><span class="coin"></span><b id="coinCount">0</b></button>
   </div>
 </header>
 <!-- réactions (en ligne) : un bandeau sous la barre du haut, qui ne cache pas le jeu -->
@@ -213,9 +214,8 @@ addEventListener("error", function (e) {
     </div>
     <!-- offre du jour -->
     <button class="deal" id="dealCard"><span class="dk">Offre du jour</span><span id="dealPv"></span><span class="dtx"><b id="dealName"></b><small><s id="dealOld"></s> <b id="dealNew"></b> Q-Bucks · <span id="dealLeft"></span></small></span></button>
-    <div class="scope three" id="shopTabs"></div>
-    <p class="owned" id="shopOwned"></p>
-    <div class="shopgrid" id="shopGrid"></div>
+    <div class="shoptabs" id="shopTabs"></div>
+    <div id="shopGrid"></div>
     <p class="msg" id="shopMsg"></p>
     <div class="earn"><b>Gagner des Q-Bucks</b><span>+1 bonne réponse</span><span>+2 partie</span><span>+10 Défi du jour</span><span>+25 succès</span></div>
   </section>
@@ -290,17 +290,28 @@ addEventListener("error", function (e) {
   <section id="s-quests" class="screen" hidden>
     <button class="goback" data-back="s-mode">← Retour</button>
     <h2>Défis</h2>
+    <div class="ftabs" id="qTabs" role="tablist">
+      <button class="ftab" data-tab="daily" role="tab">Défi du jour</button>
+      <button class="ftab" data-tab="day" role="tab">Du jour</button>
+      <button class="ftab" data-tab="week" role="tab">Semaine</button>
+    </div>
+    <div class="fpanel" id="qpDaily">
     <div class="qdaily" id="qDaily"></div>
     <h3 class="qh">Classement du Défi du jour</h3>
     <div class="scope" id="qrDay"><button data-d="today" aria-pressed="true">Aujourd'hui</button><button data-d="yest" aria-pressed="false">Hier</button></div>
     <div class="scope" id="qrScope"><button data-s="friends" aria-pressed="true">Amis</button><button data-s="world" aria-pressed="false">Monde</button></div>
     <p class="lead small myrank" id="qrMine"></p>
     <ol class="rank" id="qrList"></ol>
+    </div>
+    <div class="fpanel" id="qpDay" hidden>
     <h3 class="qh">Défis du jour <small id="qDayLeft"></small></h3>
     <div class="qlist" id="qDayList"></div>
     <div class="qchest" id="qChest"></div>
+    </div>
+    <div class="fpanel" id="qpWeek" hidden>
     <h3 class="qh">Défis de la semaine <small id="qWeekLeft"></small></h3>
     <div class="qlist" id="qWeekList"></div>
+    </div>
   </section>
 
   <!-- Notifications -->
@@ -441,7 +452,6 @@ addEventListener("error", function (e) {
       <div class="two"><button class="btn sun sm" id="btnMeSave">Enregistrer</button><button class="btn ghost sm" id="btnMeReset">Reprendre Google</button></div>
       <p id="meMsg" class="msg" role="alert"></p>
     </div>
-    <button class="shopbar" id="btnShop"><span class="coin"></span><b id="coinCount">0</b><span>Q-Bucks</span><span class="go">Boutique ›</span></button>
     <div class="profgrid" id="profRecords"></div>
     <div class="bubbles" id="profStats"></div>
     <div class="duo" id="profSum"></div>

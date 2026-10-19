@@ -1228,3 +1228,30 @@ body.swipe .tabbar{-webkit-backdrop-filter:none;backdrop-filter:none;background:
 /* onglet voisin garé : mis en page à l'avance, invisible, prêt pour un balayage sans à-coup */
 .screen.parked{position:absolute;visibility:hidden;pointer-events:none;z-index:-1}
 .screen.parked>*{animation:none!important}
+/* ---------- 2.21 : Q-Bucks en haut, onglets des Défis, Boutique plus lisible ---------- */
+.coinchip{gap:6px;padding:6px 14px 6px 8px;background:var(--paper);box-shadow:var(--edge-s);font:800 16px var(--display)}
+.coinchip.tap{animation:tapbounce .35s cubic-bezier(.2,1.4,.4,1)}
+.coinchip:active{transform:translateY(3px) scale(.95);box-shadow:0 1px 0 var(--ink)}
+#qTabs{grid-template-columns:repeat(3,1fr);margin-bottom:8px}
+#s-quests .fpanel>.qh{margin:4px 0 0}
+/* onglets de la Boutique : une seule ligne qui défile, avec le nombre d'articles à vous */
+.shoptabs{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:2px 0 4px;padding:4px 2px 8px}
+.shoptabs::-webkit-scrollbar{display:none}
+.shoptabs button{flex:none;display:inline-flex;align-items:center;gap:6px;min-height:42px;padding:6px 14px;border:3px solid var(--ink);border-radius:99px;background:var(--bg-deep);color:var(--paper);font:800 14px var(--display);cursor:pointer}
+.shoptabs button small{font:700 11px var(--font);opacity:.7}
+.shoptabs button[aria-pressed=true]{background:var(--sun);color:var(--ink);box-shadow:var(--edge-s)}
+.shoph{display:flex;align-items:baseline;justify-content:space-between;margin:16px 0 8px;font:800 16px var(--display)}
+.shoph small{font:700 12px var(--font);color:var(--lilac)}
+/* cartes plus petites, trois par ligne ; la rareté se lit à la couleur du haut de la carte */
+#shopGrid .shopgrid{grid-template-columns:repeat(3,1fr);gap:10px;margin:0}
+#shopGrid .item{gap:6px;padding:10px 6px;border-radius:18px;border-top-width:7px}
+#shopGrid .item b{font-size:12px;line-height:1.15}
+#shopGrid .item .st{font-size:11px}
+#shopGrid .item .st.price{padding:2px 8px}
+#shopGrid .pv{height:58px;overflow:hidden;border-radius:12px}
+#shopGrid .pv .avatar.big{width:42px;height:42px;font-size:18px}
+#shopGrid .bubble-pv{padding:4px 8px;font-size:11px}
+#shopGrid .nm-pv{font-size:15px}
+#shopGrid .item.r-b{border-top-color:var(--ink)} #shopGrid .item.r-c{border-top-color:#9aa6b8} #shopGrid .item.r-r{border-top-color:var(--sky)}
+#shopGrid .item.r-e{border-top-color:#a66bff} #shopGrid .item.r-l{border-top-color:#ff9f45} #shopGrid .item.r-x{border-top-color:var(--coral)}
+@media (min-width:700px){#shopGrid .shopgrid{grid-template-columns:repeat(4,1fr)}}

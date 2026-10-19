@@ -95,6 +95,7 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
 
   /* ---------- ajouter un ami ---------- */
   async function addByCode(raw) {
+    setPanel("add"); // le résultat (ami ajouté ou erreur) s'affiche dans l'onglet Ajouter
     const code = String(raw || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
     if (!ready()) return say("Connectez-vous au cloud pour ajouter des amis.");
     if (code.length !== 6) return say("Un code ami fait 6 caractères.");
@@ -205,7 +206,7 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
       r.querySelector(".fname").append(rec);
       return r;
     }) : [Object.assign(document.createElement("p"), { className: "lead small", textContent: "Pas encore d'amis." }), btn("Ajouter un ami", "sun", () => setPanel("add"))]));
-    if (!F.panel) setPanel(F.friends.length || (F.requests || []).length ? "mine" : "add"); // premier affichage : le bon onglet
+    if (!F.panel) setPanel("mine"); // premier affichage : Mes amis (même vide, avec un bouton pour en ajouter)
     renderRanking();
     renderRequests();
   }
