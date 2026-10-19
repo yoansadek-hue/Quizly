@@ -10,7 +10,7 @@ import { enablePush, disablePush, pushMuted, pushState, currentSub } from "./pus
 import { initCosmetics, styleName, titleOf } from "./cosmetics.js";
 import { initQuests } from "./quests.js";
 
-const VERSION = "2.21.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.21.1"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -1769,7 +1769,6 @@ function renderSettings() {
   $("setClearSeen").disabled = !n;
   $("setVersion").textContent = `Quizly v${VERSION} · par YoskanGame`;
 }
-$("btnSettings").onclick = () => { renderSettings(); show("s-settings"); };
 $("setEditMe").onclick = () => { renderProfile(); show("s-profile"); $("btnEditName").click(); };
 $("setPushTgl").onchange = async () => {
   const t = $("setPushTgl"); t.disabled = true;
