@@ -55,7 +55,6 @@ h2{font-size:24px;margin:22px 0 12px}
 .center{text-align:center;display:flex;flex-direction:column;justify-content:center;min-height:80dvh}
 .screen.center{min-height:calc(100dvh - 190px);justify-content:center}
 .screen:not(.center)#s-login{padding-top:10vh}
-.center-link{text-align:center;margin:18px 0 0}
 .credit{text-align:center;margin:22px 0 0;font-size:14px;color:var(--lilac)}
 .hero + .credit{margin:8px 0 0;text-align:left;font-size:15px;color:var(--sun)}
 .version{text-align:center;margin:20px 0 0;font-size:13px;color:var(--lilac);opacity:.7}
@@ -81,7 +80,6 @@ h2{font-size:24px;margin:22px 0 12px}
 .btn:focus-visible,.chip:focus-visible,input:focus-visible,.card:focus-visible,.mode:focus-visible,.code:focus-visible{outline:3px solid var(--sun);outline-offset:4px}
 .btn.sun{background:var(--sun)} .btn.mint{background:var(--mint)} .btn.coral{background:var(--coral);color:var(--ink)}
 .btn.white{background:var(--paper)}
-.btn.ink{background:var(--ink);color:var(--txt-light);border-color:var(--paper);box-shadow:0 6px 0 var(--bg-deep)}
 .btn.ghost{background:transparent;color:var(--txt-light);border-color:var(--lilac);box-shadow:none;font-size:15px}
 .btn.sm{width:auto;min-height:50px;padding:10px 18px}
 .btn:disabled{opacity:.55;cursor:default}
@@ -119,9 +117,8 @@ input[type=text],input[type=email]{
 #themes.dim .chip:not(.rand){opacity:.3;pointer-events:none;cursor:default} /* Aléatoire actif : les thèmes sont verrouillés */
 .bigopts{gap:12px}
 .bigopts .chip{min-height:58px;min-width:84px;justify-content:center;padding:10px 22px;font:800 18px var(--display)}
-#playerList .chip,#lobbyList .chip{color:var(--ink);cursor:default;box-shadow:var(--edge-s)}
+#lobbyList .chip{color:var(--ink);cursor:default;box-shadow:var(--edge-s)}
 #lobbyList .chip.host{outline:3px solid var(--sun);outline-offset:2px}
-#playerList button{background:none;border:0;font:800 22px var(--font);color:var(--coral);cursor:pointer;padding:0 0 0 4px;min-width:32px;min-height:32px}
 .chips>*{animation:pop .4s backwards;animation-delay:calc(var(--i,0)*22ms)}
 
 /* ---------- avatars ---------- */
@@ -478,9 +475,6 @@ body.tvmode #s-game #mcq .btn::before{width:54px;height:54px;font-size:24px}
 .pact{margin:14px 0 0;padding:14px;background:var(--bg-deep);border-radius:22px}
 .pactName{margin:0 0 10px;text-align:center;font:800 18px var(--display)}
 .pact .btn.sm{width:100%;font-size:14px}
-/* ---------- 2.7.1 : réactions ---------- */
-.reacts{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:18px 0 0}
-.reacts .chip{min-height:38px;padding:6px 14px;font:800 13px var(--display);box-shadow:var(--edge-s)}
 .react.r0,.bubble.r0{background:var(--sun)} .react.r1,.bubble.r1{background:var(--mint)} .react.r2,.bubble.r2{background:var(--coral)}
 .react.r3,.bubble.r3{background:var(--sky)} .react.r4,.bubble.r4{background:var(--paper)} .react.r5,.bubble.r5{background:var(--peach)}
 .bubble{position:fixed;bottom:150px;z-index:20;display:flex;gap:6px;align-items:center;padding:7px 14px;border:3px solid var(--ink);border-radius:999px;box-shadow:var(--edge-s);color:var(--ink);font:800 15px var(--display);pointer-events:none;animation:floatup 2.8s ease-out forwards}
@@ -537,13 +531,9 @@ body.tvmode #s-game #mcq .btn::before{width:54px;height:54px;font-size:24px}
 /* ---------- 2.8.2 : connexion sans Google, en un appui ---------- */
 .quick{margin-top:26px}
 .quick h3{margin:0 0 10px;font-size:18px;color:var(--sun)}
-.quicklist{display:flex;flex-direction:column;gap:10px;margin:6px 0 4px}
-.qrow{display:flex;align-items:center;gap:10px;animation:pop .35s backwards;animation-delay:calc(var(--i,0)*40ms)}
 .qbtn{display:flex;align-items:center;gap:12px;text-align:left;min-height:58px;padding:8px 16px}
 .qbtn .avatar{width:38px;height:38px;font-size:16px}
-.qdel{flex:none;width:44px;height:44px;border-radius:50%;border:2px solid rgba(196,184,255,.5);background:transparent;color:var(--lilac);font:800 22px var(--font);cursor:pointer}
-.qdel:active{background:var(--coral);color:var(--ink);border-color:var(--ink)}
-@media (min-width:700px){.quicklist{display:grid;grid-template-columns:repeat(2,1fr)} .qbtn{min-height:64px}}
+@media (min-width:700px){ .qbtn{min-height:64px}}
 
 /* ---------- 2.10 : Amis ---------- */
 .friends{margin:6px 0 10px}
@@ -564,8 +554,6 @@ body.tvmode #s-game #mcq .btn::before{width:54px;height:54px;font-size:24px}
 #rankTabs{margin:0 0 10px}
 #btnInvite{margin:12px auto 0}
 #invitePanel{margin-top:10px}
-#btnUser.badge{position:relative}
-#btnUser.badge::after{content:"";position:absolute;top:-3px;right:-3px;width:14px;height:14px;border-radius:50%;background:var(--coral);border:3px solid var(--ink)}
 .toast{position:fixed;left:12px;right:12px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:40;max-width:460px;margin:0 auto;padding:14px;background:var(--paper);color:var(--ink);border:3px solid var(--ink);border-radius:24px;box-shadow:0 8px 0 var(--ink);animation:pop .3s}
 .toastTop{display:flex;align-items:center;gap:10px;margin-bottom:12px;font:800 16px var(--display)}
 .toast .btn.ghost{color:var(--ink);border-color:var(--muted)}
@@ -580,13 +568,12 @@ body.tvmode #s-game #mcq .btn::before{width:54px;height:54px;font-size:24px}
 #s-profile .profgrid .stat{padding:12px 10px}
 #s-profile .profgrid .stat strong{font-size:17px}
 #s-profile .profgrid .stat span{font-size:12px}
-.profstats{margin:6px 0 4px;font:800 15px var(--font);color:var(--txt-light)}
 #s-profile #profSum{margin:6px 0 26px}
 #s-profile .profh{margin:30px 0 12px}
 #s-profile .profthemes{gap:12px}
 #btnAllThemes{display:block;margin:12px auto 0}
 #s-friends .fcode{margin-top:8px}
-@media (min-width:700px){#s-profile .profgrid .stat strong{font-size:22px} .profstats{font-size:17px}}
+@media (min-width:700px){#s-profile .profgrid .stat strong{font-size:22px}}
 
 /* ---------- 2.10.3 ---------- */
 /* iPhone : un bandeau opaque sous la barre d'état, pour que rien ne défile (flouté) derrière l'heure */
@@ -790,12 +777,6 @@ body::before{display:none} /* plus de bande sous l'heure */
 .cl.empty{color:var(--lilac);font-weight:500;text-align:center}
 .reactmenu{flex-direction:row;flex-wrap:wrap;justify-content:center}
 .reactfab.unread::after{content:"";position:absolute;top:-2px;right:-2px;width:14px;height:14px;border-radius:50%;background:var(--coral);border:2px solid var(--ink)}
-/* paramètres */
-.setlist{display:flex;flex-direction:column;gap:10px}
-.setlist .fsub{margin:16px 0 2px}
-.setrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;background:var(--bg-deep);border-radius:18px;font:700 15px var(--font);cursor:pointer}
-.setrow .btn.sm{width:auto;flex:none}
-.setrow .btn.ghost{color:var(--txt-light)}
 .tgl{appearance:none;flex:none;width:50px;height:30px;border-radius:99px;background:rgba(196,184,255,.3);border:2px solid var(--ink);position:relative;cursor:pointer;transition:background .2s}
 .tgl::after{content:"";position:absolute;top:2px;left:2px;width:22px;height:22px;border-radius:50%;background:var(--paper);border:2px solid var(--ink);transition:transform .2s cubic-bezier(.2,.8,.2,1)}
 .tgl:checked{background:var(--mint)}
@@ -823,13 +804,6 @@ body{display:flex;flex-direction:column;padding-top:env(safe-area-inset-top)}
 .ptr.ready .arc{stroke:var(--mint)}
 .ptr.spin svg{animation:ptrspin2 .7s linear infinite}
 @keyframes ptrspin2{to{transform:rotate(270deg)}}
-/* Paramètres aux couleurs de Quizly : des jetons */
-.setlist{gap:12px}
-.setlist .fsub{display:inline-block;align-self:flex-start;margin:18px 0 0;padding:4px 12px;border-radius:99px;background:var(--ink);color:var(--sun);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
-.setrow{background:var(--paper);color:var(--ink);border:3px solid var(--ink);border-radius:20px;box-shadow:var(--edge-s);padding:12px 14px}
-.setlist .setrow:nth-child(odd){border-left:10px solid var(--sun)}
-.setlist .setrow:nth-child(even){border-left:10px solid var(--mint)}
-.setrow .btn.ghost{color:var(--ink);border-color:var(--muted)}
 .tgl{background:#ddd6ff;border-color:var(--ink)}
 .tgl:checked{background:var(--mint)}
 #setVersion{color:var(--lilac)}
@@ -955,9 +929,6 @@ body::after{content:"";position:fixed;inset:-50px;z-index:-1;pointer-events:none
 .profhead.bn-sunset h2,.profhead.bn-lagoon h2,.profhead.bn-check h2,.profhead.bn-streak h2{color:var(--ink)}
 /* jetons et Boutique */
 .coin{display:inline-block;width:20px;height:20px;border-radius:50%;background:var(--sun);border:3px solid var(--ink);box-shadow:inset 0 -3px 0 #e6c52a;flex:none}
-.shopbar{display:flex;align-items:center;gap:8px;width:100%;margin:0 0 16px;padding:10px 14px;background:var(--bg-deep);color:var(--txt-light);border:2px solid rgba(255,225,77,.5);border-radius:18px;font:700 14px var(--font);cursor:pointer}
-.shopbar b{font:800 18px var(--display);color:var(--sun)}
-.shopbar .go{margin-left:auto;font:800 14px var(--display);color:var(--sun)}
 .shophead{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .shopcoins{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;background:var(--paper);color:var(--ink);border:3px solid var(--ink);border-radius:99px;box-shadow:var(--edge-s);font:800 18px var(--display)}
 .scope.three{grid-template-columns:repeat(3,1fr)}
@@ -1131,7 +1102,6 @@ body.kbd .tabbar{display:none}
 .clubdesc{margin:0;font:600 14px var(--font);color:var(--ink);opacity:.85}
 .clubcode{cursor:pointer;font:inherit;color:var(--ink);z-index:1}
 .clubcode:active{transform:translateY(2px)}
-.clubedit{width:100%;margin:0 0 14px}
 .embpick,.colpick{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
 .embpick button{width:44px;height:44px;font-size:22px;border-radius:14px;border:3px solid var(--ink);background:var(--paper);cursor:pointer}
 .colpick button{width:38px;height:38px;border-radius:50%;border:3px solid var(--ink);cursor:pointer}
@@ -1142,7 +1112,6 @@ body.kbd .tabbar{display:none}
 .clubstats div{display:flex;flex-direction:column;align-items:center;gap:2px;padding:10px 6px;background:var(--bg-deep);border-radius:18px;text-align:center}
 .clubstats strong{font:800 20px var(--display);color:var(--sun)}
 .clubstats span{font:700 11.5px var(--font);color:var(--lilac);line-height:1.2}
-.clubh{margin:20px 0 10px;font:800 17px var(--display)}
 .clubwho{display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:0}
 .ownr{font:800 10px var(--display);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
 .rk .fx{flex:none}
@@ -1196,14 +1165,6 @@ body{box-sizing:border-box;min-height:100vh;min-height:100lvh}
 .qchest.open{opacity:.75}
 .qchico{font-size:30px;line-height:1}
 @keyframes chestpulse{50%{transform:scale(1.02)}}
-.qyest{display:flex;flex-direction:column;gap:10px;padding:14px;background:var(--bg-deep);border-radius:22px}
-.qyhead{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
-.qyhead b{font:800 17px var(--display)} .qyhead small{font:700 13px var(--font);color:var(--lilac)}
-.qyest .btn{width:100%}
-.qylist{margin:0;padding:0 0 0 22px;display:flex;flex-direction:column;gap:10px}
-.qylist li{font:600 14px var(--font);color:var(--txt-light)}
-.qylist li span{display:block}
-.qylist li b{display:inline-block;margin-top:4px;padding:2px 10px;border-radius:99px;background:var(--mint);color:var(--ink);font:800 13px var(--display)}
 /* ---------- 2.20 : club en onglets, emblèmes dessinés ---------- */
 .cnav{grid-template-columns:repeat(5,1fr);gap:3px;padding:4px;margin:0 0 14px}
 .cnav button{min-height:40px;padding:4px 2px;font-size:12px}
@@ -1328,7 +1289,6 @@ body.swipe .tabbar{-webkit-backdrop-filter:none;backdrop-filter:none;background:
 .impwho .avatar.big{width:52px;height:52px;font-size:22px}
 .impwho:disabled{cursor:default;opacity:.55}
 .impwho.on{background:var(--coral);opacity:1}
-.impopts{grid-template-columns:1fr 1fr}
 .impres{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;padding:18px;border:3px solid var(--ink);border-radius:26px;box-shadow:var(--edge);color:var(--ink)}
 .impres.good{background:var(--mint)} .impres.bad{background:var(--coral)}
 .impres h2{margin:0;color:var(--ink)} .impres .lead{color:var(--ink);margin:0}
@@ -1337,7 +1297,6 @@ body.swipe .tabbar{-webkit-backdrop-filter:none;backdrop-filter:none;background:
 .impvotes li{padding:5px 12px;border-radius:99px;background:rgba(255,255,255,.1);font:700 13px var(--font)}
 .impvotes li.right{background:var(--mint);color:var(--ink)}
 .impboard{margin:0}
-.imprules{text-align:center}
 /* ---------- 2.27 : le chat sur le côté (tous les modes en ligne), réaction « Bruh » ---------- */
 .react.r6,.bubble.r6{background:var(--lilac)}
 .reactmenu{left:auto;right:0;top:calc(env(safe-area-inset-top) + 70px);bottom:calc(env(safe-area-inset-bottom) + 14px);width:min(360px,86vw);max-width:none;margin:0;
@@ -1353,10 +1312,7 @@ body.swipe .tabbar{-webkit-backdrop-filter:none;backdrop-filter:none;background:
 /* le nombre de joueurs (−  4  +) au milieu de l'écran, pour tous les modes */
 #s-count:not([hidden]){display:flex;flex-direction:column;min-height:calc(100vh - 250px);min-height:calc(100svh - 250px - env(safe-area-inset-top) - env(safe-area-inset-bottom))}
 #s-count .stepper{flex:1;margin:0;padding-bottom:40px}
-/* L'Imposteur : la piste de l'imposteur, les indices, le suspense, les votes */
-.impmaybe{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:10px;border-radius:16px;background:rgba(30,15,69,.12);align-self:stretch}
-.impmaybe small{width:100%;font:800 11px var(--display);text-transform:uppercase;letter-spacing:.06em}
-.impmaybe .chip.small{background:var(--paper);cursor:default}
+/* L'Imposteur : la piste de l'imposteur, les indices, le suspense{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:10px;border-radius:16px;background:rgba(30,15,69,.12);align-self:stretch}
 .impclues{display:flex;flex-direction:column;gap:8px;margin:0;padding:0;list-style:none}
 .impclues li{display:flex;align-items:baseline;gap:10px;padding:10px 14px;border:3px solid var(--ink);border-radius:16px;background:var(--paper);color:var(--ink);box-shadow:var(--edge-s);animation:pop .35s backwards}
 .impclues b{font:800 13px var(--display);color:var(--muted);flex:none}
@@ -1383,7 +1339,7 @@ body.swipe .tabbar{-webkit-backdrop-filter:none;backdrop-filter:none;background:
 :root{--dk-text:#efeaff}
 :root[data-mode=dark]{--paper:#241d3b;color-scheme:dark}
 :root[data-mode=dark]:not([data-theme]),:root[data-mode=dark][data-theme=th-berry]{--bg:#110c20;--bg-deep:#0a0715}
-html[data-mode=dark] #btnUser,html[data-mode=dark] .btn.white,html[data-mode=dark] input[type=text],html[data-mode=dark] input[type=email],html[data-mode=dark] .mode[data-m=classic],html[data-mode=dark] .face,html[data-mode=dark] .rk,html[data-mode=dark] .modal .box,html[data-mode=dark] .mcard,html[data-mode=dark] .team .chip,html[data-mode=dark] .profgrid .stat,html[data-mode=dark] .react.r4,html[data-mode=dark] .bubble.r4,html[data-mode=dark] .reactfab.open,html[data-mode=dark] .frow,html[data-mode=dark] .toast,html[data-mode=dark] .iconbtn,html[data-mode=dark] .admin textarea,html[data-mode=dark] .pushbanner .btn.sm,html[data-mode=dark] .daily.done,html[data-mode=dark] .chatrow input,html[data-mode=dark] .bubble.chat,html[data-mode=dark] .setrow,html[data-mode=dark] .setgroup,html[data-mode=dark] .shopcoins,html[data-mode=dark] .item,html[data-mode=dark] .clubcode,html[data-mode=dark] .tryon,html[data-mode=dark] .clubemb,html[data-mode=dark] .embpick button,html[data-mode=dark] .wtxt,html[data-mode=dark] .quest,html[data-mode=dark] .qchest,html[data-mode=dark] .coinchip,html[data-mode=dark] .betamts .chip,html[data-mode=dark] .impcard.good,html[data-mode=dark] .impwho,html[data-mode=dark] .impmaybe .chip.small,html[data-mode=dark] .impclues li,html[data-mode=dark] .fsearch,html[data-mode=dark] .fcard{color:var(--dk-text);--muted:#b6aadb}
+html[data-mode=dark] #btnUser,html[data-mode=dark] .btn.white,html[data-mode=dark] input[type=text],html[data-mode=dark] input[type=email],html[data-mode=dark] .mode[data-m=classic],html[data-mode=dark] .face,html[data-mode=dark] .rk,html[data-mode=dark] .modal .box,html[data-mode=dark] .mcard,html[data-mode=dark] .team .chip,html[data-mode=dark] .profgrid .stat,html[data-mode=dark] .react.r4,html[data-mode=dark] .bubble.r4,html[data-mode=dark] .reactfab.open,html[data-mode=dark] .frow,html[data-mode=dark] .toast,html[data-mode=dark] .iconbtn,html[data-mode=dark] .admin textarea,html[data-mode=dark] .pushbanner .btn.sm,html[data-mode=dark] .daily.done,html[data-mode=dark] .chatrow input,html[data-mode=dark] .bubble.chat,html[data-mode=dark] .setgroup,html[data-mode=dark] .shopcoins,html[data-mode=dark] .item,html[data-mode=dark] .clubcode,html[data-mode=dark] .tryon,html[data-mode=dark] .clubemb,html[data-mode=dark] .embpick button,html[data-mode=dark] .wtxt,html[data-mode=dark] .quest,html[data-mode=dark] .qchest,html[data-mode=dark] .coinchip,html[data-mode=dark] .betamts .chip,html[data-mode=dark] .impcard.good,html[data-mode=dark] .impwho,html[data-mode=dark] .impclues li,html[data-mode=dark] .fsearch,html[data-mode=dark] .fcard{color:var(--dk-text);--muted:#b6aadb}
 html[data-mode=dark] .tgl::after{background:#fff}
 html[data-mode=dark] .shoptabs button[aria-pressed=true],html[data-mode=dark] .profgrid .stat{color:var(--ink);--muted:#5b4a8f} /* sur fond de couleur : texte foncé */
 html[data-mode=dark] input::placeholder,html[data-mode=dark] textarea::placeholder{color:#9d92c4}

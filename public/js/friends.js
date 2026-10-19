@@ -659,7 +659,7 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
   }
 
   const api = {
-    start, stop, ready, loadClub, render, syncRecords, addByCode, openInvites, renderNotifs, clubInvite, clubSync: () => clubSync(),
+    start, stop, ready, render, syncRecords, addByCode, renderNotifs, clubInvite, clubSync: () => clubSync(),
     isFriend: (uid) => F.friends.some((f) => f.uid === uid),
     count: () => F.friends.length,
     // défi du jour terminé : noté pour le rappel du soir (le serveur ne prévient que ceux qui ne l'ont pas fait)

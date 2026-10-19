@@ -48,7 +48,6 @@ export async function startScan(video, onCode, onError) {
   };
   loop();
 }
-export function resumeScan(video, onCode, onError) { return startScan(video, onCode, onError); }
 export function stopScan() {
   clearTimeout(timer); timer = null;
   if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }

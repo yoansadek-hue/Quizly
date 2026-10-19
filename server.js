@@ -817,8 +817,7 @@ async function impRound(room) {
   const pool = ps.filter((p) => p.id !== ir.last); // jamais deux fois de suite le même imposteur
   const bad = pick(pool.length ? pool : ps);
   ir.imp = bad.id; ir.last = bad.id; bad.imp++;
-  const o = Array.isArray(q.o) ? q.o : [];
-  room.q = { ...q, options: shuffle(o.includes(q.a) ? o : [q.a, ...o.filter((x) => x !== q.a).slice(0, 3)]) };
+  room.q = q; // l'imposteur écrit sa réponse : pas de choix à préparer
   ir.votes = new Map(); ir.clues = new Map(); ir.guessText = null;
   // 1. chacun écrit un indice en secret ; l'imposteur, lui, n'a que la question (aucun indice)
   room.phase = "iclue";
