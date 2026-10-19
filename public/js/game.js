@@ -9,9 +9,9 @@ import { initFriends, friendCodeFrom } from "./friends.js";
 import { enablePush, disablePush, pushMuted, pushState, currentSub } from "./push.js";
 import { initCosmetics, styleName, titleOf } from "./cosmetics.js";
 import { initQuests } from "./quests.js";
-import { impUI, IMP_PTS } from "./impostor.js";
+import { impUI, IMP_PTS, answerMatches } from "./impostor.js";
 
-const VERSION = "2.27.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.27.1"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -818,10 +818,10 @@ async function impRound() {
   const others = S.players.map((p, i) => i).filter((i) => i !== IMP.last); // jamais deux fois de suite le même imposteur
   IMP.imp = others[Math.floor(Math.random() * others.length)]; IMP.last = IMP.imp;
   S.players[IMP.imp].imp++;
-  Object.assign(IMP, { q, options: impShuffle(opts), k: 0 });
+  Object.assign(IMP, { q, options: impShuffle(opts), k: 0, guessText: null });
   impPass();
 }
-const impCardOf = (i) => ({ ...impHead(), tag: `${IMP.q.t} · ${LEVELS[S.diff]}`, q: IMP.q.q, img: IMP.q.img || null, imposter: i === IMP.imp, answer: i === IMP.imp ? null : IMP.q.a, options: i === IMP.imp ? IMP.options : null }); // l'imposteur voit les 4 réponses possibles
+const impCardOf = (i) => ({ ...impHead(), tag: `${IMP.q.t} · ${LEVELS[S.diff]}`, q: IMP.q.q, img: IMP.q.img || null, imposter: i === IMP.imp, answer: i === IMP.imp ? null : IMP.q.a }); // l'imposteur n'a aucun indice
 function impPass() { // au suivant de découvrir sa carte
   if (IMP.k >= S.players.length) return impTalk();
   const p = S.players[IMP.k];
@@ -843,7 +843,7 @@ function impAccuse(i) {
   if (i !== IMP.imp) return impResult(false, false);
   const p = S.players[IMP.imp]; // démasqué : on lui passe le téléphone pour sa dernière chance
   imp.pass({ ...impHead(), name: p.name, photo: photoOf(p.name) }, () =>
-    imp.guess({ ...impHead(), q: IMP.q.q, options: IMP.options }, (k, o) => setTimeout(() => impResult(true, o === IMP.q.a), 700)));
+    imp.guess({ ...impHead(), q: IMP.q.q }, (text) => { IMP.guessText = text; setTimeout(() => impResult(true, answerMatches(text, IMP.q.a)), 500); })); // il écrit la réponse (fautes permises)
 }
 function impResult(caught, guessed) {
   const before = S.players.map((p) => p.points);
@@ -854,7 +854,7 @@ function impResult(caught, guessed) {
   if (!caught || guessed) flash("ko"); else flash("ok");
   const last = IMP.round >= IMP.rounds;
   imp.result({
-    ...impHead(), caught, guessed, impName: bad.name, impPhoto: photoOf(bad.name), accusedName: S.players[IMP.accused]?.name, answer: IMP.q.a,
+    ...impHead(), caught, guessed, guessText: caught ? IMP.guessText || "" : null, impName: bad.name, impPhoto: photoOf(bad.name), accusedName: S.players[IMP.accused]?.name, answer: IMP.q.a,
     board: S.players.map((p, i) => ({ name: p.name, photo: photoOf(p.name), points: p.points, gain: p.points - before[i] }))
   }, impRound, last ? "Voir le classement" : "Manche suivante");
   show("s-imp");
