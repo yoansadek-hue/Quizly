@@ -1389,3 +1389,4 @@ html[data-mode=dark] .btn.sun,html[data-mode=dark] .btn.mint,html[data-mode=dark
    Un écran garde maintenant ses marges à l'intérieur : même position pendant et après le geste. */
 .screen:not(.center){display:flow-root}
 .profgrid .stat span{color:rgba(30,15,69,.75)} /* lisible aussi sur le rouge vif */
+#customList.dim .custom-chip{opacity:.3;pointer-events:none} /* Aléatoire actif : thèmes personnalisés verrouillés aussi */

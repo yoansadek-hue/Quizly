@@ -15,6 +15,17 @@
 <link rel="stylesheet" href="css/style.css">
 <title>Quizly</title>
 <script>
+// avant le premier affichage : le thème de fond acheté et le mode sombre (gardés sur l'appareil),
+// pour ne jamais voir le fond de base une seconde au lancement
+try {
+  var qs = JSON.parse(localStorage.getItem("quizly:session") || "null");
+  var qc = qs && JSON.parse(localStorage.getItem("quizly:" + qs.uid + ":cos") || "null");
+  if (qc && /^th-[a-z]+$/.test(qc.theme || "")) document.documentElement.dataset.theme = qc.theme;
+  var qset = JSON.parse(localStorage.getItem("quizly:settings") || "{}");
+  if (qset.dark) document.documentElement.dataset.mode = "dark";
+} catch (e) {}
+</script>
+<script>
 addEventListener("error", function (e) {
   var p = document.createElement("pre");
   p.style.cssText = "position:fixed;z-index:99;top:0;left:0;right:0;margin:0;padding:12px;background:#ff5c5c;color:#12132b;font:14px monospace;white-space:pre-wrap";
