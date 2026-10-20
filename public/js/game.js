@@ -11,7 +11,7 @@ import { initCosmetics, styleName, titleOf } from "./cosmetics.js";
 import { initQuests } from "./quests.js";
 import { impUI, IMP_PTS, answerMatches } from "./impostor.js";
 
-const VERSION = "2.28.1"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.29.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -72,7 +72,7 @@ function show(id) {
   if (curScreen === "s-scan" && id !== "s-scan") stopScan(); // on coupe la caméra en quittant le scanner
   curScreen = id;
   if (id === "s-lobby") { $("btnInvite").hidden = !friends.ready(); friends.hideInvitePanel(); } // inviter ses amis dans le salon
-  if (id === "s-mode") try { menuPushUI(); dailyCard(); } catch {}
+  if (id === "s-mode") { try { dailyCard(); } catch {} try { menuPushUI(); } catch {} }
   $("btnNotifs").hidden = $("btnQuests").hidden = id === "s-login" || PLAYING.includes(id) || id === "s-lobby"; // la cloche et les Défis, hors partie
   tabbar(id); // la barre d'onglets du bas
   if (id === "s-end") setTimeout(() => friends.syncRecords(), 800); // nouveaux records visibles par les amis
@@ -101,7 +101,7 @@ function flash(kind) {
   }
 }
 function confetti() {
-  const cols = ["#ffe14d", "#34e3b0", "#ff6b8b", "#62c7ff", "#f6f3ff"];
+  const cols = ["#ffe14d", "#34e3b0", "#ff3b5c", "#62c7ff", "#f6f3ff"];
   for (let n = 0; n < 60; n++) {
     const c = document.createElement("i");
     c.className = "conf";
@@ -203,22 +203,25 @@ function renderThemes() {
   try { renderCustom(); $("customMsg").textContent = ""; } catch {} // thèmes personnalisés au-dessus
   const box = $("themes");
   box.replaceChildren();
-  box.classList.toggle("dim", S.rand);
+  box.classList.remove("dim");
   const r = document.createElement("button");
   r.className = "chip rand"; r.textContent = "Aléatoire";
-  r.setAttribute("aria-pressed", S.rand);
-  // Aléatoire : les autres thèmes sont verrouillés tant qu'il est actif
-  const lock = () => { box.classList.toggle("dim", S.rand); box.querySelectorAll(".chip:not(.rand)").forEach((c) => (c.disabled = S.rand)); };
-  r.onclick = () => { S.rand = !S.rand; r.setAttribute("aria-pressed", S.rand); lock(); renderCustom(); };
+  // Aléatoire : un appui décoche tous les autres thèmes ; un second appui l'enlève (plus rien n'est coché)
+  r.onclick = () => { S.rand = !S.rand; S.themes.clear(); syncThemes(); };
   box.append(r);
   THEMES.forEach((t, i) => {
     const b = document.createElement("button");
-    b.className = "chip"; b.style.setProperty("--i", i + 1); b.textContent = t;
-    b.setAttribute("aria-pressed", S.themes.has(t));
-    b.disabled = S.rand;
-    b.onclick = () => { if (S.rand) return; S.themes.has(t) ? S.themes.delete(t) : S.themes.add(t); b.setAttribute("aria-pressed", S.themes.has(t)); };
+    b.className = "chip"; b.style.setProperty("--i", i + 1); b.textContent = t; b.dataset.t = t;
+    b.onclick = () => pickTheme(t);
     box.append(b);
   });
+  syncThemes();
+}
+// un thème touché : Aléatoire se décoche, et ce thème se coche ou se décoche
+function pickTheme(t) { S.rand = false; S.themes.has(t) ? S.themes.delete(t) : S.themes.add(t); syncThemes(); }
+function syncThemes() { // l'état coché de chaque pastille (thèmes, Aléatoire, thèmes personnalisés)
+  document.querySelectorAll("#themes .chip").forEach((c) => c.setAttribute("aria-pressed", String(c.classList.contains("rand") ? !!S.rand : S.themes.has(c.dataset.t))));
+  document.querySelectorAll("#customList .ctog").forEach((c) => c.setAttribute("aria-pressed", String(S.themes.has(c.textContent))));
 }
 
 function opts(box, values, current, label, onPick) {
@@ -1746,12 +1749,14 @@ $("btnAdminSend").onclick = async () => {
 };
 
 /* ---------- Défi du jour : 10 questions, les mêmes pour tout le monde, une seule tentative ---------- */
-const dayKey = () => `quizly:${S.uid}:daily`;
-const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(Date.now());
+// fonctions (et non des constantes) : le menu les appelle dès le démarrage, avant que la suite du fichier soit lue
+function dayKey() { return `quizly:${S.uid}:daily`; }
+function today() { return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(Date.now()); }
 function getDaily() { try { const d = JSON.parse(localStorage.getItem(dayKey()) || "null"); return d && d.day === today() ? d : null; } catch { return null; } }
 function setDaily(d) { try { localStorage.setItem(dayKey(), JSON.stringify(d)); } catch {} }
 function dailyCard() {
   const d = getDaily();
+  $("btnDaily").hidden = !!(d && d.done !== false) || !S.uid; // au menu tant que le défi du jour n'est pas fait, puis il disparaît
   $("btnDaily").classList.toggle("done", !!d);
   $("dailyTitle").textContent = d ? `Fait : ${d.score} / 10` : "10 questions, une seule tentative";
   $("dailySub").textContent = d ? "Voir le classement du jour" : "Les mêmes pour tout le monde. Battez vos amis.";
@@ -1949,7 +1954,7 @@ async function refreshScreen() {
 }
 
 /* ---------- Série du Défi du jour ---------- */
-const dHistKey = () => `quizly:${S.uid}:dailyHist`;
+function dHistKey() { return `quizly:${S.uid}:dailyHist`; }
 function dailyDays() { try { return JSON.parse(localStorage.getItem(dHistKey()) || "[]"); } catch { return []; } }
 function noteDailyDay(d) {
   const days = dailyDays();
@@ -1959,7 +1964,7 @@ function noteDailyDay(d) {
     quests.tick("daily");
   }
   quests.best("dailyScore", d.score || 0);
-  friends.dailyDone(d.day, d); // pour le rappel du soir et le classement mondial
+  friends.dailyDone(d.day, d); // pour le classement mondial du défi
   checkAch();
 }
 // jours consécutifs, jusqu'à aujourd'hui (ou hier si le défi du jour n'est pas encore fait)
@@ -2110,25 +2115,27 @@ function rankRow(p, i, txt) {
   const st = document.createElement("span"); st.className = "st"; st.textContent = txt;
   li.append(pos, avatarEl(p.name, p.photo), nm, st); return li;
 }
-async function renderDailyBoard(d) {
-  const scope = D.scope, day = today();
-  document.querySelectorAll("#dScope button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.s === scope)));
+// p : « d » (écran du défi) ou « q » (onglet Défis)
+async function renderDailyBoard(d, p = "d") {
+  const scope = D.scope || "friends", day = today();
+  document.querySelectorAll(`#${p}Scope button`).forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.s === scope)));
   const fmt = (p) => `${p.daily.score} / 10 · ${Math.round(p.daily.ms / 1000)} s`;
   let list;
   if (scope === "world") {
-    $("dRank").replaceChildren(Object.assign(document.createElement("p"), { className: "lead small", textContent: "Chargement du classement mondial…" }));
+    $(`${p}Rank`).replaceChildren(Object.assign(document.createElement("p"), { className: "lead small", textContent: "Chargement du classement mondial…" }));
     try { list = await friends.worldDaily(day); } catch { list = []; }
     if (D.scope !== "world") return;
     const i = list.findIndex((p) => p.you);
-    $("dMyRank").textContent = list.length ? (i >= 0 ? `Votre place : ${i + 1}e sur ${list.length} joueur${list.length > 1 ? "s" : ""}` : "Vous n'êtes pas dans les 100 premiers.") : "Personne n'a encore fait le défi aujourd'hui.";
+    $(`${p}MyRank`).textContent = list.length ? (i >= 0 ? `Votre place : ${i + 1}e sur ${list.length} joueur${list.length > 1 ? "s" : ""}` : "Vous n'êtes pas dans les 100 premiers.") : "Personne n'a encore fait le défi aujourd'hui.";
   } else {
     list = friends.ready() ? friends.dailyBoard(day) : [];
     if (!list.length) list = [{ name: S.firstName, photo: S.photo, you: true, daily: d || getDaily() || { score: 0, ms: 0 } }];
-    $("dMyRank").textContent = "";
+    $(`${p}MyRank`).textContent = "";
   }
-  $("dRank").replaceChildren(...list.map((p, i) => rankRow(p, i, fmt(p))));
+  $(`${p}Rank`).replaceChildren(...list.map((x, i) => rankRow(x, i, fmt(x))));
 }
 document.querySelectorAll("#dScope button").forEach((b) => (b.onclick = () => { D.scope = b.dataset.s; renderDailyBoard(getDaily()); }));
+document.querySelectorAll("#qScope button").forEach((b) => (b.onclick = () => { D.scope = b.dataset.s; renderDailyBoard(getDaily(), "q"); }));
 
 /* ---------- thèmes personnalisés : n'importe quel sujet, l'IA crée les questions ---------- */
 const customKey = () => `quizly:${S.uid}:customThemes`;
@@ -2140,8 +2147,8 @@ function renderCustom() {
   box.replaceChildren(...customThemes().map((t) => {
     const c = document.createElement("span"); c.className = "chip custom-chip";
     const b = document.createElement("button"); b.className = "ctog"; b.textContent = t;
-    b.setAttribute("aria-pressed", S.themes.has(t)); b.disabled = S.rand;
-    b.onclick = () => { if (S.rand) return; S.themes.has(t) ? S.themes.delete(t) : S.themes.add(t); b.setAttribute("aria-pressed", S.themes.has(t)); };
+    b.setAttribute("aria-pressed", S.themes.has(t));
+    b.onclick = () => pickTheme(t);
     const x = document.createElement("button"); x.className = "cdel"; x.textContent = "×"; x.setAttribute("aria-label", `Supprimer le thème ${t}`);
     x.onclick = () => { saveCustom(customThemes().filter((y) => y !== t)); S.themes.delete(t); renderCustom(); };
     c.append(b, x); return c;
@@ -2152,12 +2159,12 @@ function addCustom() {
   if (t.length < 3) { $("customMsg").textContent = "Écrivez un thème d'au moins 3 lettres."; return; }
   if (THEMES.some((x) => x.toLowerCase() === t.toLowerCase())) { // il existe déjà : on le sélectionne
     const known = THEMES.find((x) => x.toLowerCase() === t.toLowerCase());
-    S.themes.add(known); renderThemes(); $("customMsg").textContent = `« ${known} » existe déjà : il est sélectionné.`; $("customIn").value = ""; return;
+    S.rand = false; S.themes.add(known); renderThemes(); $("customMsg").textContent = `« ${known} » existe déjà : il est sélectionné.`; $("customIn").value = ""; return;
   }
   const list = customThemes().filter((x) => x.toLowerCase() !== t.toLowerCase());
-  saveCustom([...list, t]); S.themes.add(t); // ajouté et sélectionné
+  saveCustom([...list, t]); S.rand = false; S.themes.add(t); // ajouté et sélectionné (Aléatoire se décoche)
   $("customIn").value = ""; $("customMsg").textContent = `« ${t} » ajouté : l'IA créera des questions sur ce sujet.`;
-  renderCustom();
+  renderCustom(); syncThemes();
 }
 $("btnCustomAdd").onclick = addCustom;
 $("customIn").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); addCustom(); } });
@@ -2183,11 +2190,19 @@ function qTab(t) {
 document.querySelectorAll("#qTabs .ftab").forEach((b) => (b.onclick = () => qTab(b.dataset.tab)));
 function renderQuestDaily() {
   const d = getDaily(), sk = dailyStreak(), box = $("qDaily");
-  box.className = "qdaily" + (d ? " done" : "");
+  const done = !!(d && d.done !== false);
+  box.hidden = done; $("qRes").hidden = !done;
+  if (done) { // déjà fait : le résultat et le classement, directement (comme à la fin du défi)
+    $("qFinal").textContent = d.score;
+    $("qNote").textContent = `Temps total : ${Math.round((d.ms || 0) / 1000)} s · série : ${sk} jour${sk > 1 ? "s" : ""} · revenez demain.`;
+    renderDailyBoard(d, "q");
+    return;
+  }
+  box.className = "qdaily";
   const k = document.createElement("span"); k.className = "dk"; k.textContent = "Défi du jour";
-  const t = document.createElement("b"); t.textContent = d ? `Fait : ${d.score} / 10` : "10 questions, une seule tentative";
-  const sm = document.createElement("small"); sm.textContent = d ? `Temps : ${Math.round((d.ms || 0) / 1000)} s · série : ${sk} jour${sk > 1 ? "s" : ""}` : "Les mêmes pour tout le monde. +10 Q-Bucks.";
-  const btn = document.createElement("button"); btn.className = "btn sm " + (d ? "white" : "sun"); btn.textContent = d ? "Voir mon résultat" : "Jouer"; btn.onclick = openDaily;
+  const t = document.createElement("b"); t.textContent = "10 questions, une seule tentative";
+  const sm = document.createElement("small"); sm.textContent = "Les mêmes pour tout le monde. +10 Q-Bucks.";
+  const btn = document.createElement("button"); btn.className = "btn sm sun"; btn.textContent = "Jouer"; btn.onclick = openDaily;
   box.replaceChildren(k, t, sm, btn);
 }
 

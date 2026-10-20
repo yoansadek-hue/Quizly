@@ -116,7 +116,6 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
     try {
       await F.fs.setDoc(ref("friends", F.uid, "list", r.uid), { since: Date.now() });
       await F.fs.setDoc(ref("friends", r.uid, "list", F.uid), { since: Date.now() });
-      notify(r.uid, "accepte", `${me().name} a accepté votre demande d'ami.`, "/?amis=1");
       await F.fs.deleteDoc(ref("requests", F.uid, "from", r.uid));
       await loadFriends();
     } catch { say("Impossible d'accepter pour le moment."); }
@@ -227,11 +226,12 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
     const ti = titleEl(f.cos); if (ti) top.append(ti);
     const fresh = f.at && Date.now() - f.at < 15 * 60000;
     const meta = el("div", "fmeta"); meta.append(el("i", "fdot" + (fresh ? " on" : "")), document.createTextNode(seen(f.at)));
-    const x = f.records || {}, chips = el("div", "fchips");
-    const chip = (label, v, cls) => { const s = el("span", cls || ""); s.append(el("small", null, label), el("b", null, v)); return s; };
-    chips.append(chip("Solo", `${x.best2 || 0}`), chip("Chrono", `${x.bestChrono || 0}`), chip("Millions", euros(x.bestMillion || 0)));
-    if (f.daily && f.daily.day === parisDay()) chips.append(chip("Défi du jour", `${f.daily.score} / 10`, "dd")); // il a fait le défi aujourd'hui
-    body.append(top, meta, chips);
+    body.append(top, meta);
+    if (f.daily && f.daily.day === parisDay()) { // seulement : est-il actif, et a-t-il fait le Défi du jour ?
+      const chips = el("div", "fchips"), d = el("span", "dd");
+      d.append(el("small", null, "Défi du jour fait"), el("b", null, `${f.daily.score} / 10`));
+      chips.append(d); body.append(chips);
+    }
     c.append(avatarEl(f.name, f.photo, true), body, el("span", "chev", "›"));
     return c;
   }
@@ -293,7 +293,8 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
 
   /* ---------- la cloche : vos notifications (amis, invitations, annonces) ---------- */
   // envoie une notification : sur tous les appareils de l'ami (push) et dans sa cloche
-  const TITLES = { demande: "Demande d'ami", accepte: "Nouvel ami", invite: "Invitation à jouer", club: "Invitation au club" };
+  // seules notifications envoyées : demandes d'ami et invitations (+ le Défi du jour de 10 h et les annonces, envoyés par le serveur)
+  const TITLES = { demande: "Demande d'ami", invite: "Invitation à jouer", club: "Invitation au club" };
   async function notify(to, type, text, url) {
     sendPush(to, TITLES[type] || "", text, url);
     try { const m = me(); await F.fs.addDoc(F.fs.collection(F.fs.db, "notifs", to, "list"), { from: F.uid, name: m.name, photo: m.photo || "", type, text, url, at: Date.now() }); } catch {}
@@ -662,7 +663,7 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
     start, stop, ready, render, syncRecords, addByCode, renderNotifs, clubInvite, clubSync: () => clubSync(),
     isFriend: (uid) => F.friends.some((f) => f.uid === uid),
     count: () => F.friends.length,
-    // défi du jour terminé : noté pour le rappel du soir (le serveur ne prévient que ceux qui ne l'ont pas fait)
+    // défi du jour terminé : noté pour le classement mondial du défi
     async dailyDone(day, d) {
       if (!ready()) return;
       const m = me();

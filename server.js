@@ -161,37 +161,6 @@ setInterval(() => {
   const [h, m] = new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit", hour12: false }).format(Date.now()).split(":").map(Number);
   if (h === 10 && m < 10) dailyPush().catch((e) => console.warn("Défi de 10 h :", e.message)); // entre 10 h 00 et 10 h 09
 }, 60000);
-// 19 h : rappel aux joueurs qui n'ont pas encore fait le défi du jour (pour ne pas casser leur série)
-let remindedOn = "";
-async function doneToday(day) {
-  const done = new Set();
-  try {
-    let page = "";
-    for (let i = 0; i < 20; i++) {
-      const url = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/dailydone/${day}/users?pageSize=300&key=${firebaseConfig.apiKey}${page ? `&pageToken=${page}` : ""}`;
-      const j = await getJSON(url, {}, 8000);
-      (j.documents || []).forEach((d) => done.add(d.name.split("/").pop()));
-      if (!j.nextPageToken) break; page = j.nextPageToken;
-    }
-  } catch (e) { console.warn("Défis faits :", e.message); }
-  return done;
-}
-async function eveningReminder() {
-  const day = parisDay();
-  if (!pushOn || remindedOn === day) return 0;
-  remindedOn = day;
-  const done = await doneToday(day);
-  // appareils avec leur compte : on garde ceux dont le compte n'a pas encore fait le défi
-  const map = new Map();
-  for (const [u, m] of pushSubs) for (const sub of m.values()) map.set(sub.endpoint, { uid: u, sub });
-  for (const d of await loadFsSubs()) map.set(d.sub.endpoint, { uid: d.uid, sub: d.sub });
-  const subs = [...map.values()].filter((x) => !done.has(x.uid) && !deadSubs.has(x.sub.endpoint)).map((x) => x.sub);
-  return pushTo(subs, { title: "Défi du jour", body: "Il vous reste la soirée pour faire le défi et garder votre série !", url: "/?defi=1" });
-}
-setInterval(() => {
-  const [h, m] = new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit", hour12: false }).format(Date.now()).split(":").map(Number);
-  if (h === 19 && m < 10) eveningReminder().catch((e) => console.warn("Rappel du soir :", e.message));
-}, 60000);
 // envoi manuel possible (mode développeur ou service externe)
 app.get("/api/daily/notify", async (req, res) => {
   if (!isAdmin(req.query.key)) return res.status(403).json({ ok: false });

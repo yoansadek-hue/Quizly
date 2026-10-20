@@ -298,6 +298,14 @@ addEventListener("error", function (e) {
     </div>
     <div class="fpanel" id="qpDaily">
     <div class="qdaily" id="qDaily"></div>
+    <!-- défi du jour fait : le résultat et le classement, directement dans l'onglet -->
+    <div id="qRes" class="qres" hidden>
+      <p class="dbig"><strong id="qFinal"></strong><span>/ 10</span></p>
+      <p class="lead small" id="qNote"></p>
+      <div class="scope" id="qScope"><button data-s="friends" aria-pressed="true">Amis</button><button data-s="world" aria-pressed="false">Monde</button></div>
+      <p class="lead small myrank" id="qMyRank"></p>
+      <ol class="rank" id="qRank"></ol>
+    </div>
     </div>
     <div class="fpanel" id="qpDay" hidden>
     <h3 class="qh">Défis du jour <small id="qDayLeft"></small></h3>
@@ -513,6 +521,7 @@ addEventListener("error", function (e) {
   <section id="s-game" class="screen" hidden>
     <p class="who"><span class="whoL"><span id="whoAv"></span><span id="whoName"></span></span><span id="whoLives" class="chip small"></span></p>
     <p class="alive" id="alive"></p>
+    <div class="mlive" id="sLive" hidden></div>
     <ol class="liveboard" id="liveBoard" hidden aria-label="Classement en direct"></ol>
     <div class="clockrow" id="clockrow"><div class="timer"><i id="bar30"></i></div><span id="clock" class="clock">30</span><button class="chip small stop" id="btnStopTimer" aria-label="Arrêter le timer">Arrêter le timer</button></div>
     <div class="scene" id="scene"><div class="card" id="card" role="button" tabindex="0" aria-label="Retourner la carte">

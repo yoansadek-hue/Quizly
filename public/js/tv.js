@@ -262,7 +262,7 @@ function renderMSide() {
   $("gSide").replaceChildren(el("h3", null, "Échelle"), lad);
   $("gLive").replaceChildren(...T.mboard.map((p) => {
     const c = el("span", "chip" + (p.out ? " out" : p.answered ? " ok" : ""));
-    c.append(avatarEl(p.name, photo(p.id)), document.createTextNode(`${p.name} · ${p.out ? `sorti (${euros(p.won)})` : p.answered ? "a répondu" : "réfléchit…"}`));
+    c.append(avatarEl(p.name, photo(p.id)), document.createTextNode(`${p.name} · ${euros(p.won)}${p.out ? " · sorti" : ""}`)); // la couleur dit qui a répondu
     return c;
   }));
 }
@@ -325,7 +325,7 @@ function renderEnd(m) {
   confetti();
 }
 function confetti() {
-  const cols = ["#ffe14d", "#34e3b0", "#ff6b8b", "#62c7ff", "#f6f3ff"];
+  const cols = ["#ffe14d", "#34e3b0", "#ff3b5c", "#62c7ff", "#f6f3ff"];
   for (let i = 0; i < 90; i++) {
     const c = el("div", "conf");
     c.style.left = `${Math.random() * 100}vw`; c.style.background = cols[i % cols.length];

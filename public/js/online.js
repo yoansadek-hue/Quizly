@@ -3,7 +3,7 @@ import { setFrame } from "./million.js";
 import { styleName, titleEl } from "./cosmetics.js";
 // Jeu en ligne : le serveur mène la partie, ce fichier affiche ce qu'il envoie.
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
-const PALETTE = ["#ffe14d", "#34e3b0", "#ff6b8b", "#62c7ff", "#c4b8ff", "#ffb36b", "#f6f3ff", "#9df0d4"]; // couleurs des jetons
+const PALETTE = ["#ffe14d", "#34e3b0", "#ff3b5c", "#62c7ff", "#c4b8ff", "#ffb36b", "#f6f3ff", "#9df0d4"]; // couleurs des jetons
 const HEART = "\u2665\uFE0E"; // cœur « texte » (jamais l'emoji rouge)
 
 export function initOnline({ $, show, flash, confetti, me, record, millionUI, avatarEl, setAudio, stat, setMode, noteQ, recent, addFriend, isFriend, imp }) {
@@ -206,7 +206,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     const host = m.host === m.you;
     $("lobbyCount").textContent = `${m.players.length} / 20 joueurs`;
     const chrono = m.cfg.kind === "chrono", mill = m.cfg.kind === "million", teams = m.cfg.kind === "equipes", bets = m.cfg.kind === "parieurs", impo = m.cfg.kind === "imposteur", need = chrono || mill ? 1 : impo ? 3 : 2; // Chrono et Millionnaire se jouent aussi seul
-    $("betBox").hidden = true;
+    $("betBox").hidden = true; $("sLive").hidden = true;
     tvMode(m.tv, m.cfg.kind);
     // salon télé : pas de code à donner, on rejoint seulement en scannant la télé
     $("lobbyCode").hidden = !!m.tvRoom;
@@ -272,6 +272,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     $("whoAv").replaceChildren(avatarEl(m.name, photoOf(m.who), true));
     $("whoName").classList.remove("retry");
     const bets = O.cfg && O.cfg.kind === "parieurs";
+    survLive(m);
     $("whoLives").hidden = false; $("whoLives").textContent = m.teams ? `Équipe ${m.team}` : bets ? jetons(m.tokens ?? tokensOf(m.who)) : `${HEART} ${m.lives}`;
     $("alive").hidden = false;
     $("alive").textContent = m.teams ? `${mine ? "À vous de jouer · " : ""}${teamLine(m.teams)}`
@@ -306,6 +307,21 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     renderBets();
     show("s-game");
     startClock(m.ms);
+  }
+
+  // Survie : l'avancée de chacun en direct (comme au Millionnaire) : ses vies, qui joue, qui est éliminé
+  function survLive(m) {
+    const box = $("sLive"), list = (O.cfg && O.cfg.kind === "survie" && m.board) || [];
+    box.hidden = list.length < 2;
+    if (box.hidden) return;
+    box.replaceChildren(...[...list].sort((a, b) => a.dead - b.dead || b.score - a.score).map((p) => {
+      const c = document.createElement("span");
+      c.className = "mlp" + (p.dead ? " out" : "") + (p.id === m.who ? " cur" : "") + (p.id === O.you ? " me" : "");
+      const nm = document.createElement("b"); nm.textContent = p.id === O.you ? "Vous" : p.name;
+      const v = document.createElement("small"); v.textContent = p.dead ? "éliminé" : `${HEART} ${Math.max(0, p.lives)} · ${p.score} bonne${p.score > 1 ? "s" : ""}`;
+      c.append(avatarEl(p.name, photoOf(p.id)), nm, v);
+      return c;
+    }));
   }
 
   /* ----- Les Parieurs : avant la réponse, les autres parient leurs jetons ----- */
@@ -371,6 +387,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
       const w = O.cur.options[m.picked];
       btns.forEach((b) => b.textContent === w && b.classList.add("wrong"));
     }
+    survLive(m); // les vies à jour dans la bande
     let mood = m.correct; // le flash : bonne réponse, ou (pour un parieur) pari gagné
     if (m.teams) { // Équipes : personne n'est éliminé, on montre les scores
       $("alive").textContent = `${m.correct ? "Bonne réponse" : m.picked < 0 ? "Temps écoulé" : "Mauvaise réponse"} · ${teamLine(m.teams)}`;
@@ -406,7 +423,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     const chrono = m.kind === "chrono", mill = m.kind === "million", teams = m.kind === "equipes", bets = m.kind === "parieurs", impo = m.kind === "imposteur";
     if (stat) stat.game(chrono ? "chrono" : mill ? "omillion" : teams ? "oteams" : bets ? "obets" : impo ? "oimp" : "online");
     O.imp = null; if (imp) imp.stop();
-    $("betBox").hidden = true;
+    $("betBox").hidden = true; $("sLive").hidden = true;
     if (stat && stat.win && !teams && m.winner && m.ranking && m.ranking.length > 1 && m.ranking[0].id === O.you) stat.win(); // victoire : pour les défis
     O.chrono = false; O.cur = null; O.mout = false; O.watch = false; mu.stopClock(); $("liveBoard").hidden = true;
     $("endLead").textContent = m.winner ? "Vainqueur" : "Partie terminée";
@@ -597,9 +614,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
   }
   function watchInfo() {
     const still = (O.mboard || []).filter((p) => !p.out);
-    const me = `Vous : ${euros(O.mwon || 0)}`;
-    if (!still.length) return me;
-    return `En direct · ${still.map((p) => `${p.name} ${p.answered ? "a répondu" : "réfléchit…"} (${euros(p.won)})`).join(" · ")} · ${me}`;
+    return `Vous repartez avec ${euros(O.mwon || 0)}${still.length ? ` · ${still.length} joueur${still.length > 1 ? "s" : ""} encore en jeu` : ""}`; // les autres : dans la bande au-dessus
   }
 
   /* ----- Chrono en ligne ----- */
