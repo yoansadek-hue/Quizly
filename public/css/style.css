@@ -14,7 +14,7 @@
   --white:#ffffff;
   --sun:#ffe14d;         /* citron */
   --mint:#34e3b0;        /* menthe */
-  --coral:#ff6b8b;       /* pamplemousse */
+  --coral:#ff3b5c;       /* pamplemousse */
   --sky:#62c7ff;         /* ciel */
   --peach:#ff9f45;       /* abricot : le Chrono */
   --lilac:#c4b8ff;       /* texte secondaire sur le fond */
@@ -921,11 +921,11 @@ body::after{content:"";position:fixed;inset:-50px;z-index:-1;pointer-events:none
 .bubble.sk-gold{background:linear-gradient(135deg,#fff3b0,#ffd23f 50%,#e3a600)!important;border-color:#8a6400}
 /* bannières de profil (cosmétiques) */
 .profhead.banner{padding:14px;border-radius:24px;border:3px solid var(--ink);box-shadow:var(--edge-s);background:var(--bg-deep)}
-.profhead.bn-sunset{background:linear-gradient(120deg,#ff6b8b,#ff9f45 55%,#ffe14d)}
+.profhead.bn-sunset{background:linear-gradient(120deg,#ff3b5c,#ff9f45 55%,#ffe14d)}
 .profhead.bn-lagoon{background:linear-gradient(120deg,#34e3b0,#62c7ff)}
 .profhead.bn-check{background:repeating-conic-gradient(#ffe14d 0 25%,#ffd23f 0 50%) 0 0/28px 28px}
 .profhead.bn-galaxy{background:radial-gradient(circle at 20% 30%,rgba(255,255,255,.7) 1px,transparent 2px) 0 0/34px 34px,radial-gradient(circle at 70% 60%,rgba(125,249,255,.6) 1px,transparent 2px) 0 0/46px 46px,linear-gradient(135deg,#140a33,#3b1d8f)}
-.profhead.bn-streak{background:linear-gradient(120deg,#ff6b8b,#ff9f45)}
+.profhead.bn-streak{background:linear-gradient(120deg,#ff3b5c,#ff9f45)}
 .profhead.bn-sunset h2,.profhead.bn-lagoon h2,.profhead.bn-check h2,.profhead.bn-streak h2{color:var(--ink)}
 /* jetons et Boutique */
 .coin{display:inline-block;width:20px;height:20px;border-radius:50%;background:var(--sun);border:3px solid var(--ink);box-shadow:inset 0 -3px 0 #e6c52a;flex:none}
@@ -943,8 +943,8 @@ body::after{content:"";position:fixed;inset:-50px;z-index:-1;pointer-events:none
 .bubble-pv.sk-ink{background:var(--ink);color:var(--sun);border-color:var(--sun)} .bubble-pv.sk-pastel{background:#ffd6e7;border-color:#b05a85}
 .bubble-pv.sk-neon{background:#140a33;color:#7df9ff;border-color:#7df9ff;box-shadow:0 0 12px rgba(125,249,255,.8)} .bubble-pv.sk-gold{background:linear-gradient(135deg,#fff3b0,#ffd23f 50%,#e3a600);border-color:#8a6400}
 .pv-banner{border:3px solid var(--ink)} .pv.bn-plain{background:var(--bg-deep)}
-.pv.bn-sunset{background:linear-gradient(120deg,#ff6b8b,#ff9f45 55%,#ffe14d)} .pv.bn-lagoon{background:linear-gradient(120deg,#34e3b0,#62c7ff)}
-.pv.bn-check{background:repeating-conic-gradient(#ffe14d 0 25%,#ffd23f 0 50%) 0 0/24px 24px} .pv.bn-streak{background:linear-gradient(120deg,#ff6b8b,#ff9f45)}
+.pv.bn-sunset{background:linear-gradient(120deg,#ff3b5c,#ff9f45 55%,#ffe14d)} .pv.bn-lagoon{background:linear-gradient(120deg,#34e3b0,#62c7ff)}
+.pv.bn-check{background:repeating-conic-gradient(#ffe14d 0 25%,#ffd23f 0 50%) 0 0/24px 24px} .pv.bn-streak{background:linear-gradient(120deg,#ff3b5c,#ff9f45)}
 .pv.bn-galaxy{background:radial-gradient(circle at 20% 30%,rgba(255,255,255,.7) 1px,transparent 2px) 0 0/30px 30px,linear-gradient(135deg,#140a33,#3b1d8f)}
 .coinpop{position:fixed;right:16px;top:calc(env(safe-area-inset-top) + 70px);z-index:65;padding:6px 14px;background:var(--sun);color:var(--ink);border:3px solid var(--ink);border-radius:99px;box-shadow:var(--edge-s);font:800 13px var(--display);pointer-events:none}
 .coinpop.go{animation:coinup 1.5s ease-out forwards}
@@ -1024,8 +1024,8 @@ body.withtabs .reactfab{bottom:auto}
 .item .st.price{color:var(--ink);padding:3px 10px;background:var(--sun);border:2px solid var(--ink);border-radius:99px}
 .pv.bn-stripes,.tryban.bn-stripes,.profhead.bn-stripes{background:repeating-linear-gradient(135deg,#62c7ff 0 14px,#34e3b0 14px 28px)}
 .pv.bn-aurora,.tryban.bn-aurora,.profhead.bn-aurora{background:radial-gradient(ellipse at 20% 0%,rgba(52,227,176,.85),transparent 60%),radial-gradient(ellipse at 80% 100%,rgba(199,155,255,.85),transparent 60%),linear-gradient(135deg,#140a33,#2c136f)}
-.tryban.bn-sunset{background:linear-gradient(120deg,#ff6b8b,#ff9f45 55%,#ffe14d)} .tryban.bn-lagoon{background:linear-gradient(120deg,#34e3b0,#62c7ff)}
-.tryban.bn-check{background:repeating-conic-gradient(#ffe14d 0 25%,#ffd23f 0 50%) 0 0/28px 28px} .tryban.bn-streak{background:linear-gradient(120deg,#ff6b8b,#ff9f45)}
+.tryban.bn-sunset{background:linear-gradient(120deg,#ff3b5c,#ff9f45 55%,#ffe14d)} .tryban.bn-lagoon{background:linear-gradient(120deg,#34e3b0,#62c7ff)}
+.tryban.bn-check{background:repeating-conic-gradient(#ffe14d 0 25%,#ffd23f 0 50%) 0 0/28px 28px} .tryban.bn-streak{background:linear-gradient(120deg,#ff3b5c,#ff9f45)}
 .tryban.bn-galaxy{background:radial-gradient(circle at 20% 30%,rgba(255,255,255,.7) 1px,transparent 2px) 0 0/34px 34px,linear-gradient(135deg,#140a33,#3b1d8f)}
 .earn{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:18px;padding:14px;background:var(--bg-deep);border-radius:20px;font:700 13px var(--font);color:var(--lilac)}
 .earn b{width:100%;font:800 13px var(--display);color:var(--sun)}
@@ -1261,7 +1261,7 @@ body.swipe .tabbar{-webkit-backdrop-filter:none;backdrop-filter:none;background:
 /* ---------- 2.26 : L'Imposteur ---------- */
 .mode[data-m=impostor]{background:var(--ink);color:var(--coral);border-color:var(--coral);box-shadow:0 6px 0 var(--coral)}
 .mode[data-m=impostor] span{color:var(--lilac)}
-.mode[data-m=impostor]::after{width:110px;height:110px;right:-24px;top:-30px;border-radius:50% 50% 44% 44%;background:rgba(255,107,139,.16);box-shadow:inset 22px 34px 0 -12px rgba(255,107,139,.12)}
+.mode[data-m=impostor]::after{width:110px;height:110px;right:-24px;top:-30px;border-radius:50% 50% 44% 44%;background:rgba(255,59,92,.16);box-shadow:inset 22px 34px 0 -12px rgba(255,59,92,.12)}
 .impbody{display:flex;flex-direction:column;gap:14px;margin-top:6px}
 .imppass{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;padding:26px 0 10px}
 .imppass .avatar.big{width:84px;height:84px;font-size:34px}
@@ -1343,6 +1343,9 @@ html[data-mode=dark] #btnUser,html[data-mode=dark] .btn.white,html[data-mode=dar
 html[data-mode=dark] .tgl::after{background:#fff}
 html[data-mode=dark] .shoptabs button[aria-pressed=true],html[data-mode=dark] .profgrid .stat{color:var(--ink);--muted:#5b4a8f} /* sur fond de couleur : texte foncé */
 html[data-mode=dark] input::placeholder,html[data-mode=dark] textarea::placeholder{color:#9d92c4}
+
+/* mode sombre : tout ce qui a un fond de couleur vive (citron, menthe, rouge, ciel, abricot, lilas) garde un texte foncé */
+html[data-mode=dark] .btn.sun,html[data-mode=dark] .btn.mint,html[data-mode=dark] .btn.coral,html[data-mode=dark] .found button,html[data-mode=dark] #themes .chip[aria-pressed=true],html[data-mode=dark] .opts .chip[aria-pressed=true],html[data-mode=dark] .avatar,html[data-mode=dark] .mode[data-m=online],html[data-mode=dark] .mode[data-m=survie],html[data-mode=dark] .mode[data-m=party],html[data-mode=dark] .mode[data-m=teams],html[data-mode=dark] .mode[data-m=chrono],html[data-mode=dark] .mode[data-m=solosec],html[data-mode=dark] .mode[data-m=solo],html[data-mode=dark] .mode[data-m=qcm],html[data-mode=dark] .who .chip,html[data-mode=dark] .face.back,html[data-mode=dark] .face .chip.small,html[data-mode=dark] .chip.audio,html[data-mode=dark] .grid .btn::before,html[data-mode=dark] .grid .btn:nth-child(4n+2)::before,html[data-mode=dark] .grid .btn:nth-child(4n+3)::before,html[data-mode=dark] .grid .btn:nth-child(4n+4)::before,html[data-mode=dark] .grid .btn.right,html[data-mode=dark] .grid .btn.wrong,html[data-mode=dark] .grid .btn:disabled.picked:not(.right):not(.wrong),html[data-mode=dark] .stop,html[data-mode=dark] .dots span,html[data-mode=dark] .dots span:nth-child(2),html[data-mode=dark] .dots span:nth-child(3),html[data-mode=dark] .rk.first,html[data-mode=dark] .code,html[data-mode=dark] .ladder li.done,html[data-mode=dark] .ladder li.now,html[data-mode=dark] .mcard .chip.small,html[data-mode=dark] .liveboard li.me,html[data-mode=dark] .team.t0,html[data-mode=dark] .team.t1,html[data-mode=dark] .team.t2,html[data-mode=dark] .team.t3,html[data-mode=dark] .profgrid .stat:nth-child(1),html[data-mode=dark] .profgrid .stat:nth-child(2),html[data-mode=dark] .profgrid .stat:nth-child(3),html[data-mode=dark] .profthemes .bar i,html[data-mode=dark] .react.r0,html[data-mode=dark] .bubble.r0,html[data-mode=dark] .react.r1,html[data-mode=dark] .bubble.r1,html[data-mode=dark] .react.r2,html[data-mode=dark] .bubble.r2,html[data-mode=dark] .react.r3,html[data-mode=dark] .bubble.r3,html[data-mode=dark] .react.r5,html[data-mode=dark] .bubble.r5,html[data-mode=dark] #mWon,html[data-mode=dark] .reactfab,html[data-mode=dark] .nbadge,html[data-mode=dark] .cloudchip,html[data-mode=dark] .cloudchip.cloud,html[data-mode=dark] .cloudchip.error,html[data-mode=dark] .tile.up,html[data-mode=dark] .tile.down,html[data-mode=dark] .ftab[aria-selected=true],html[data-mode=dark] .fx:active,html[data-mode=dark] .avedit .pen,html[data-mode=dark] .penbtn,html[data-mode=dark] .notif.ann,html[data-mode=dark] .pushbanner,html[data-mode=dark] .daily,html[data-mode=dark] .gtoast,html[data-mode=dark] .mlp.me,html[data-mode=dark] .reactfab.unread::after,html[data-mode=dark] .tgl:checked,html[data-mode=dark] .setacct,html[data-mode=dark] .sico.c1,html[data-mode=dark] .sico.c2,html[data-mode=dark] .sico.c3,html[data-mode=dark] .sico.c4,html[data-mode=dark] .sico.c5,html[data-mode=dark] .schip.on,html[data-mode=dark] .schip.no,html[data-mode=dark] .seg button[aria-pressed=true],html[data-mode=dark] .ach.on.sun .pin,html[data-mode=dark] .ach.on.mint .pin,html[data-mode=dark] .ach.on.coral .pin,html[data-mode=dark] .ach.on.sky .pin,html[data-mode=dark] .ach.on.peach .pin,html[data-mode=dark] .achtoast,html[data-mode=dark] .streak,html[data-mode=dark] .custom-chip .ctog[aria-pressed=true],html[data-mode=dark] .custom-chip:has(.ctog[aria-pressed=true]),html[data-mode=dark] .scope button[aria-pressed=true],html[data-mode=dark] .coin,html[data-mode=dark] .bubble-pv,html[data-mode=dark] .coinpop,html[data-mode=dark] .clubcard,html[data-mode=dark] .trybub,html[data-mode=dark] .rar.r-r,html[data-mode=dark] .rar.r-x,html[data-mode=dark] .item .st.price,html[data-mode=dark] .bubble.sk-mint,html[data-mode=dark] .bubble-pv.sk-mint,html[data-mode=dark] .trybub.sk-mint,html[data-mode=dark] .bubble.sk-sky,html[data-mode=dark] .bubble-pv.sk-sky,html[data-mode=dark] .trybub.sk-sky,html[data-mode=dark] .clubcard.cc-mint,html[data-mode=dark] .clubcard.cc-sun,html[data-mode=dark] .clubcard.cc-coral,html[data-mode=dark] .clubcard.cc-sky,html[data-mode=dark] .clubcard.cc-peach,html[data-mode=dark] .clubcard.cc-lilac,html[data-mode=dark] .colpick .cc-mint,html[data-mode=dark] .colpick .cc-sun,html[data-mode=dark] .colpick .cc-coral,html[data-mode=dark] .colpick .cc-sky,html[data-mode=dark] .colpick .cc-peach,html[data-mode=dark] .colpick .cc-lilac,html[data-mode=dark] .wmsg.mine .wtxt,html[data-mode=dark] .qdaily,html[data-mode=dark] .qdaily.done,html[data-mode=dark] .qbar i,html[data-mode=dark] .quest.ready .qbar i,html[data-mode=dark] .qchest.ready,html[data-mode=dark] .shoptabs button[aria-pressed=true],html[data-mode=dark] .mode[data-m=bets],html[data-mode=dark] .betamts .chip[aria-pressed=true],html[data-mode=dark] .betlist li.won,html[data-mode=dark] .betlist li.lost,html[data-mode=dark] .ach .achbar i,html[data-mode=dark] .impcard.bad,html[data-mode=dark] .impa,html[data-mode=dark] .impwho.on,html[data-mode=dark] .impres.good,html[data-mode=dark] .impres.bad,html[data-mode=dark] .impvotes li.right,html[data-mode=dark] .react.r6,html[data-mode=dark] .bubble.r6,html[data-mode=dark] .fdot.on,html[data-mode=dark] .fchips span.dd{color:var(--ink);--muted:#5b4a8f}
 /* ---------- 2.28 : « Mes amis » plus clair ---------- */
 :root{--on-paper:var(--ink)}
 :root[data-mode=dark]{--on-paper:var(--dk-text)}
@@ -1364,9 +1367,19 @@ html[data-mode=dark] input::placeholder,html[data-mode=dark] textarea::placehold
 .fchips b{font:800 12px var(--display)}
 .fchips span.dd{background:var(--mint);color:var(--ink)}
 .fchips span.dd small{color:var(--ink)}
-:root[data-mode=dark] .fchips span{background:rgba(255,255,255,.08)}
+:root[data-mode=dark] .fchips span:not(.dd){background:rgba(255,255,255,.08)}
 .fcard .chev{color:var(--muted)}
 .fempty{width:84px;height:84px;margin:6px auto 0;border-radius:50%;background:var(--bg-deep);border:3px dashed rgba(196,184,255,.5)}
 #friendList .lead.small{text-align:center}
 /* les boutons − et + restent bien ronds */
 .stepper .btn{flex:none;aspect-ratio:1;min-height:0}
+/* ---------- 2.29 : le résultat du Défi du jour directement dans l'onglet Défis ---------- */
+.qres{text-align:center}
+.qres .rank{text-align:left}
+.qres .dbig{margin-top:0}
+/* Survie en ligne : la bande des joueurs (comme au Millionnaire) */
+#sLive{margin-top:2px}
+.mlp.cur{border-color:var(--sun);box-shadow:0 0 0 2px var(--sun)}
+/* 2.29 : descriptions des cartes de mode plus lisibles sur les couleurs vives ; onglets des Amis sur une ligne */
+.mode span{color:rgba(30,15,69,.75)}
+.ftab{white-space:nowrap;font-size:clamp(10px,3vw,13px);padding:0 4px}
