@@ -1383,3 +1383,9 @@ html[data-mode=dark] .btn.sun,html[data-mode=dark] .btn.mint,html[data-mode=dark
 /* 2.29 : descriptions des cartes de mode plus lisibles sur les couleurs vives ; onglets des Amis sur une ligne */
 .mode span{color:rgba(30,15,69,.75)}
 .ftab{white-space:nowrap;font-size:clamp(10px,3vw,13px);padding:0 4px}
+/* ---------- 2.29.1 : swipe sans saut ----------
+   La marge du haut du titre « débordait » de l'écran (fusion des marges) quand il est à sa place,
+   mais pas pendant un balayage (écran posé par-dessus) : la page arrivait 22 px plus bas puis remontait.
+   Un écran garde maintenant ses marges à l'intérieur : même position pendant et après le geste. */
+.screen:not(.center){display:flow-root}
+.profgrid .stat span{color:rgba(30,15,69,.75)} /* lisible aussi sur le rouge vif */

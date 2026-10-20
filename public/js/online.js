@@ -437,6 +437,13 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
         $("endNote").textContent = `${r.rec ? "Nouveau record ! " : ""}Vous : ${mine.points} pts · record : ${r.best} pts`;
       }
     }
+    if (mill) { // Millionnaire en ligne : votre gain compte pour votre record, comme seul
+      const mine = m.ranking.find((p) => p.id === O.you);
+      if (mine && record) {
+        const r = record(mine.points, "bestMillion");
+        $("endNote").textContent = `${r.rec ? "Nouveau record ! " : ""}Vous repartez avec ${euros(mine.points)} · record : ${euros(r.best)}`;
+      }
+    }
     const ol = $("ranking");
     ol.replaceChildren();
     m.ranking.forEach((p, i) => {
