@@ -33,6 +33,7 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
       listen();
       listenNotifs();
       await loadFriends();
+      loadClub().catch(() => {}); // le club est prêt avant même d'ouvrir l'onglet
       return true;
     } catch (e) { console.warn("Amis indisponibles :", e.message); stop(); return false; }
   }
@@ -465,29 +466,45 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
         else await F.fs.deleteDoc(ref("clubs", code));
       }
     } catch {}
-    setMyClub(""); F.club = null;
+    forgetClub(); // on oublie aussi la version gardée sur l'appareil
     if (!silent) renderClub();
   }
+  // le club : affiché tout de suite avec la dernière version connue (gardée sur l'appareil), puis mis à jour
+  // en arrière-plan ; toutes les lectures partent en même temps (avant : une quinzaine d'allers-retours à la suite)
+  const clubCacheKey = () => `quizly:${F.uid}:clubCache`;
+  function clubFromCache(code) {
+    if (F.club && F.club.code === code) return;
+    try { const c = JSON.parse(localStorage.getItem(clubCacheKey()) || "null"); if (c && c.code === code) F.club = c; } catch {}
+  }
+  function forgetClub() { setMyClub(""); F.club = null; try { localStorage.removeItem(clubCacheKey()); } catch {} }
   async function loadClub() {
     const code = myClub();
     if (!code || !ready()) { F.club = null; return renderClub(); }
-    try {
-      const c = await F.fs.getDoc(ref("clubs", code));
-      if (!c.exists()) { setMyClub(""); F.club = null; return renderClub(); }
-      const mem = await F.fs.getDocs(F.fs.collection(F.fs.db, "clubs", code, "members"));
-      if (!mem.docs.some((d) => d.id === F.uid)) { setMyClub(""); F.club = null; return renderClub(); } // plus membre
-      await clubSync(code, true); // vos chiffres de la semaine, pour les défis du club
-      const members = [];
-      for (const d of mem.docs) {
-        let p = {};
-        try { const s = await F.fs.getDoc(ref("profiles", d.id)); if (s.exists()) p = s.data(); } catch {}
-        members.push({ uid: d.id, ...p, ...d.data(), name: p.name || d.data().name, you: d.id === F.uid });
-        setFrame(p.name || d.data().name, (p.cos || {}).frame);
-      }
-      F.club = { code, ...c.data(), members };
-    } catch { F.club = null; }
-    renderClub();
+    clubFromCache(code);
+    if (F.club) renderClub(); // tout de suite
+    if (F.clubLoading && F.clubLoadingCode === code) return F.clubLoading; // déjà en cours (préchargement)
+    F.clubLoadingCode = code;
+    const run = (async () => {
+      try {
+        const [c, mem] = await Promise.all([F.fs.getDoc(ref("clubs", code)), F.fs.getDocs(F.fs.collection(F.fs.db, "clubs", code, "members"))]);
+        if (!c.exists() || !mem.docs.some((d) => d.id === F.uid)) { forgetClub(); return; } // club supprimé, ou plus membre
+        clubSync(code, true).catch(() => {}); // vos chiffres de la semaine, pour les défis du club (en arrière-plan)
+        const members = await Promise.all(mem.docs.map(async (d) => {
+          let p = {};
+          try { const x = await F.fs.getDoc(ref("profiles", d.id)); if (x.exists()) p = x.data(); } catch {}
+          setFrame(p.name || d.data().name, (p.cos || {}).frame);
+          return { uid: d.id, ...p, ...d.data(), name: p.name || d.data().name, you: d.id === F.uid };
+        }));
+        if (myClub() !== code) return; // on a changé de club entre-temps
+        F.club = { code, ...c.data(), members };
+        try { localStorage.setItem(clubCacheKey(), JSON.stringify(F.club)); } catch {}
+      } catch {} // hors ligne : on garde la dernière version connue
+      finally { if (F.clubLoading === run) F.clubLoading = null; if (!myClub() || myClub() === code) renderClub(); }
+    })();
+    F.clubLoading = run;
+    return run;
   }
+
   F.ctab = "daily"; F.cpanel = "rank";
   const CTABS = [["daily", "Défi du jour"], ["best2", "Solo"], ["bestChrono", "Chrono"], ["bestMillion", "Millionnaire"], ["achs", "Succès"]];
   // emblèmes des clubs : des icônes dessinées (les anciens clubs à emoji reçoivent l'étoile)

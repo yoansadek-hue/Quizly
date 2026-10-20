@@ -11,7 +11,7 @@ import { initCosmetics, styleName, titleOf } from "./cosmetics.js";
 import { initQuests } from "./quests.js";
 import { impUI, IMP_PTS, answerMatches } from "./impostor.js";
 
-const VERSION = "2.29.1"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.29.2"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -220,14 +220,15 @@ function renderThemes() {
 }
 // un thème touché : Aléatoire se décoche, et ce thème se coche ou se décoche
 function pickTheme(t) { S.rand = false; S.themes.has(t) ? S.themes.delete(t) : S.themes.add(t); syncThemes(); }
-function syncThemes() { // l'état coché de chaque pastille ; Aléatoire actif : les autres thèmes sont masqués
+function syncThemes() { // l'état coché de chaque pastille ; Aléatoire actif : les autres thèmes sont grisés et verrouillés
+  $("themes").classList.toggle("dim", !!S.rand);
   document.querySelectorAll("#themes .chip").forEach((c) => {
     const rand = c.classList.contains("rand");
     c.setAttribute("aria-pressed", String(rand ? !!S.rand : S.themes.has(c.dataset.t)));
-    if (!rand) c.hidden = !!S.rand;
+    if (!rand) c.disabled = !!S.rand;
   });
-  document.querySelectorAll("#customList .ctog").forEach((c) => c.setAttribute("aria-pressed", String(S.themes.has(c.textContent))));
-  if ($("customList")) $("customList").hidden = !!S.rand;
+  if ($("customList")) $("customList").classList.toggle("dim", !!S.rand);
+  document.querySelectorAll("#customList .ctog").forEach((c) => { c.setAttribute("aria-pressed", String(S.themes.has(c.textContent))); c.disabled = !!S.rand; });
 }
 
 function opts(box, values, current, label, onPick) {
@@ -1137,6 +1138,7 @@ let pendingJoin = new URLSearchParams(location.search).get("tv");
 function enter(uid, name, photo) {
   S.uid = uid;
   setUser(name, photo);
+  try { cosm.apply(); } catch {} // vos cosmétiques (thème de fond…) tout de suite, sans attendre le cloud
   // compte Google : on récupère la sauvegarde du cloud (vies, records, statistiques, joueurs)
   startCloud(uid).then((st) => { if (st === "cloud" && S.uid === uid) { loadRoster(); afterCloud(); } });
   loadRoster();
