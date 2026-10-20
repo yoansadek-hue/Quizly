@@ -11,7 +11,7 @@ import { initCosmetics, styleName, titleOf } from "./cosmetics.js";
 import { initQuests } from "./quests.js";
 import { impUI, IMP_PTS, answerMatches } from "./impostor.js";
 
-const VERSION = "2.29.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.29.1"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -43,10 +43,11 @@ const S = {
 const M = () => MODES[S.mode];
 document.querySelectorAll(".ver").forEach((e) => (e.textContent = `Quizly v${VERSION} · par YoskanGame`));
 const online = initOnline({ $, show, flash, confetti, imp, me: () => ({ name: S.firstName || "Joueur", photo: S.photo || "", uid: S.uid || "", cos: cosm.get() }),
-  addFriend: (uid, name) => friends.addByUid(uid, name), isFriend: (uid) => friends.isFriend(uid), record: chronoRecord, millionUI, avatarEl, setAudio, noteQ: noteRecent, recent: () => getRecent().arr.slice(-300).map((x) => String(x).slice(0, 220)), setMode: (kind) => (S.mode = KIND_MODE[kind] || "online"), stat: { answer: (t, ok) => statAnswer(t, ok), game: (k) => statGame(k), win: () => quests.tick("win") } });
-// record personnel du Chrono en ligne (gardé sur l'appareil, par compte)
-function chronoRecord(points) {
-  const key = `quizly:${S.uid}:bestChrono`;
+  addFriend: (uid, name) => friends.addByUid(uid, name), isFriend: (uid) => friends.isFriend(uid), record: saveRecord, millionUI, avatarEl, setAudio, noteQ: noteRecent, recent: () => getRecent().arr.slice(-300).map((x) => String(x).slice(0, 220)), setMode: (kind) => (S.mode = KIND_MODE[kind] || "online"), stat: { answer: (t, ok) => statAnswer(t, ok), game: (k) => statGame(k), win: () => quests.tick("win") } });
+// record personnel (gardé sur l'appareil, par compte, puis synchronisé) : en ligne il compte autant que seul
+// k : « bestChrono » (Chrono) ou « bestMillion » (Qui veut gagner des millions)
+function saveRecord(points, k = "bestChrono") {
+  const key = `quizly:${S.uid}:${k}`;
   let best = 0; try { best = +localStorage.getItem(key) || 0; } catch {}
   const rec = points > best;
   if (rec) try { localStorage.setItem(key, points); } catch {}
@@ -79,7 +80,7 @@ function show(id) {
   // rond des réactions : seulement pendant une partie en ligne
   // le chat reste ouvert d'une question à l'autre (on peut finir sa phrase) ; il se ferme seulement hors du jeu
   let onl = false; try { onl = online.active(); } catch {}
-  const chat = onl && ["s-game", "s-million", "s-load", "s-imp"].includes(id); // L'Imposteur en ligne : on discute dans le chat
+  const chat = onl && ["s-lobby", "s-game", "s-million", "s-load", "s-imp"].includes(id); // le chat : dès la salle d'attente, puis pendant toute la partie
   if (id !== "s-imp") imp.stop(); // le compte à rebours de l'Imposteur s'arrête en quittant son écran
   if (!chat) try { online.closeReacts(); } catch {}
   $("reactFab").hidden = !chat;
@@ -219,9 +220,14 @@ function renderThemes() {
 }
 // un thème touché : Aléatoire se décoche, et ce thème se coche ou se décoche
 function pickTheme(t) { S.rand = false; S.themes.has(t) ? S.themes.delete(t) : S.themes.add(t); syncThemes(); }
-function syncThemes() { // l'état coché de chaque pastille (thèmes, Aléatoire, thèmes personnalisés)
-  document.querySelectorAll("#themes .chip").forEach((c) => c.setAttribute("aria-pressed", String(c.classList.contains("rand") ? !!S.rand : S.themes.has(c.dataset.t))));
+function syncThemes() { // l'état coché de chaque pastille ; Aléatoire actif : les autres thèmes sont masqués
+  document.querySelectorAll("#themes .chip").forEach((c) => {
+    const rand = c.classList.contains("rand");
+    c.setAttribute("aria-pressed", String(rand ? !!S.rand : S.themes.has(c.dataset.t)));
+    if (!rand) c.hidden = !!S.rand;
+  });
   document.querySelectorAll("#customList .ctog").forEach((c) => c.setAttribute("aria-pressed", String(S.themes.has(c.textContent))));
+  if ($("customList")) $("customList").hidden = !!S.rand;
 }
 
 function opts(box, values, current, label, onPick) {
