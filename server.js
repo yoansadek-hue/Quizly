@@ -602,6 +602,7 @@ function startGame(room) {
   if (room.cfg.kind === "equipes") makeTeams(room);
   if (room.cfg.kind === "parieurs") makeBetOrder(room);
   if (room.cfg.kind === "imposteur") return impStart(room);
+  if (room.cfg.kind === "royale") { room.rr = { round: 0 }; return royaleRound(room); }
   nextTurn(room);
 }
 function nextTurn(room) {
@@ -748,6 +749,74 @@ function endTeams(room) {
     t: "end", kind: "equipes", winner: tie ? null : `Équipe ${teams[0].name}`,
     mvp: mvp && mvp.points > 0 ? { name: mvp.name, points: mvp.points } : null, // pas de « meilleur joueur » à 0 point
     ranking: teams.map((t, k) => ({ id: `t${k}`, name: `${t.name} (${t.members.map((p) => p.name).join(", ")})`, score: t.members.length, points: t.points, lives: 0, photo: "" }))
+  });
+}
+
+/* ====================== Le Dernier Debout (battle royale) ====================== */
+// Tout le monde répond en même temps à la même question ; ceux qui se trompent (ou ne répondent pas) sont éliminés.
+// Le temps diminue à chaque manche (15 s, 12 s, 10 s…) et la difficulté monte, jusqu'à ce qu'il n'en reste qu'un.
+// Si tous les survivants se trompent, personne n'est éliminé (sinon il n'y aurait pas de gagnant).
+const ROYALE_TIMES = (process.env.ROYALE_TIMES || "15,12,10,8,7,6,5").split(",").map(Number);
+const ROYALE_PAUSE = +process.env.ROYALE_PAUSE || 4000; // le temps de voir qui est tombé
+const ROYALE_MAX = 20;
+const standing = (room) => players(room).filter((p) => !p.dead && !p.left);
+async function royaleRound(room) {
+  clearTimeout(room.timer);
+  const rr = room.rr || (room.rr = { round: 0 });
+  if (rr.round > 0 && standing(room).length <= 1) return royaleEnd(room);
+  rr.round++;
+  room.diff = Math.min(5, 1 + Math.floor((rr.round - 1) / 2)); // de plus en plus dur
+  room.phase = "load"; cast(room, { t: "load", msg: `Manche ${rr.round}…` });
+  let q;
+  try { q = await takeQuestion(room); }
+  catch (e) { console.error(e.message); rr.round--; room.phase = "error"; return cast(room, { t: "fail", msg: e.status === 429 ? e.message : "L'IA n'a pas répondu." }); }
+  if (!rooms.has(room.code) || room.phase !== "load") return;
+  room.q = { ...q, options: shuffle(q.o) };
+  rr.answers = new Map();
+  const sec = ROYALE_TIMES[Math.min(rr.round - 1, ROYALE_TIMES.length - 1)];
+  room.phase = "rq";
+  room.timer = setTimeout(() => royaleResolve(room), sec * 1000 + 400); // un peu de marge pour le réseau
+  cast(room, {
+    t: "q", royale: true, who: null, name: `Manche ${rr.round}`, round: rr.round, sec,
+    tag: `${q.t} · ${LEVELS[room.diff]}`, q: q.q, img: q.img || null, audio: q.audio || null, options: room.q.options, ms: sec * 1000,
+    alive: standing(room).length, total: players(room).filter((p) => !p.left).length, board: boardOf(room), qn: rr.round
+  });
+}
+function royaleAnswer(room, me, i) {
+  const rr = room.rr;
+  if (room.phase !== "rq" || me.dead || me.left || rr.answers.has(me.id) || !Number.isInteger(i) || i < 0 || i >= room.q.options.length) return;
+  rr.answers.set(me.id, i);
+  const o = { t: "rcount", n: rr.answers.size, total: standing(room).length };
+  players(room).forEach((p) => send(p.ws, o)); tvs(room).forEach((ws) => send(ws, o));
+  if (standing(room).filter((p) => !p.away).every((p) => rr.answers.has(p.id))) royaleResolve(room); // tout le monde a répondu
+}
+function royaleResolve(room) {
+  if (room.phase !== "rq") return;
+  clearTimeout(room.timer);
+  const rr = room.rr, up = standing(room), res = [];
+  up.forEach((p) => {
+    const i = rr.answers.has(p.id) ? rr.answers.get(p.id) : -1, ok = i >= 0 && room.q.options[i] === room.q.a;
+    if (ok) { p.score++; p.points += 10 * room.diff; }
+    res.push({ id: p.id, name: p.name, picked: i, ok });
+  });
+  const wrong = res.filter((r) => !r.ok), saved = wrong.length === up.length; // tous faux : personne ne tombe
+  if (!saved) wrong.forEach((r) => { const p = room.players.get(r.id); p.dead = true; p.outAt = ++room.elim; });
+  room.phase = "rres";
+  cast(room, { t: "result", royale: true, round: rr.round, answer: room.q.a, results: res, out: saved ? [] : wrong.map((r) => r.name), saved, alive: standing(room).length, board: boardOf(room) });
+  // 20 manches au plus (si tout le monde se trompe sans arrêt, la partie finirait jamais) : le plus de bonnes réponses gagne
+  room.timer = setTimeout(() => (standing(room).length <= 1 || rr.round >= ROYALE_MAX ? royaleEnd(room) : royaleRound(room)), ROYALE_PAUSE);
+}
+function royaleEnd(room) {
+  if (room.phase === "end") return;
+  clearTimeout(room.timer);
+  room.phase = "end";
+  const order = [...players(room)].sort((a, b) => (a.dead - b.dead) || (b.outAt - a.outAt) || (b.score - a.score));
+  const up = order.filter((p) => !p.dead);
+  // un seul debout : il gagne ; plusieurs (20 manches atteintes) : le plus de bonnes réponses, sinon égalité
+  const w = up.length === 1 ? up[0] : up.length > 1 && up[0].score > up[1].score ? up[0] : null;
+  cast(room, {
+    t: "end", kind: "royale", winner: w ? w.name : null, rounds: room.rr ? room.rr.round : 0,
+    ranking: order.map((p) => ({ id: p.id, name: p.name, score: p.score, points: p.points, lives: 0, photo: p.photo }))
   });
 }
 
@@ -1266,6 +1335,7 @@ function drop(ws) {
   if (k === "parieurs" && room.phase === "bet" && bettors(room).every((x) => room.bets.has(x.id))) betsDone(room); // on n'attend pas son pari
   if (k === "imposteur" && room.phase === "ivote" && impVoters(room).every((p) => room.ir.votes.has(p.id))) impTally(room); // ni son vote
   if (k === "imposteur" && room.phase === "iclue" && impVoters(room).every((p) => room.ir.clues.has(p.id))) impTalk(room); // ni son indice
+  if (k === "royale" && room.phase === "rq" && standing(room).filter((p) => !p.away).every((p) => room.rr.answers.has(p.id))) royaleResolve(room); // ni sa réponse
   if ((k === "survie" || k === "equipes" || k === "parieurs") && room.phase === "q" && players(room)[room.i]?.id === me.id && !room.cfg.time) {
     clearTimeout(room.timer); room.timer = setTimeout(() => resolveTurn(room, false, -1), 30000); // son tour, sans minuteur : on n'attend pas indéfiniment
   }
@@ -1337,6 +1407,11 @@ function leave(ws) {
   if (lobbyLike) return castLobby(room);
   if (room.cfg.kind === "chrono") { clearTimeout(me.ctimer); me.done = true; me.cq = null; castBoard(room); return checkChronoEnd(room); }
   if (room.cfg.kind === "million") { if (!me.mout) { me.mout = true; me.mq = null; } return mCheck(room); }
+  if (room.cfg.kind === "royale") { // le joueur parti est éliminé (fait plus haut) : la manche continue sans lui
+    if (standing(room).length <= 1) return royaleEnd(room);
+    if (room.phase === "rq" && standing(room).filter((p) => !p.away).every((p) => room.rr.answers.has(p.id))) royaleResolve(room);
+    return;
+  }
   if (room.cfg.kind === "imposteur") {
     if (present.length < 3) return impEnd(room); // il faut au moins trois joueurs
     if (me.id === room.ir?.imp && ["iclue", "italk", "ivote", "iguess"].includes(room.phase)) { room.ir.round--; return impRound(room); } // l'imposteur est parti : on rejoue la manche
@@ -1363,7 +1438,7 @@ function leave(ws) {
 function readCfg(m) {
   const themes = (Array.isArray(m.themes) ? m.themes : []).map((t) => clean(t, 50)).filter(Boolean).slice(0, 60);
   if (!themes.length) return "Choisissez au moins un thème.";
-  return { auto: !!m.auto, kind: ["chrono", "million", "equipes", "parieurs", "imposteur"].includes(m.kind) ? m.kind : "survie", themes, time: clamp(+m.time, 0, 120), lives: clamp(+m.lives || 2, 1, 5) };
+  return { auto: !!m.auto, kind: ["chrono", "million", "equipes", "parieurs", "imposteur", "royale"].includes(m.kind) ? m.kind : "survie", themes, time: clamp(+m.time, 0, 120), lives: clamp(+m.lives || 2, 1, 5) };
 }
 
 function handle(ws, m) {
@@ -1433,6 +1508,7 @@ function handle(ws, m) {
     if (players(room).length < 2) return send(ws, { t: "error", msg: "Il faut au moins 2 joueurs." });
     if (room.cfg.kind === "imposteur" && players(room).length < 3) return send(ws, { t: "error", msg: "L'Imposteur se joue à 3 joueurs ou plus." });
     startGame(room);
+  } else if (m.t === "answer" && room.cfg.kind === "royale") { royaleAnswer(room, me, Number(m.i));
   } else if (m.t === "answer") {
     if (room.cfg.kind === "chrono") chronoAnswer(room, me, Number(m.i));
     else if (room.cfg.kind === "million") mAnswer(room, me, Number(m.i));
@@ -1443,7 +1519,7 @@ function handle(ws, m) {
   else if (m.t === "mstop" && room.cfg.kind === "million") mStop(room, me);
   else if (m.t === "retry" && host && room.phase === "merror") mNext(room, true);
   else if (m.t === "level" && host && room.phase === "level") chooseLevel(room, !!m.up);
-  else if (m.t === "retry" && host && room.phase === "error") room.cfg.kind === "imposteur" ? impRound(room) : loadQuestion(room);
+  else if (m.t === "retry" && host && room.phase === "error") room.cfg.kind === "imposteur" ? impRound(room) : room.cfg.kind === "royale" ? royaleRound(room) : loadQuestion(room);
   else if (m.t === "impvote" && host && room.phase === "italk") impVoteStart(room); // l'hôte lance le vote
   else if (m.t === "vote" && room.cfg.kind === "imposteur") impVote(room, me, m.id);
   else if (m.t === "iclue" && room.cfg.kind === "imposteur") impClue(room, me, m.text);

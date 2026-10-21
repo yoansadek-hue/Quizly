@@ -1462,3 +1462,6 @@ html[data-mode=dark] ol > li.rk:nth-child(-n+3){color:var(--ink);--muted:#5b4a8f
 #shopGrid .item{min-width:0}
 #shopGrid .item b{overflow-wrap:anywhere}
 #shopGrid .pv .ptitle{white-space:normal;width:auto;max-width:96%;text-align:center;line-height:1.15;font-size:9px;letter-spacing:.02em;padding:3px 7px;overflow-wrap:normal;word-break:keep-all}
+/* 2.33 : Le Dernier Debout */
+.mode[data-m=royale]{background:linear-gradient(135deg,#ff3b5c,#ff9f45);color:var(--ink)}
+.mode[data-m=royale]::after{width:120px;height:120px;right:-30px;bottom:-40px;clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);background:rgba(30,15,69,.14)}
