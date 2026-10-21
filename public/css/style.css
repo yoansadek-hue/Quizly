@@ -1403,7 +1403,7 @@ body.calm .champ{animation:none}
 :root:not([data-mode=dark]) .fmeta.playing{color:#0f9a72}
 /* ---------- 2.32 : classements : fond or, argent, bronze pour les 3 premiers (partout) ---------- */
 ol > li.rk:nth-child(1){background:linear-gradient(135deg,#fff3a6 0%,#ffd84a 45%,#e6a800 100%);box-shadow:var(--edge)}
-ol > li.rk:nth-child(2){background:linear-gradient(135deg,#ffffff 0%,#dfe4ec 50%,#a9b2c3 100%)}
+ol > li.rk:nth-child(2){background:linear-gradient(135deg,#e9edf3 0%,#b8c1cf 30%,#8d97a9 55%,#c7ced9 75%,#9aa4b5 100%);box-shadow:var(--edge)} /* argent bien visible : métal plus foncé avec un reflet */
 ol > li.rk:nth-child(3){background:linear-gradient(135deg,#ffe3c8 0%,#e3a06b 50%,#b0682f 100%)}
 ol > li.rk:nth-child(-n+3){color:var(--ink);--muted:#5b4a8f}
 html[data-mode=dark] ol > li.rk:nth-child(-n+3){color:var(--ink);--muted:#5b4a8f}
