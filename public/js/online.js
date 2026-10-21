@@ -121,7 +121,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
       case "q": renderQ(m); break;
       case "result": renderResult(m); break;
       case "level": renderLevel(m); break;
-      case "end": renderEnd(m); break;
+      case "end": if (m.kind === "duel" && !$("duelBar").hidden) duelFinale(m); else renderEnd(m); break; // le Duel : la corde casse, puis le classement
       case "host": O.host = m.host; break;
       // Les Parieurs en ligne
       case "bets": if (O.cur) { O.cur.bets = m.bets; O.cur.count = m.count; if (m.odds) O.cur.odds = m.odds; renderBets(); } break;
@@ -372,6 +372,18 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     $("duelBar").hidden = false;
     show("s-game");
     if (!O.dtid) duelTick();
+  }
+  // fin du Duel : le nœud file vers le gagnant, la corde casse en deux, puis le classement
+  function duelFinale(m) {
+    const bar = $("duelBar"), k = $("dKnot");
+    stopClock(); clearInterval(O.dtid); O.dtid = null;
+    document.querySelectorAll("#mcq .btn").forEach((b) => (b.disabled = true));
+    const meWon = !!m.winner && m.ranking[0] && m.ranking[0].id === O.you;
+    if (m.winner) k.style.left = meWon ? "6%" : "94%"; // vous êtes à gauche
+    $("alive").classList.add("dwin");
+    $("alive").textContent = !m.winner ? "Égalité : la corde tient bon !" : meWon ? "La corde a cédé : vous gagnez le duel !" : `La corde a cédé : ${m.winner} gagne le duel !`;
+    if (m.winner) setTimeout(() => { bar.classList.add("snap"); flash(meWon ? "ok" : "ko"); }, 420);
+    setTimeout(() => { bar.classList.remove("snap"); $("alive").classList.remove("dwin"); renderEnd(m); }, m.winner ? 2700 : 1600);
   }
   function duelRes(m) {
     if (stat && O.cur) stat.answer(theme(O.cur.tag), m.correct);

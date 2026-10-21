@@ -1489,3 +1489,16 @@ html[data-mode=dark] ol > li.rk:nth-child(-n+3){color:var(--ink);--muted:#5b4a8f
 @keyframes tug{30%{transform:scale(1.25)}}
 .mode[data-m=duel]{background:linear-gradient(135deg,#62c7ff,#c79bff);color:var(--ink)}
 .mode[data-m=duel]::after{width:150px;height:14px;right:-20px;top:40%;border-radius:8px;background:repeating-linear-gradient(90deg,rgba(30,15,69,.18) 0 10px,rgba(30,15,69,.08) 10px 20px);transform:rotate(-12deg)}
+/* Le Duel : la corde qui casse à la fin */
+.dhalf{position:absolute;top:50%;width:47%;height:4px;margin-top:-2px;background:repeating-linear-gradient(90deg,#c9a46a 0 6px,#a07a43 6px 12px);border-radius:4px;opacity:0;pointer-events:none}
+.dhalf.l{left:4px;transform-origin:left center} .dhalf.r{right:4px;transform-origin:right center}
+.duelbar.snap .dtrack::before{opacity:0}
+.duelbar.snap .dhalf{opacity:1}
+.duelbar.snap .dhalf.l{animation:snapl 1.3s cubic-bezier(.3,.6,.4,1) forwards}
+.duelbar.snap .dhalf.r{animation:snapr 1.3s cubic-bezier(.3,.6,.4,1) forwards}
+@keyframes snapl{0%{transform:none}12%{transform:translateX(-7px) rotate(4deg)}100%{transform:translate(-10px,34px) rotate(-38deg);opacity:0}}
+@keyframes snapr{0%{transform:none}12%{transform:translateX(7px) rotate(-4deg)}100%{transform:translate(10px,34px) rotate(38deg);opacity:0}}
+.duelbar.snap .dknot{animation:knotwin .9s cubic-bezier(.3,1.6,.5,1)}
+@keyframes knotwin{40%{transform:scale(1.5);box-shadow:0 0 0 8px rgba(255,225,77,.5)}}
+.duelbar.snap .dmid{opacity:0}
+.alive.dwin{font:800 20px var(--display);color:var(--sun);text-align:center;animation:pop .4s}
