@@ -11,7 +11,7 @@ import { initCosmetics, styleName, titleOf } from "./cosmetics.js";
 import { initQuests } from "./quests.js";
 import { impUI, IMP_PTS, answerMatches } from "./impostor.js";
 
-const VERSION = "2.31.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.32.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -2278,5 +2278,6 @@ document.addEventListener("quizly:champ", () => {
   else if (curScreen === "s-quests") renderQuestDaily();
   else if (curScreen === "s-daily" && !$("dEnd").hidden) renderDailyBoard(getDaily());
 });
-// au démarrage : les pastilles des Défis tout de suite (sans attendre le cloud)
+// au démarrage : les pastilles des Défis, vos Q-Bucks et vos cosmétiques tout de suite (sans attendre le cloud)
 try { questBadge(quests.ready()); } catch {}
+try { if (S.uid) { cosm.apply(); userLabel(); } } catch {}

@@ -224,6 +224,25 @@ body{transition:background-color .6s}
   @media (max-aspect-ratio:1/1){.lobby{grid-template-columns:1fr;justify-items:center;text-align:center}.lobbyR{align-items:center}.players{justify-content:center}.gbody{grid-template-columns:1fr}.side{display:none}}
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
+/* 2.32 : nouveaux cosmétiques (cadres, bulles, thèmes) */
+.avatar.fr-rose{border-color:#ff8fb1;box-shadow:0 0 0 2px var(--ink)}
+.avatar.fr-lilac{border-color:#c4b8ff;box-shadow:0 0 0 2px var(--ink)}
+.avatar.fr-ocean{border-color:#2f9bff;box-shadow:0 0 0 2px #0a2e5c,0 0 0 4px #62c7ff}
+.avatar.fr-sunset{border-color:#ff7a45;box-shadow:0 0 0 2px #ff3b5c,0 0 0 4px #ffe14d,0 0 10px 3px rgba(255,122,69,.6)}
+.avatar.fr-ruby{border-color:#ff2d55;box-shadow:0 0 0 2px #5a0017,0 0 14px 4px rgba(255,45,85,.75)}
+.avatar.fr-emerald{border-color:#19d38a;box-shadow:0 0 0 2px #04331f,0 0 14px 4px rgba(25,211,138,.75)}
+.avatar.fr-cosmic{border-color:#c79bff;box-shadow:0 0 0 2px #0a0420,0 0 0 4px #62c7ff,0 0 0 6px #ff3b5c,0 0 18px 6px rgba(155,107,255,.75)}
+.avatar.fr-phoenix{border-color:#ffb02e;box-shadow:0 0 0 2px #7a1500,0 0 0 4px #ff3d00,0 0 16px 6px rgba(255,120,0,.85)}
+.bubble.sk-coral,.cmsg.sk-coral{background:#ff3b5c!important} .bubble.sk-peach,.cmsg.sk-peach{background:#ff9f45!important}
+.bubble.sk-forest,.cmsg.sk-forest{background:linear-gradient(135deg,#1d5e3b,#2f8f5b)!important;color:#eafff3}
+.bubble.sk-ice,.cmsg.sk-ice{background:linear-gradient(135deg,#e8fbff,#a7e6ff)!important;color:#0a3a55}
+.bubble.sk-ruby,.cmsg.sk-ruby{background:linear-gradient(135deg,#ff2d55,#9b0030)!important;color:#fff}
+.bubble.sk-aurora,.cmsg.sk-aurora{background:linear-gradient(120deg,#34e3b0,#62c7ff 50%,#c79bff)!important}
+:root[data-theme="th-mint"]{--bg:#145c4b;--bg-deep:#0d3f33}
+:root[data-theme="th-lagoon"]{--bg:#0e6b6b;--bg-deep:#094d4d}
+:root[data-theme="th-volcano"]{--bg:#7a1f0e;--bg-deep:#4f1308}
+:root[data-theme="th-royal"]{--bg:#2a1b6b;--bg-deep:#1a1048}
+:root[data-theme="th-abyss"]{--bg:#04121f;--bg-deep:#020a12}
 </style>
 </head>
 <body>

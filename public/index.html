@@ -39,12 +39,12 @@ addEventListener("error", function (e) {
 <header id="bar" hidden>
   <span class="logo">Quizly<small>par YoskanGame</small></span>
   <div class="barR">
-    <button id="btnProfile" class="iconbtn" aria-label="Profil" hidden>
-      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0 2c-4.4 0-8 2.2-8 5v2h16v-2c0-2.8-3.6-5-8-5z"/></svg>
-    </button>
     <button id="btnNotifs" class="iconbtn" aria-label="Notifications" hidden>
       <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22zm7-6V11a7 7 0 0 0-5.5-6.84V3.5a1.5 1.5 0 0 0-3 0v.66A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2z"/></svg>
       <span class="nbadge" id="notifBadge" hidden></span>
+    </button>
+    <button id="btnProfile" class="iconbtn" aria-label="Profil" hidden>
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0 2c-4.4 0-8 2.2-8 5v2h16v-2c0-2.8-3.6-5-8-5z"/></svg>
     </button>
     <button id="reactFab" class="reactfab" aria-label="Envoyer une réaction" aria-expanded="false" hidden>
       <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H11l-4.5 4v-4h0A2.5 2.5 0 0 1 4 13.5z" fill="currentColor"/></svg>
@@ -213,7 +213,7 @@ addEventListener("error", function (e) {
 
   <!-- Boutique -->
   <section id="s-shop" class="screen" hidden>
-    <div class="shophead"><h2>Boutique</h2><span class="shopcoins"><span class="coin"></span><b id="shopCoins">0</b></span></div>
+    <div class="shophead"><h2>Boutique</h2></div>
     <!-- aperçu en direct : vous, avec l'article choisi -->
     <div class="tryon" id="tryOn">
       <div class="tryban" id="tryBan"><span id="tryAv"></span><span class="trywho"><b id="tryName"></b><small class="ptitle" id="tryTitle" hidden></small></span><span class="trybub" id="tryBub">Trop facile</span></div>
@@ -222,8 +222,6 @@ addEventListener("error", function (e) {
         <button class="btn sun sm" id="tryBtn" hidden></button>
       </div>
     </div>
-    <!-- offre du jour -->
-    <button class="deal" id="dealCard"><span class="dk">Offre du jour</span><span id="dealPv"></span><span class="dtx"><b id="dealName"></b><small><s id="dealOld"></s> <b id="dealNew"></b> Q-Bucks · <span id="dealLeft"></span></small></span></button>
     <div class="shoptabs" id="shopTabs"></div>
     <div id="shopGrid"></div>
     <p class="msg" id="shopMsg"></p>
