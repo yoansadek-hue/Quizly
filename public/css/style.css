@@ -1402,9 +1402,9 @@ body.calm .champ{animation:none}
 .fmeta.playing{color:var(--mint);font-weight:800}
 :root:not([data-mode=dark]) .fmeta.playing{color:#0f9a72}
 /* ---------- 2.32 : classements : fond or, argent, bronze pour les 3 premiers (partout) ---------- */
-ol > li.rk:nth-child(1){background:linear-gradient(135deg,#fff3a6 0%,#ffd84a 45%,#e6a800 100%);box-shadow:var(--edge)}
+ol > li.rk:nth-child(1){background:linear-gradient(135deg,#fff3b0 0%,#f3c632 30%,#c99300 55%,#f8d65a 75%,#d6a000 100%);box-shadow:var(--edge)} /* or : métal avec un reflet, comme l'argent */
 ol > li.rk:nth-child(2){background:linear-gradient(135deg,#e9edf3 0%,#b8c1cf 30%,#8d97a9 55%,#c7ced9 75%,#9aa4b5 100%);box-shadow:var(--edge)} /* argent bien visible : métal plus foncé avec un reflet */
-ol > li.rk:nth-child(3){background:linear-gradient(135deg,#ffe3c8 0%,#e3a06b 50%,#b0682f 100%)}
+ol > li.rk:nth-child(3){background:linear-gradient(135deg,#f7d4b0 0%,#d18b52 30%,#9b582a 55%,#dc9a66 75%,#a5612f 100%);box-shadow:var(--edge)} /* bronze : métal avec un reflet */
 ol > li.rk:nth-child(-n+3){color:var(--ink);--muted:#5b4a8f}
 html[data-mode=dark] ol > li.rk:nth-child(-n+3){color:var(--ink);--muted:#5b4a8f}
 /* ---------- 2.32 : nouveaux cosmétiques ---------- */
@@ -1465,3 +1465,6 @@ html[data-mode=dark] ol > li.rk:nth-child(-n+3){color:var(--ink);--muted:#5b4a8f
 /* 2.33 : Le Dernier Debout */
 .mode[data-m=royale]{background:linear-gradient(135deg,#ff3b5c,#ff9f45);color:var(--ink)}
 .mode[data-m=royale]::after{width:120px;height:120px;right:-30px;bottom:-40px;clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);background:rgba(30,15,69,.14)}
+/* 2.34.1 : la barre du minuteur garde un bout arrondi en se vidant (elle rétrécit en largeur, plus en échelle) */
+.timer i{border-radius:99px;transform:none}
+@keyframes drain{from{width:100%}to{width:0}}

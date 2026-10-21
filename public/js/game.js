@@ -11,7 +11,7 @@ import { initCosmetics, styleName, titleOf } from "./cosmetics.js";
 import { initQuests } from "./quests.js";
 import { impUI, IMP_PTS, answerMatches } from "./impostor.js";
 
-const VERSION = "2.34.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.34.1"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -1314,9 +1314,9 @@ function dragLoop() { // une image sur deux n'attend pas : la bulle suit le doig
     const w = pill.offsetWidth, g = drag.geo, lo = g[0].x, hi = g[g.length - 1].x, raw = drag.cx - drag.left - w / 2;
     // au-delà d'Accueil ou de Réglages : la bulle résiste et la barre s'étire de ce côté (élastique, comme Instagram)
     const out = raw < lo ? raw - lo : raw > hi ? raw - hi : 0;
-    const x = out ? (out < 0 ? lo : hi) + out * 0.3 : raw;
+    const x = out ? (out < 0 ? lo : hi) + Math.max(-14, Math.min(14, out * 0.12)) : raw; // la bulle ne déborde que de quelques pixels
     if (!!out !== drag.edge) { drag.edge = !!out; if (out) haptic(); } // on bute contre le bord
-    if (out) { bar.style.transformOrigin = out < 0 ? "right center" : "left center"; bar.style.scale = `${1 + Math.min(0.14, Math.abs(out) / bar.offsetWidth * 0.55)} 1`; }
+    if (out) { bar.style.transformOrigin = out < 0 ? "right center" : "left center"; bar.style.scale = `${1 + Math.min(0.045, Math.abs(out) / bar.offsetWidth * 0.2)} 1`; } // un léger étirement, pas plus
     else bar.style.scale = "";
     drag.v *= 0.82; // l'étirement retombe quand le doigt ralentit
     const k = Math.min(0.4, Math.abs(drag.v) * 0.09);
@@ -1424,7 +1424,7 @@ function prepAround(id) {
       place(sw.pa + (sw.pb - sw.pa) * Math.min(1, Math.abs(dx) / W), 1 + k, 1 - k * 0.3);
     }
     // au bout (Accueil, Réglages) : la barre s'étire de ce côté, comme quand on tire la bulle
-    if (!sw.next && dx) { bar.style.transformOrigin = dx > 0 ? "right center" : "left center"; bar.style.scale = `${1 + Math.min(0.08, Math.abs(dx) / W * 0.35)} 1`; }
+    if (!sw.next && dx) { bar.style.transformOrigin = dx > 0 ? "right center" : "left center"; bar.style.scale = `${1 + Math.min(0.03, Math.abs(dx) / W * 0.12)} 1`; }
     else if (bar.style.scale) bar.style.scale = "";
   }
   function move(e) {
@@ -2205,7 +2205,8 @@ async function renderDailyBoard(d, p = "d") {
     if (!list.length) list = [{ name: S.firstName, photo: S.photo, you: true, daily: d || getDaily() || { score: 0, ms: 0 } }];
     $(`${p}MyRank`).textContent = "";
   }
-  $(`${p}Rank`).replaceChildren(...list.map((x, i) => rankRow(x, i, fmt(x))));
+  list = list.filter((x) => (x.daily && x.daily.score) >= 1); // au moins 1 bonne réponse pour figurer au classement
+  $(`${p}Rank`).replaceChildren(...(list.length ? list.map((x, i) => rankRow(x, i, fmt(x))) : [Object.assign(document.createElement("p"), { className: "lead small", textContent: "Personne n'a encore de point au défi aujourd'hui." })]));
 }
 document.querySelectorAll("#dScope button").forEach((b) => (b.onclick = () => { D.scope = b.dataset.s; renderDailyBoard(getDaily()); }));
 document.querySelectorAll("#qScope button").forEach((b) => (b.onclick = () => { D.scope = b.dataset.s; renderDailyBoard(getDaily(), "q"); }));
