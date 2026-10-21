@@ -243,6 +243,14 @@ body{transition:background-color .6s}
 :root[data-theme="th-volcano"]{--bg:#7a1f0e;--bg-deep:#4f1308}
 :root[data-theme="th-royal"]{--bg:#2a1b6b;--bg-deep:#1a1048}
 :root[data-theme="th-abyss"]{--bg:#04121f;--bg-deep:#020a12}
+/* Le Duel : la corde qui casse */
+.tdhalf{position:absolute;top:50%;width:47%;height:1vh;margin-top:-.5vh;background:repeating-linear-gradient(90deg,#c9a46a 0 14px,#a07a43 14px 28px);border-radius:1vh;opacity:0}
+.tdhalf.l{left:1vh;transform-origin:left center} .tdhalf.r{right:1vh;transform-origin:right center}
+.tdtrack.snap::before{opacity:0} .tdtrack.snap .tdhalf{opacity:1}
+.tdtrack.snap .tdhalf.l{animation:tsnapl 1.4s cubic-bezier(.3,.6,.4,1) forwards} .tdtrack.snap .tdhalf.r{animation:tsnapr 1.4s cubic-bezier(.3,.6,.4,1) forwards}
+@keyframes tsnapl{12%{transform:translateX(-1vw) rotate(4deg)}100%{transform:translate(-2vw,9vh) rotate(-38deg);opacity:0}}
+@keyframes tsnapr{12%{transform:translateX(1vw) rotate(-4deg)}100%{transform:translate(2vw,9vh) rotate(38deg);opacity:0}}
+.tdtrack.snap .tdknot{animation:tknot 1s cubic-bezier(.3,1.6,.5,1)} @keyframes tknot{40%{transform:scale(1.5)}}
 /* Le Duel */
 .tduel{display:grid;grid-template-columns:18vw 1fr 18vw;align-items:center;gap:3vw;width:90vw;margin:4vh 0}
 .tdp{display:flex;flex-direction:column;align-items:center;gap:1vh;font:800 clamp(18px,3vh,36px) var(--display)}
@@ -296,7 +304,7 @@ body{transition:background-color .6s}
   <p class="lead">Le Duel · <span id="tDuelTime">2:00</span></p>
   <div class="tduel">
     <div class="tdp" id="tDuelA"></div>
-    <div class="tdtrack"><i class="tdl"></i><i class="tdr"></i><span class="tdknot" id="tDuelKnot"></span></div>
+    <div class="tdtrack" id="tDuelTrack"><i class="tdl"></i><i class="tdr"></i><i class="tdhalf l"></i><i class="tdhalf r"></i><span class="tdknot" id="tDuelKnot"></span></div>
     <div class="tdp" id="tDuelB"></div>
   </div>
   <p class="lead" id="tDuelMsg">Chaque bonne réponse tire la corde vers soi !</p>

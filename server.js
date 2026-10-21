@@ -763,27 +763,46 @@ function duelState(room, extra = {}) {
   return { t: "rope", rope: room.duel.rope, steps: DUEL_STEPS, left: Math.max(0, room.duel.end - Date.now()), a, b, ...extra,
     players: [a, b].map((id) => { const p = room.players.get(id) || {}; return { id, name: p.name, photo: p.photo || "", score: p.score || 0 }; }) };
 }
-function duelStart(room) {
+// Les questions sont préparées AVANT le départ (les mêmes pour les deux, de plus en plus dures) : pendant les
+// 2 minutes, plus aucune attente de chargement, et personne n'avance pendant que l'autre attend sa question.
+const DUEL_READY = +process.env.DUEL_READY || 30, DUEL_POOL = 70; // de quoi tenir 2 minutes sans s'arrêter
+const duelLevel = (n) => Math.min(5, 1 + Math.floor(n / 8)); // 8 questions par niveau
+async function duelFill(room, upTo) { // ajoute des questions à la réserve commune
+  const d = room.duel, tmp = { seen: d.seen };
+  while (d.pool.length < upTo && room.phase !== "end" && rooms.has(room.code)) {
+    tmp.cdiff = duelLevel(d.pool.length);
+    let q;
+    try { q = await takeFor(room, tmp); } catch (e) { console.error(e.message); if (++d.fails >= 4) break; continue; }
+    d.pool.push({ ...q, d: tmp.cdiff, options: shuffle(q.o) });
+    if (room.phase === "dload") cast(room, { t: "load", msg: `Préparation du duel… ${Math.min(d.pool.length, DUEL_READY)} / ${DUEL_READY} questions` });
+  }
+}
+async function duelStart(room) {
   const ps = players(room).filter((p) => !p.left);
-  Object.assign(room, { phase: "duel", buf: [], asked: [], loads: new Map(), soft: null });
-  room.duel = { rope: 0, side: shuffle(ps.map((p) => p.id)), end: Date.now() + DUEL_MS }; // side[0] tire vers -, side[1] vers +
-  ps.forEach((p) => Object.assign(p, { score: 0, points: 0, streak: 0, cdiff: 1, seen: new Set(), cq: null, fails: 0, dead: false }));
+  Object.assign(room, { phase: "dload", buf: [], asked: [], loads: new Map(), soft: null });
+  room.duel = { rope: 0, side: shuffle(ps.map((p) => p.id)), end: 0, pool: [], seen: new Set(), fails: 0 }; // side[0] tire vers -, side[1] vers +
+  ps.forEach((p) => Object.assign(p, { score: 0, points: 0, streak: 0, di: 0, cq: null, dead: false }));
   clearTimeout(room.timer);
+  cast(room, { t: "load", msg: "Préparation du duel…" });
+  const ai = room.cfg.themes.some((t) => !LOCAL_THEMES.includes(t));
+  if (ai) await Promise.allSettled([1, 2, 3, 4].map((d) => fill(room, d))); // l'IA écrit les 4 niveaux en même temps (plus rapide)
+  await duelFill(room, DUEL_READY);
+  if (room.phase !== "dload" || !rooms.has(room.code)) return;
+  if (room.duel.pool.length < 6) { room.phase = "error"; return cast(room, { t: "fail", msg: "Impossible de préparer assez de questions." }); }
+  // c'est parti : le chrono ne démarre que maintenant
+  room.phase = "duel"; room.duel.end = Date.now() + DUEL_MS;
   room.timer = setTimeout(() => duelEnd(room), DUEL_MS);
   const st = duelState(room, { start: true });
   players(room).forEach((p) => send(p.ws, st)); tvs(room).forEach((ws) => send(ws, st));
   ps.forEach((p) => duelNext(room, p));
+  duelFill(room, DUEL_POOL); // la réserve continue de grossir pendant la partie
 }
-async function duelNext(room, p) {
+function duelNext(room, p) {
   if (room.phase !== "duel" || p.left) return;
-  p.cq = null;
-  let q;
-  try { q = await takeFor(room, p); }
-  catch (e) { console.error(e.message); if (++p.fails >= 3) return duelEnd(room); return setTimeout(() => duelNext(room, p), 2000); }
-  if (room.phase !== "duel" || p.left) return;
-  p.fails = 0;
-  p.cq = { ...q, options: shuffle(q.o) };
-  send(p.ws, { t: "dq", tag: `${q.t} · ${LEVELS[p.cdiff]}`, q: q.q, img: q.img || null, audio: q.audio || null, options: p.cq.options, left: Math.max(0, room.duel.end - Date.now()) });
+  const q = room.duel.pool[p.di];
+  if (!q) { p.cq = null; return setTimeout(() => duelNext(room, p), 300); } // (rare) la réserve n'a pas encore cette question
+  p.di++; p.cq = q;
+  send(p.ws, { t: "dq", tag: `${q.t} · ${LEVELS[q.d]}`, q: q.q, img: q.img || null, audio: q.audio || null, options: q.options, left: Math.max(0, room.duel.end - Date.now()) });
 }
 function duelAnswer(room, p, i) {
   if (room.phase !== "duel" || !p.cq || !Number.isInteger(i) || i < 0 || i >= p.cq.options.length) return;
@@ -791,7 +810,6 @@ function duelAnswer(room, p, i) {
   p.cq = null;
   if (ok) {
     p.score++; p.points++; p.streak++;
-    if (p.score % 3 === 0) p.cdiff = Math.min(5, p.cdiff + 1); // de plus en plus dur
     room.duel.rope += room.duel.side[0] === p.id ? -1 : 1; // la corde vient vers lui
   } else p.streak = 0;
   send(p.ws, { t: "dres", correct: ok, picked: i, answer: q.a });
@@ -801,7 +819,7 @@ function duelAnswer(room, p, i) {
   setTimeout(() => duelNext(room, p), ok ? 600 : 1500); // une erreur coûte un peu de temps
 }
 function duelEnd(room, quitter) {
-  if (room.phase !== "duel") return;
+  if (room.phase !== "duel" && room.phase !== "dload") return; // (parti pendant la préparation : l'autre gagne aussi)
   clearTimeout(room.timer);
   room.phase = "end";
   const d = room.duel, [a, b] = d.side.map((id) => room.players.get(id)).filter(Boolean).length === 2 ? d.side.map((id) => room.players.get(id)) : [null, null];
@@ -1420,7 +1438,7 @@ function rejoin(ws, m) {
   const k = room.cfg.kind, L = room.last;
   if (k === "duel" && room.phase === "duel") {
     send(ws, duelState(room));
-    if (p.cq) send(ws, { t: "dq", tag: `${p.cq.t} · ${LEVELS[p.cdiff]}`, q: p.cq.q, img: p.cq.img || null, audio: p.cq.audio || null, options: p.cq.options, left: Math.max(0, room.duel.end - Date.now()) });
+    if (p.cq) send(ws, { t: "dq", tag: `${p.cq.t} · ${LEVELS[p.cq.d]}`, q: p.cq.q, img: p.cq.img || null, audio: p.cq.audio || null, options: p.cq.options, left: Math.max(0, room.duel.end - Date.now()) });
     return;
   }
   if (k === "chrono") {

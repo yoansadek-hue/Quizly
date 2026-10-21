@@ -61,7 +61,7 @@ function onMsg(m) {
     case "ivoted": $("tImpLive").replaceChildren(el("span", "chip", `${m.count} / ${m.total} ont voté`)); break;
     case "iclued": $("tImpLive").replaceChildren(el("span", "chip", `${m.count} / ${m.total} indices écrits`)); break;
     case "go": betsGo(m); break;
-    case "end": renderEnd(m); break;
+    case "end": if (m.kind === "duel" && !$("tDuel").hidden) duelFinale(m); else renderEnd(m); break; // la corde casse, puis le podium
     case "react": bubble(m.name, TAUNTS[m.r] || "", `r${m.r} ${m.sk || ""}`); break;
     case "chat": chat(m.name, m.text, m.sk); break;
     case "host": T.host = m.host; hostTheme(); break;
@@ -133,6 +133,14 @@ function splash(name, ph) {
 }
 
 /* ---------- Le Duel ---------- */
+function duelFinale(m) {
+  clearInterval(T.dtid);
+  const w = m.winner;
+  if (w) $("tDuelKnot").style.left = $("tDuelA").textContent.includes(w) ? "8%" : "92%"; // le nœud file vers le gagnant
+  $("tDuelMsg").textContent = w ? `La corde a cédé : ${w} gagne le duel !` : "Égalité : la corde tient bon !";
+  if (w) setTimeout(() => $("tDuelTrack").classList.add("snap"), 450);
+  setTimeout(() => { $("tDuelTrack").classList.remove("snap"); renderEnd(m); }, w ? 2900 : 1800);
+}
 function renderDuel(m) {
   stopRing(); clearInterval(T.dtid);
   const [a, b] = m.players;
