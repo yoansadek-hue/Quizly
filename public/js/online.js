@@ -6,7 +6,7 @@ const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
 const PALETTE = ["#ffe14d", "#34e3b0", "#ff3b5c", "#62c7ff", "#c4b8ff", "#ffb36b", "#f6f3ff", "#9df0d4"]; // couleurs des jetons
 const HEART = "\u2665\uFE0E"; // cœur « texte » (jamais l'emoji rouge)
 
-export function initOnline({ $, show, flash, confetti, me, record, millionUI, avatarEl, setAudio, stat, setMode, noteQ, recent, addFriend, isFriend, imp }) {
+export function initOnline({ $, show, flash, confetti, me, record, millionUI, avatarEl, setAudio, stat, setMode, noteQ, recent, addFriend, isFriend, imp, isChamp = () => false }) {
   const photoOf = (id) => (O.pl && O.pl[id] ? O.pl[id].photo : "") || ""; // photo d'un joueur du salon
   const theme = (tag) => String(tag || "").split(" · ")[0]; // « Drapeaux · Facile » → « Drapeaux »
   const mu = millionUI($); // écran « Qui veut gagner des millions »
@@ -199,7 +199,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
       }
       const s = document.createElement("span");
       s.textContent = p.name + (p.id === m.host ? " · hôte" : "");
-      styleName(s, p.cos); li.append(s); // sa couleur de pseudo
+      styleName(s, p.cos); if (isChamp(p.uid)) s.classList.add("champ"); li.append(s); // sa couleur de pseudo (et le champion du Défi du jour)
       const ti = titleEl(p.cos); if (ti) li.append(ti); // et son titre
       ul.append(li);
     });

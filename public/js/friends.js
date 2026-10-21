@@ -34,6 +34,7 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
       listenNotifs();
       await loadFriends();
       loadClub().catch(() => {}); // le club est prêt avant même d'ouvrir l'onglet
+      loadChampion().catch(() => {}); // qui est le champion du Défi du jour ?
       return true;
     } catch (e) { console.warn("Amis indisponibles :", e.message); stop(); return false; }
   }
@@ -137,7 +138,7 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
   function openFriend(f) {
     F.cur = f;
     $("frName").textContent = f.name;
-    styleName($("frName"), f.cos); $("frTitle").textContent = titleOf(f.cos); $("frTitle").hidden = !titleOf(f.cos);
+    styleName($("frName"), f.cos); champName($("frName"), f.uid); $("frTitle").textContent = titleOf(f.cos); $("frTitle").hidden = !titleOf(f.cos);
     $("frAv").replaceChildren(avatarEl(f.name, f.photo, true));
     const x = f.records || {};
     const short = (v) => (v >= 1000000 ? "1 M€" : v >= 1000 ? `${Math.round(v / 1000)} k€` : `${v} €`);
@@ -223,7 +224,7 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
     c.onkeydown = (e) => (e.key === "Enter" || e.key === " ") && openFriend(f);
     const body = el("div", "fbody");
     const top = el("div", "ftop"), nm = el("span", "fname", f.name);
-    styleName(nm, f.cos); top.append(nm);
+    styleName(nm, f.cos); champName(nm, f.uid); top.append(nm);
     const ti = titleEl(f.cos); if (ti) top.append(ti);
     const fresh = f.at && Date.now() - f.at < 15 * 60000;
     const meta = el("div", "fmeta"); meta.append(el("i", "fdot" + (fresh ? " on" : "")), document.createTextNode(seen(f.at)));
@@ -676,8 +677,24 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
     ask("Rejoindre ce club ?", myClub() ? "Vous quitterez votre club actuel (un seul club à la fois)." : "Vous verrez son classement et son mur.", "Rejoindre", () => joinClub(code));
   }
 
+  /* ---------- le champion du Défi du jour : son pseudo devient spécial ----------
+     le 1er du classement mondial d'aujourd'hui ; tant que personne n'a fait le défi du jour, le 1er d'hier.
+     Il redevient normal dès qu'un autre le dépasse, ou le lendemain s'il n'est plus 1er. */
+  const champDay = (o) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(Date.now() - o * 86400000);
+  async function loadChampion() {
+    if (!ready()) return;
+    let champ = null;
+    for (const o of [0, 1]) {
+      try { const l = await api.worldDaily(champDay(o)); if (l.length) { champ = l[0].uid; break; } } catch {}
+    }
+    if (champ === F.champ) return;
+    F.champ = champ;
+    render(); document.dispatchEvent(new CustomEvent("quizly:champ")); // les écrans ouverts se mettent à jour
+  }
+  const isChamp = (uid) => !!F.champ && (uid === "me" ? F.uid : uid) === F.champ;
+  const champName = (el, uid) => { el.classList.toggle("champ", isChamp(uid)); return el; };
   const api = {
-    start, stop, ready, render, syncRecords, addByCode, renderNotifs, clubInvite, clubSync: () => clubSync(),
+    start, stop, ready, render, isChamp, loadChampion, syncRecords, addByCode, renderNotifs, clubInvite, clubSync: () => clubSync(),
     isFriend: (uid) => F.friends.some((f) => f.uid === uid),
     count: () => F.friends.length,
     // défi du jour terminé : noté pour le classement mondial du défi
@@ -685,6 +702,7 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
       if (!ready()) return;
       const m = me();
       try { await F.fs.setDoc(ref("dailydone", day, "users", F.uid), { uid: F.uid, name: m.name, photo: m.photo || "", score: d ? d.score : 0, ms: d ? d.ms : 0, at: Date.now() }); } catch {}
+      loadChampion().catch(() => {}); // vous êtes peut-être le nouveau champion
     },
     // classement mondial du défi du jour (les 100 meilleurs scores)
     async worldDaily(day) {

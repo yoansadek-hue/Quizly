@@ -54,6 +54,11 @@ export function initQuests({ $, uid, earn, onChange }) {
   const val = (bag, q) => Math.min(q.n, bag[q.k] || 0);
   const ready = (s) => [...today(s).filter((q) => val(s.d, q) >= q.n && !s.gotD.includes(q.id)), ...week(s).filter((q) => val(s.w, q) >= q.n && !s.gotW.includes(q.id))].length
     + (today(s).every((q) => s.gotD.includes(q.id)) && !s.gotD.includes("chest") ? 1 : 0);
+  // les récompenses à récupérer, par onglet : défis du jour (+ le coffre) et défis de la semaine
+  const parts = (s) => ({
+    day: today(s).filter((q) => val(s.d, q) >= q.n && !s.gotD.includes(q.id)).length + (today(s).every((q) => s.gotD.includes(q.id)) && !s.gotD.includes("chest") ? 1 : 0),
+    week: week(s).filter((q) => val(s.w, q) >= q.n && !s.gotW.includes(q.id)).length
+  });
 
   function changed(s) { save(s); onChange && onChange(ready(s)); if (!$("s-quests").hidden) render(); }
   // un événement de jeu : il fait avancer les défis du jour et de la semaine
@@ -109,5 +114,5 @@ export function initQuests({ $, uid, earn, onChange }) {
   }
   // vos chiffres de la semaine (pour les défis du club)
   const weekStats = () => { const s = load(); return { week: s.week, good: s.w.good || 0, game: s.w.game || 0, daily: s.w.daily || 0 }; };
-  return { tick, best, render, weekStats, ready: () => ready(load()) };
+  return { tick, best, render, weekStats, ready: () => ready(load()), parts: () => parts(load()) };
 }
