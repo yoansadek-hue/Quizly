@@ -170,10 +170,11 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
       all.docs.forEach((d) => { if (d.id !== F.uid && d.data().name) out.push({ uid: d.id, ...d.data() }); });
     }
     const list = dev() ? { docs: [] } : await F.fs.getDocs(F.fs.collection(F.fs.db, "friends", F.uid, "list"));
-    for (const d of list.docs) {
-      try { const p = await F.fs.getDoc(ref("profiles", d.id)); if (p.exists()) out.push({ uid: d.id, ...p.data() }); } catch {}
-    }
+    // tous les profils en même temps (avant : l'un après l'autre)
+    const got = await Promise.all(list.docs.map((d) => F.fs.getDoc(ref("profiles", d.id)).then((p) => (p.exists() ? { uid: d.id, ...p.data() } : null)).catch(() => null)));
+    out.push(...got.filter(Boolean));
     F.friends = out.sort((a, b) => a.name.localeCompare(b.name));
+    F.loadedAt = Date.now();
     F.friends.forEach((f) => setFrame(f.name, (f.cos || {}).frame)); // leur cadre s'affiche partout
     render();
   }
@@ -227,7 +228,8 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
     styleName(nm, f.cos); champName(nm, f.uid); top.append(nm);
     const ti = titleEl(f.cos); if (ti) top.append(ti);
     const fresh = f.at && Date.now() - f.at < 15 * 60000;
-    const meta = el("div", "fmeta"); meta.append(el("i", "fdot" + (fresh ? " on" : "")), document.createTextNode(seen(f.at)));
+    const pl = f.playing && Date.now() - (f.playing.at || 0) < 20 * 60000 ? f.playing.name : ""; // en partie en ce moment
+    const meta = el("div", "fmeta" + (pl ? " playing" : "")); meta.append(el("i", "fdot" + (fresh || pl ? " on" : "")), document.createTextNode(pl ? `joue à ${pl}` : seen(f.at)));
     body.append(top, meta);
     if (f.daily && f.daily.day === parisDay()) { // seulement : est-il actif, et a-t-il fait le Défi du jour ?
       const chips = el("div", "fchips"), d = el("span", "dd");
@@ -694,7 +696,15 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
   const isChamp = (uid) => !!F.champ && (uid === "me" ? F.uid : uid) === F.champ;
   const champName = (el, uid) => { el.classList.toggle("champ", isChamp(uid)); return el; };
   const api = {
-    start, stop, ready, render, isChamp, loadChampion, syncRecords, addByCode, renderNotifs, clubInvite, clubSync: () => clubSync(),
+    start, stop, ready, render, isChamp, loadChampion,
+    // la liste se rafraîchit à l'ouverture de l'onglet Amis (pour voir qui joue, et à quoi)
+    freshen() { if (ready() && Date.now() - (F.loadedAt || 0) > 20000) loadFriends().catch(() => {}); },
+    // à quoi je joue en ce moment (vu par mes amis) ; null : plus en partie
+    setPlaying(name) {
+      if (!ready() || (name || null) === (F.playing || null)) return;
+      F.playing = name || null;
+      F.fs.setDoc(ref("profiles", F.uid), { playing: name ? { name, at: Date.now() } : null, at: Date.now() }, { merge: true }).catch(() => {});
+    }, syncRecords, addByCode, renderNotifs, clubInvite, clubSync: () => clubSync(),
     isFriend: (uid) => F.friends.some((f) => f.uid === uid),
     count: () => F.friends.length,
     // défi du jour terminé : noté pour le classement mondial du défi

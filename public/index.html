@@ -39,9 +39,8 @@ addEventListener("error", function (e) {
 <header id="bar" hidden>
   <span class="logo">Quizly<small>par YoskanGame</small></span>
   <div class="barR">
-    <button id="btnQuests" class="iconbtn" aria-label="Défis" hidden>
-      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M7 3h10v2h3v3a5 5 0 0 1-4.3 4.95A5 5 0 0 1 13 15.9V18h3v3H8v-3h3v-2.1a5 5 0 0 1-2.7-2.95A5 5 0 0 1 4 8V5h3V3zm0 4H6v1a3 3 0 0 0 1.4 2.53A5 5 0 0 1 7 9V7zm10 0v2c0 .53-.08 1.04-.24 1.53A3 3 0 0 0 18 8V7h-1z"/></svg>
-      <span class="nbadge" id="questBadge" hidden></span>
+    <button id="btnProfile" class="iconbtn" aria-label="Profil" hidden>
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0 2c-4.4 0-8 2.2-8 5v2h16v-2c0-2.8-3.6-5-8-5z"/></svg>
     </button>
     <button id="btnNotifs" class="iconbtn" aria-label="Notifications" hidden>
       <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22zm7-6V11a7 7 0 0 0-5.5-6.84V3.5a1.5 1.5 0 0 0-3 0v.66A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2z"/></svg>
@@ -300,11 +299,10 @@ addEventListener("error", function (e) {
 
   <!-- Défis : défi du jour, défis quotidiens et hebdomadaires, la veille -->
   <section id="s-quests" class="screen" hidden>
-    <button class="goback" data-back="s-mode">← Retour</button>
     <h2>Défis</h2>
     <div class="ftabs" id="qTabs" role="tablist">
       <button class="ftab" data-tab="daily" role="tab">Défi du jour</button>
-      <button class="ftab" data-tab="day" role="tab">Du jour<span class="nbadge small" id="qDayBadge" hidden></span></button>
+      <button class="ftab" data-tab="day" role="tab">Quotidiens<span class="nbadge small" id="qDayBadge" hidden></span></button>
       <button class="ftab" data-tab="week" role="tab">Semaine<span class="nbadge small" id="qWeekBadge" hidden></span></button>
     </div>
     <div class="fpanel" id="qpDaily">
@@ -319,7 +317,7 @@ addEventListener("error", function (e) {
     </div>
     </div>
     <div class="fpanel" id="qpDay" hidden>
-    <h3 class="qh">Défis du jour <small id="qDayLeft"></small></h3>
+    <h3 class="qh">Défis quotidiens <small id="qDayLeft"></small></h3>
     <div class="qlist" id="qDayList"></div>
     <div class="qchest" id="qChest"></div>
     </div>
@@ -643,7 +641,7 @@ addEventListener("error", function (e) {
   <button class="tab" data-go="s-shop"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M7 7V6a5 5 0 0 1 10 0v1h3l-1.2 13.2A2 2 0 0 1 16.8 22H7.2a2 2 0 0 1-2-1.8L4 7h3zm2 0h6V6a3 3 0 0 0-6 0v1zm-1 4a1 1 0 1 0 2 0 1 1 0 0 0-2 0zm6 0a1 1 0 1 0 2 0 1 1 0 0 0-2 0z"/></svg><span>Boutique</span></button>
   <button class="tab" data-go="s-friends"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-3.3 0-7 1.7-7 4.5V20h14v-2.5C16 14.7 12.3 13 9 13zm8-2a3.5 3.5 0 1 0-2.1-6.3 5.9 5.9 0 0 1 0 5.6A3.5 3.5 0 0 0 17 11zm1.2 2.1c1.6 1 2.8 2.5 2.8 4.4V20h3v-2.5c0-2.1-2.6-3.8-5.8-4.4z"/></svg><span>Amis</span><span class="nbadge small" id="tabFriendsBadge" hidden></span></button>
   <button class="tab" data-go="s-mode"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M12 3.2 2.5 11h2.7v9.3h5.3v-6h3v6h5.3V11h2.7z"/></svg><span>Accueil</span></button>
-  <button class="tab" data-go="s-profile"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0 2c-4.4 0-8 2.2-8 5v2h16v-2c0-2.8-3.6-5-8-5z"/></svg><span>Profil</span></button>
+  <button class="tab" data-go="s-quests"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M7 3h10v2h3v3a5 5 0 0 1-4.3 4.95A5 5 0 0 1 13 15.9V18h3v3H8v-3h3v-2.1a5 5 0 0 1-2.7-2.95A5 5 0 0 1 4 8V5h3V3zm0 4H6v1a3 3 0 0 0 1.4 2.53A5 5 0 0 1 7 9V7zm10 0v2c0 .53-.08 1.04-.24 1.53A3 3 0 0 0 18 8V7h-1z"/></svg><span>Défis</span><span class="nbadge small" id="questBadge" hidden></span></button>
   <button class="tab" data-go="s-settings"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.03 7.03 0 0 0-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.47.47 0 0 0-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87a.47.47 0 0 0 .12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.48.48 0 0 0-.12-.61l-2.01-1.58zM12 15.6a3.6 3.6 0 1 1 0-7.2 3.6 3.6 0 0 1 0 7.2z"/></svg><span>Réglages</span></button>
 </nav>
 
