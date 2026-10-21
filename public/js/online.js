@@ -355,7 +355,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     $("scene").classList.add("compact");
     const card = $("card"); card.classList.remove("flipped"); card.style.animation = "none"; void card.offsetWidth; card.style.animation = "";
     $("whoName").textContent = "Duel"; $("whoAv").replaceChildren(avatarEl(me().name, me().photo, true)); $("whoName").classList.remove("retry");
-    $("whoLives").hidden = false; $("alive").hidden = false; $("alive").textContent = "Tire la corde : réponds vite et juste !";
+    $("whoLives").hidden = false; $("alive").hidden = false; $("alive").textContent = m.tv ? "Regardez la télé : le premier qui répond juste tire la corde !" : "Tire la corde : réponds vite et juste !";
     $("tag").textContent = m.tag; $("qText").textContent = m.q;
     $("qText").dataset.len = m.q.length > 170 ? "xl" : m.q.length > 120 ? "l" : m.q.length > 80 ? "m" : "s";
     const qi = $("qImg");
@@ -386,12 +386,13 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     setTimeout(() => { bar.classList.remove("snap"); $("alive").classList.remove("dwin"); renderEnd(m); }, m.winner ? 2700 : 1600);
   }
   function duelRes(m) {
-    if (stat && O.cur) stat.answer(theme(O.cur.tag), m.correct);
     const btns = [...document.querySelectorAll("#mcq .btn")];
     btns.forEach((b) => { b.disabled = true; if (b.textContent === m.answer) b.classList.add("right"); });
     if (!m.correct && O.cur && m.picked >= 0) btns.forEach((b) => b.textContent === O.cur.options[m.picked] && b.classList.add("wrong"));
-    $("alive").textContent = m.correct ? "Bien joué : la corde vient vers toi !" : "Raté : une seconde de pénalité…";
-    flash(m.correct ? "ok" : "ko");
+    if (m.wait) { $("alive").textContent = "Raté ! L'autre peut encore tenter sa chance…"; return flash("ko"); } // avec la télé : la bonne réponse viendra après
+    if (stat && O.cur && (!m.tv || m.picked >= 0 || m.correct)) stat.answer(theme(O.cur.tag), m.correct);
+    $("alive").textContent = m.correct ? "Bien joué : la corde vient vers toi !" : !m.tv ? "Raté : une seconde de pénalité…" : m.by ? `${m.by} a été plus rapide !` : "Personne n'a trouvé !";
+    if (!m.tv || m.picked >= 0 || m.correct || m.by) flash(m.correct ? "ok" : "ko");
   }
 
   // Le Dernier Debout : la bonne réponse, qui tombe, qui reste debout (la manche suivante démarre toute seule)
@@ -694,7 +695,6 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
   /* ----- Équipes en ligne ----- */
   function teamLine(teams) { return teams.map((t) => `${t.name} ${t.points}`).join(" · ") + " pts"; }
 
-  /* ----- Mode TV : en Survie, la question est sur la télé, le téléphone sert de manette ----- */
   /* ----- L'Imposteur : sa carte en secret, la discussion, le vote, la dernière chance ----- */
   function renderImp(m) {
     O.imp = m; O.cur = null; $("betBox").hidden = true;
@@ -717,7 +717,8 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
       wait: m.picked != null ? `Vote enregistré · ${m.count || 0} / ${m.total || m.players.length} ont voté` : `${m.count || 0} / ${m.total || m.players.length} ont voté` },
     (p) => { if (m.picked != null) return; m.picked = p.id; send({ t: "vote", id: p.id }); impVoteScreen(); });
   }
-  function tvMode(on, kind) { document.body.classList.toggle("tvmode", !!on && ["survie", "equipes", "parieurs", "royale"].includes(kind || "survie")); }
+  // avec une télé, les questions ne s'affichent que sur la télé : le téléphone ne garde que les réponses (sauf L'Imposteur, où chacun a sa carte secrète)
+  function tvMode(on, kind) { document.body.classList.toggle("tvmode", !!on && (kind || "survie") !== "imposteur"); }
 
   /* ----- Millionnaire : textes ----- */
   function millInfo() {
@@ -779,7 +780,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     $("whoAv").replaceChildren(avatarEl(me().name, me().photo, true));
     $("whoName").classList.remove("retry");
     $("whoLives").hidden = false; $("whoLives").textContent = `${m.points} pts`;
-    $("alive").hidden = false; $("alive").textContent = rankText();
+    $("alive").hidden = false; $("alive").textContent = m.tv ? "Regardez la télé et répondez vite !" : rankText();
     liveBoard();
     $("tag").textContent = m.tag;
     $("qText").textContent = m.q;
@@ -811,8 +812,9 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
   }
   function renderCRes(m) {
     stopClock();
-    if (stat && O.cur) stat.answer(theme(O.cur.tag), m.correct);
     O.answered = true;
+    if (m.wait) { $("alive").textContent = "Réponse envoyée · la correction arrive sur la télé"; return; } // avec la télé
+    if (stat && O.cur) stat.answer(theme(O.cur.tag), m.correct);
     if (O.cur) O.cur.streak = m.streak;
     const btns = [...document.querySelectorAll("#mcq .btn")];
     btns.forEach((b) => { b.disabled = true; if (b.textContent === m.answer) b.classList.add("right"); });

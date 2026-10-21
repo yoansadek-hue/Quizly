@@ -48,8 +48,12 @@ function onMsg(m) {
     case "q": renderQ(m); break;
     case "result": renderResult(m); break;
     case "level": renderLevel(m); break;
-    case "cgo": startChrono(m.ms); break;
-    case "cboard": T.board = m.list; renderRace(); break;
+    case "cgo": T.ctv = !!m.tv; T.board = []; if (!m.tv) startChrono(m.ms); break; // avec la télé : la question commune s'affiche ici
+    case "cboard": T.board = m.list; if (T.ctv) chronoSide(); else renderRace(); break;
+    case "cq": renderTQ(m, "chrono"); break;
+    case "creveal": reveal(m.answer, -1); chronoReveal(m); break;
+    case "dq": renderTQ(m, "duel"); break;
+    case "dreveal": reveal(m.answer, -1); verdict(m.by ? `${m.by} tire la corde !` : "Personne n'a trouvé !", m.by ? "ok" : "ko"); stopRing(); break;
     case "mq": renderMQ(m); break;
     case "mboard": T.mboard = m.list; renderMSide(); break;
     case "mspec": renderMSpec(m); break;
@@ -61,7 +65,7 @@ function onMsg(m) {
     case "ivoted": $("tImpLive").replaceChildren(el("span", "chip", `${m.count} / ${m.total} ont voté`)); break;
     case "iclued": $("tImpLive").replaceChildren(el("span", "chip", `${m.count} / ${m.total} indices écrits`)); break;
     case "go": betsGo(m); break;
-    case "end": if (m.kind === "duel" && !$("tDuel").hidden) duelFinale(m); else renderEnd(m); break; // la corde casse, puis le podium
+    case "end": if (m.kind === "duel" && (!$("tDuel").hidden || T.dtv)) duelFinale(m); else renderEnd(m); break; // la corde casse, puis le podium
     case "react": bubble(m.name, TAUNTS[m.r] || "", `r${m.r} ${m.sk || ""}`); break;
     case "chat": chat(m.name, m.text, m.sk); break;
     case "host": T.host = m.host; hostTheme(); break;
@@ -71,6 +75,7 @@ function onMsg(m) {
 /* ---------- salle d'attente ---------- */
 function renderLobby(m) {
   T.kind = m.cfg.kind || "survie";
+  if (m.phase === "lobby") { T.ctv = T.dtv = false; ropeIn(false); }
   T.pl = Object.fromEntries(m.players.map((p) => [p.id, p]));
   T.host = m.host; hostTheme();
   m.players.forEach((p) => setFrame(p.name, (p.cos || {}).frame)); // cadres des joueurs
@@ -138,6 +143,7 @@ function duelFinale(m) {
   const w = m.winner;
   if (w) $("tDuelKnot").style.left = $("tDuelA").textContent.includes(w) ? "8%" : "92%"; // le nœud file vers le gagnant
   $("tDuelMsg").textContent = w ? `La corde a cédé : ${w} gagne le duel !` : "Égalité : la corde tient bon !";
+  if (T.dtv) { stopRing(); verdict($("tDuelMsg").textContent, w ? "ok" : "ko"); }
   if (w) setTimeout(() => $("tDuelTrack").classList.add("snap"), 450);
   setTimeout(() => { $("tDuelTrack").classList.remove("snap"); renderEnd(m); }, w ? 2900 : 1800);
 }
@@ -149,9 +155,49 @@ function renderDuel(m) {
   $("tDuelKnot").style.left = `${50 + (m.rope / m.steps) * 42}%`; // a tire vers la gauche, b vers la droite
   if (m.by && m.ok) $("tDuelMsg").textContent = `${(m.by === a.id ? a : b).name} tire !`;
   const end = Date.now() + m.left;
-  const tick = () => { const t = Math.max(0, Math.ceil((end - Date.now()) / 1000)); $("tDuelTime").textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`; };
+  const tick = () => { const t = Math.max(0, Math.ceil((end - Date.now()) / 1000)), txt = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`; $("tDuelTime").textContent = txt; if (T.dtv) $("gCount").textContent = txt; };
   tick(); T.dtid = setInterval(tick, 500);
-  show("tDuel");
+  T.dtv = !!m.tv; ropeIn(T.dtv);
+  if (!m.tv) show("tDuel"); // avec la télé, la corde reste au-dessus de la question
+}
+// Le Duel avec la télé : la corde passe au-dessus de la question
+function ropeIn(on) {
+  const r = document.querySelector(".tduel");
+  if (on) $("gRope").append(r); else $("tDuel").insertBefore(r, $("tDuelMsg"));
+  $("gRope").hidden = !on;
+  $("tGame").classList.toggle("duelon", on);
+}
+// Chrono et Duel avec la télé : la question commune, sur la télé seulement
+function renderTQ(m, kind) {
+  T.last = m;
+  paint(m);
+  $("gVerdict").hidden = true;
+  if (kind === "duel") {
+    $("gWho").replaceChildren(el("span", null, "Le Duel"));
+    $("gLive").replaceChildren(el("span", "chip", "Le premier qui répond juste tire la corde !"));
+  } else {
+    $("tGame").classList.remove("duelon"); $("gRope").hidden = true;
+    const t = Math.ceil((m.left || 0) / 1000);
+    $("gWho").replaceChildren(el("span", null, "Chrono"));
+    $("gCount").textContent = `Question ${m.n} · reste ${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`;
+    $("gLive").replaceChildren(el("span", "chip", "Répondez sur vos téléphones !"));
+    chronoSide();
+  }
+  ring("gArc", "gClock", "gRing", (m.ms || 0) / 1000, (m.ms || 0) / 1000);
+  show("tGame");
+}
+function chronoSide() {
+  $("gSide").replaceChildren(el("h3", null, "Classement"), ...T.board.map((p, i) => {
+    const r = el("div", "prow" + (i === 0 && p.points ? " cur" : ""));
+    r.append(avatarEl(p.name, photo(p.id)), el("span", "pn", p.name), el("span", "pv", `${p.points} pts`));
+    return r;
+  }));
+}
+function chronoReveal(m) {
+  stopRing();
+  const ok = m.results.filter((r) => r.ok);
+  verdict(ok.length ? `Trouvé par ${ok.map((r) => r.name).join(", ")}` : "Personne n'a trouvé !", ok.length ? "ok" : "ko");
+  $("gLive").replaceChildren(...m.results.map((r) => el("span", "chip" + (r.ok ? " won" : " lost"), `${r.name}${r.ok ? ` · +${r.gain}` : " · raté"}`)));
 }
 
 /* ---------- L'Imposteur ---------- */
@@ -189,6 +235,7 @@ function renderImp(m) {
 /* ---------- Survie et Équipes ---------- */
 function renderQ(m) {
   T.last = m;
+  $("tGame").classList.remove("duelon"); $("gRope").hidden = true;
   paint(m);
   $("gWho").replaceChildren(avatarEl(m.name, photo(m.who), true), el("span", null, m.name));
   $("gCount").textContent = m.royale ? `${m.alive} debout · ${m.sec} s` : m.teams ? `Équipe ${m.team}` : `Question ${m.qn || ""}`.trim();
@@ -280,6 +327,7 @@ function renderLevel(m) {
 /* ---------- Millionnaire ---------- */
 function renderMQ(m) {
   T.last = m;
+  $("tGame").classList.remove("duelon"); $("gRope").hidden = true;
   paint(m);
   $("gWho").replaceChildren(el("span", null, `Pour ${euros(PRIZES[m.n])}`));
   $("gCount").textContent = `Question ${m.n + 1} / 15`;

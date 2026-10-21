@@ -501,10 +501,16 @@ const players = (room) => [...room.players.values()];
 const alive = (room) => players(room).filter((p) => !p.dead);
 // les écrans TV (mode Kahoot) reçoivent tout ce qui est envoyé à la salle
 const tvs = (room) => room.tvs || (room.tvs = new Set());
+// les téléphones cachent la question quand elle est sur la télé : en partie, seulement si la partie a démarré avec la télé
+// (le Chrono, le Duel et le Millionnaire sans télé donnent à chacun sa propre question)
+const tvFlag = (room) => room.phase === "lobby" || room.phase === "end" ? tvs(room).size > 0 : !!room.tvOn || (tvs(room).size > 0 && !["chrono", "duel", "million"].includes(room.cfg.kind));
 const LAST = ["q", "result", "level", "load", "fail", "end"];
+// avec la télé, les téléphones reçoivent les réponses mais jamais l'énoncé (ni l'image, ni l'extrait)
+const forPhone = (room, o) => (room.tvOn && o.t === "q" ? { ...o, q: "", img: null, audio: null } : o);
 const cast = (room, o) => {
   if (LAST.includes(o.t)) room.last = { ...o, at: Date.now() }; // dernier état, renvoyé à un joueur qui se reconnecte
-  players(room).forEach((p) => send(p.ws, o)); tvs(room).forEach((ws) => send(ws, o));
+  const ph = forPhone(room, o);
+  players(room).forEach((p) => send(p.ws, ph)); tvs(room).forEach((ws) => send(ws, o));
 };
 const clean = (s, n = 20) => String(s || "").replace(/[<>]/g, "").trim().slice(0, n);
 const clamp = (v, a, b) => Math.min(b, Math.max(a, Number.isFinite(v) ? v : a));
@@ -512,7 +518,7 @@ const shuffle = (a) => a.map((x) => [Math.random(), x]).sort((p, q) => p[0] - q[
 
 function lobbyMsg(room, p) {
   return {
-    t: "lobby", code: room.code, host: room.hostId, you: p.id, tok: p.tok, phase: room.phase, cfg: room.cfg, tv: tvs(room).size > 0, tvRoom: !!room.tvRoom,
+    t: "lobby", code: room.code, host: room.hostId, you: p.id, tok: p.tok, phase: room.phase, cfg: room.cfg, tv: tvFlag(room), tvRoom: !!room.tvRoom,
     players: players(room).filter((x) => !x.left).map(({ id, name, photo, ci, uid, cos }) => ({ id, name, photo, ci, uid, cos }))
   };
 }
@@ -760,7 +766,7 @@ function endTeams(room) {
 const DUEL_STEPS = 5, DUEL_MS = +process.env.DUEL_MS || 120000;
 function duelState(room, extra = {}) {
   const [a, b] = room.duel.side;
-  return { t: "rope", rope: room.duel.rope, steps: DUEL_STEPS, left: Math.max(0, room.duel.end - Date.now()), a, b, ...extra,
+  return { t: "rope", rope: room.duel.rope, steps: DUEL_STEPS, left: Math.max(0, room.duel.end - Date.now()), a, b, tv: room.duel.tv, ...extra,
     players: [a, b].map((id) => { const p = room.players.get(id) || {}; return { id, name: p.name, photo: p.photo || "", score: p.score || 0 }; }) };
 }
 // Les questions sont préparées AVANT le départ (les mêmes pour les deux, de plus en plus dures) : pendant les
@@ -780,7 +786,7 @@ async function duelFill(room, upTo) { // ajoute des questions à la réserve com
 async function duelStart(room) {
   const ps = players(room).filter((p) => !p.left);
   Object.assign(room, { phase: "dload", buf: [], asked: [], loads: new Map(), soft: null });
-  room.duel = { rope: 0, side: shuffle(ps.map((p) => p.id)), end: 0, pool: [], seen: new Set(), fails: 0 }; // side[0] tire vers -, side[1] vers +
+  room.duel = { rope: 0, side: shuffle(ps.map((p) => p.id)), end: 0, pool: [], seen: new Set(), fails: 0, tv: !!room.tvOn, qi: 0, cur: null }; // side[0] tire vers -, side[1] vers +
   ps.forEach((p) => Object.assign(p, { score: 0, points: 0, streak: 0, di: 0, cq: null, dead: false }));
   clearTimeout(room.timer);
   cast(room, { t: "load", msg: "Préparation du duel…" });
@@ -794,7 +800,7 @@ async function duelStart(room) {
   room.timer = setTimeout(() => duelEnd(room), DUEL_MS);
   const st = duelState(room, { start: true });
   players(room).forEach((p) => send(p.ws, st)); tvs(room).forEach((ws) => send(ws, st));
-  ps.forEach((p) => duelNext(room, p));
+  if (room.duel.tv) duelTvNext(room); else ps.forEach((p) => duelNext(room, p));
   duelFill(room, DUEL_POOL); // la réserve continue de grossir pendant la partie
 }
 function duelNext(room, p) {
@@ -806,6 +812,7 @@ function duelNext(room, p) {
 }
 function duelAnswer(room, p, i) {
   if (room.phase !== "duel" || !p.cq || !Number.isInteger(i) || i < 0 || i >= p.cq.options.length) return;
+  if (room.duel.tv) return duelTvAnswer(room, p, i);
   const q = p.cq, ok = q.options[i] === q.a;
   p.cq = null;
   if (ok) {
@@ -818,9 +825,44 @@ function duelAnswer(room, p, i) {
   if (Math.abs(room.duel.rope) >= DUEL_STEPS) return duelEnd(room); // la corde est de son côté : gagné
   setTimeout(() => duelNext(room, p), ok ? 600 : 1500); // une erreur coûte un peu de temps
 }
+// Avec une télé : une seule question à la fois, affichée sur la télé (les téléphones n'ont que les réponses).
+// Le premier qui répond juste tire la corde ; une erreur et c'est à l'autre de tenter sa chance.
+const DUEL_QMS = 15000;
+const duelPad = (room, q) => ({ t: "dq", tv: true, tag: `${q.t} · ${LEVELS[q.d]}`, q: "", img: null, audio: null, options: q.options, left: Math.max(0, room.duel.end - Date.now()) });
+function duelTvNext(room) {
+  const d = room.duel;
+  if (room.phase !== "duel") return;
+  const q = d.pool[d.qi];
+  if (!q) return setTimeout(() => duelTvNext(room), 300);
+  d.qi++; d.cur = q; d.tried = new Map();
+  players(room).forEach((p) => { p.cq = q; send(p.ws, duelPad(room, q)); });
+  tvs(room).forEach((ws) => send(ws, { ...duelPad(room, q), q: q.q, img: q.img || null, audio: q.audio || null, ms: DUEL_QMS }));
+  clearTimeout(d.qt); d.qt = setTimeout(() => duelTvReveal(room, null), DUEL_QMS);
+}
+function duelTvAnswer(room, p, i) {
+  const d = room.duel, q = d.cur;
+  if (!q || d.tried.has(p.id)) return;
+  d.tried.set(p.id, i);
+  if (q.options[i] === q.a) return duelTvReveal(room, p);
+  p.streak = 0;
+  send(p.ws, { t: "dres", tv: true, wait: true, correct: false, picked: i, answer: null });
+  if (d.side.every((id) => d.tried.has(id) || !room.players.get(id) || room.players.get(id).left)) duelTvReveal(room, null); // les deux se sont trompés
+}
+function duelTvReveal(room, w) {
+  const d = room.duel, q = d.cur;
+  if (room.phase !== "duel" || !q) return;
+  clearTimeout(d.qt); d.cur = null;
+  if (w) { w.score++; w.points++; w.streak++; d.rope += d.side[0] === w.id ? -1 : 1; }
+  players(room).forEach((p) => { p.cq = null; send(p.ws, { t: "dres", tv: true, correct: p === w, picked: d.tried.has(p.id) ? d.tried.get(p.id) : -1, answer: q.a, by: w ? w.name : null }); });
+  tvs(room).forEach((ws) => send(ws, { t: "dreveal", answer: q.a, by: w ? w.name : null }));
+  const st = duelState(room, { by: w ? w.id : null, ok: !!w });
+  players(room).forEach((x) => send(x.ws, st)); tvs(room).forEach((ws) => send(ws, st));
+  if (Math.abs(d.rope) >= DUEL_STEPS) return duelEnd(room);
+  setTimeout(() => duelTvNext(room), 1800); // le temps de voir la bonne réponse sur la télé
+}
 function duelEnd(room, quitter) {
   if (room.phase !== "duel" && room.phase !== "dload") return; // (parti pendant la préparation : l'autre gagne aussi)
-  clearTimeout(room.timer);
+  clearTimeout(room.timer); clearTimeout(room.duel.qt);
   room.phase = "end";
   const d = room.duel, [a, b] = d.side.map((id) => room.players.get(id)).filter(Boolean).length === 2 ? d.side.map((id) => room.players.get(id)) : [null, null];
   let w = null;
@@ -1127,7 +1169,7 @@ const pick = (a) => a[Math.floor(Math.random() * a.length)];
 
 function startChrono(room) {
   clearTimeout(room.timer);
-  Object.assign(room, { phase: "cload", buf: [], asked: [], loads: new Map(), elim: 0, soft: null });
+  Object.assign(room, { phase: "cload", buf: [], asked: [], loads: new Map(), elim: 0, soft: null, ct: null });
   players(room).forEach((p) => {
     clearTimeout(p.ctimer);
     Object.assign(p, { score: 0, points: 0, streak: 0, cdiff: 1, ms: CHRONO_MS, done: false, seen: new Set(), cq: null, qAt: 0, fails: 0, dead: false, outAt: 0, lives: 0 });
@@ -1138,8 +1180,9 @@ function startChrono(room) {
   ready.then(() => {
     if (!rooms.has(room.code) || room.phase !== "cload") return;
     room.phase = "chrono";
-    cast(room, { t: "cgo", ms: CHRONO_MS });
+    cast(room, { t: "cgo", ms: CHRONO_MS, tv: !!room.tvOn });
     castBoard(room);
+    if (room.tvOn) return chronoTvStart(room);
     players(room).forEach((p) => { if (!p.left) chronoNext(room, p); });
   });
 }
@@ -1191,6 +1234,7 @@ async function chronoNext(room, p) {
 }
 function chronoAnswer(room, p, i) {
   if (room.phase !== "chrono" || !p.cq || p.done || !Number.isInteger(i) || i < 0 || i >= p.cq.options.length) return;
+  if (room.ct) return chronoTvAnswer(room, p, i);
   clearTimeout(p.ctimer);
   p.ms = Math.max(0, p.ms - (Date.now() - p.qAt));
   const q = p.cq, ok = q.options[i] === q.a;
@@ -1220,6 +1264,69 @@ function chronoDone(room, p) {
   p.done = true; p.cq = null;
   send(p.ws, { t: "cdone", points: p.points, score: p.score });
   castBoard(room);
+  checkChronoEnd(room);
+}
+// Avec une télé : tout le monde a la même question, affichée sur la télé ; les téléphones n'ont que les réponses.
+// Un seul chrono de 60 s pour tous ; une bonne réponse rapporte plus si elle arrive vite.
+const CHRONO_QMS = 12000;
+const chronoPad = (room, c, p) => ({ t: "cq", tv: true, tag: `${c.cur.t} · ${LEVELS[c.cur.d]}`, q: "", img: null, audio: null, options: c.cur.options,
+  ms: Math.max(0, c.end - Date.now()), total: CHRONO_MS, points: p.points, streak: p.streak, diff: c.cur.d });
+function chronoTvStart(room) {
+  room.ct = { end: Date.now() + CHRONO_MS, n: 0, cdiff: 1, seen: new Set(), cur: null, fails: 0 };
+  chronoTvNext(room);
+}
+async function chronoTvNext(room) {
+  const c = room.ct;
+  if (room.phase !== "chrono" || room.ct !== c) return;
+  if (c.end - Date.now() < 1500) return chronoTvOver(room);
+  let q;
+  try { q = await takeFor(room, c); }
+  catch (e) { console.error(e.message); if (++c.fails >= 3) return chronoTvOver(room); return setTimeout(() => chronoTvNext(room), 1500); }
+  if (room.phase !== "chrono" || room.ct !== c) return;
+  c.fails = 0; c.n++;
+  c.cur = { ...q, options: shuffle(q.o), d: c.cdiff }; c.qAt = Date.now(); c.picks = new Map();
+  const qms = Math.min(CHRONO_QMS, Math.max(0, c.end - Date.now()));
+  players(room).forEach((p) => { if (p.left) return; p.cq = c.cur; send(p.ws, chronoPad(room, c, p)); });
+  tvs(room).forEach((ws) => send(ws, { ...chronoPad(room, c, {}), q: q.q, img: q.img || null, audio: q.audio || null, ms: qms, left: Math.max(0, c.end - Date.now()), n: c.n }));
+  clearTimeout(c.qt); c.qt = setTimeout(() => chronoTvReveal(room), qms);
+}
+function chronoTvAnswer(room, p, i) {
+  const c = room.ct, q = c.cur;
+  if (!q || c.picks.has(p.id)) return;
+  const ok = q.options[i] === q.a;
+  let gain = 0;
+  if (ok) {
+    p.score++; p.streak++;
+    gain = 10 * q.d + Math.round(10 * Math.max(0, 1 - (Date.now() - c.qAt) / CHRONO_QMS)) + Math.min(p.streak - 1, 5) * 5; // niveau + rapidité + série
+    p.points += gain;
+  } else p.streak = 0;
+  c.picks.set(p.id, { i, ok, gain });
+  send(p.ws, { t: "cres", tv: true, wait: true, correct: false, picked: i, answer: null, gain: 0, points: p.points - gain, streak: p.streak, ms: Math.max(0, c.end - Date.now()) });
+  tvs(room).forEach((ws) => send(ws, { t: "rcount", n: c.picks.size, total: players(room).filter((x) => !x.left).length }));
+  if (players(room).every((x) => x.left || c.picks.has(x.id))) chronoTvReveal(room); // tout le monde a répondu
+}
+function chronoTvReveal(room) {
+  const c = room.ct, q = c && c.cur;
+  if (room.phase !== "chrono" || !q) return;
+  clearTimeout(c.qt); c.cur = null;
+  const results = [];
+  players(room).forEach((p) => {
+    if (p.left) return;
+    const r = c.picks.get(p.id);
+    if (!r) p.streak = 0;
+    p.cq = null;
+    results.push({ id: p.id, name: p.name, ok: !!(r && r.ok), gain: r ? r.gain : 0 });
+    send(p.ws, { t: "cres", tv: true, correct: !!(r && r.ok), picked: r ? r.i : -1, answer: q.a, gain: r ? r.gain : 0, points: p.points, streak: p.streak, ms: Math.max(0, c.end - Date.now()) });
+  });
+  tvs(room).forEach((ws) => send(ws, { t: "creveal", answer: q.a, results }));
+  castBoard(room);
+  c.cdiff = Math.min(5, 1 + Math.floor(c.n / 3)); // un niveau de plus toutes les 3 questions
+  setTimeout(() => chronoTvNext(room), 1800);
+}
+function chronoTvOver(room) {
+  if (room.phase !== "chrono") return;
+  clearTimeout(room.ct.qt);
+  players(room).forEach((p) => { p.done = true; p.cq = null; });
   checkChronoEnd(room);
 }
 function castBoard(room) {
@@ -1252,7 +1359,7 @@ function startMillion(room) {
   Object.assign(room, { phase: "mload", buf: [], asked: [], loads: new Map(), mn: 0, mseen: new Set(), soft: null });
   players(room).forEach((p) => {
     clearTimeout(p.ctimer);
-    Object.assign(p, { mn: 0, mout: false, mwon: 0, mjok: { fifty: 1, public: 1, swap: 1 }, mq: null, mpick: null, mstop: false, mremoved: [], seen: new Set(), cdiff: 1, dead: false, outAt: 0, lives: 0, score: 0 });
+    Object.assign(p, { mn: 0, mout: false, mwon: 0, mjok: { fifty: 1, public: 1, swap: room.tvOn ? 0 : 1 }, mq: null, mpick: null, mstop: false, mremoved: [], seen: new Set(), cdiff: 1, dead: false, outAt: 0, lives: 0, score: 0 });
   });
   cast(room, { t: "load", msg: "Préparation de l'échelle…" });
   const ai = room.cfg.themes.some((t) => !LOCAL_THEMES.includes(t));
@@ -1264,15 +1371,15 @@ async function mQuestion(room, holder, d) { // il faut 4 choix pour le 50/50 et 
   for (let i = 0; i < 6; i++) { q = await takeFor(room, holder); if (new Set(q.o).size >= 4) break; }
   return q;
 }
-function mWatch(room) { // la question commune, vue par les éliminés et la télé
+function mWatch(room, tv) { // la question commune, vue par les éliminés et la télé (avec une télé, les téléphones ne l'ont pas)
   const q = room.mshared;
   const left = room.cfg.time ? Math.max(1, Math.round((room.mEnd - Date.now()) / 1000)) : 0;
-  return { t: "mq", watch: true, n: room.mn, tag: `${q.t} · ${LEVELS[millionLevel(room.mn)]}`, q: q.q, img: q.img || null, audio: q.audio || null, options: q.options, jok: {}, time: left, total: room.cfg.time };
+  return { t: "mq", watch: true, n: room.mn, tag: `${q.t} · ${LEVELS[millionLevel(room.mn)]}`, q: room.tvOn && !tv ? "" : q.q, img: room.tvOn && !tv ? null : q.img || null, audio: room.tvOn && !tv ? null : q.audio || null, options: q.options, jok: {}, time: left, total: room.cfg.time };
 }
 function mSend(room, p, extra = {}) {
   const left = room.cfg.time ? Math.max(1, Math.round((room.mEnd - Date.now()) / 1000)) : 0;
   send(p.ws, {
-    t: "mq", n: room.mn, tag: `${p.mq.t} · ${LEVELS[millionLevel(room.mn)]}`, q: p.mq.q, img: p.mq.img || null,
+    t: "mq", n: room.mn, tag: `${p.mq.t} · ${LEVELS[millionLevel(room.mn)]}`, q: room.tvOn ? "" : p.mq.q, img: room.tvOn ? null : p.mq.img || null, // avec la télé : la question est sur la télé
     options: p.mq.options, jok: p.mjok, time: left, total: room.cfg.time, ...extra
   });
 }
@@ -1292,10 +1399,10 @@ async function mNext(room, again) {
   room.mshared = { ...q, options: shuffle(q.o) }; // la question que voient les spectateurs
   now.forEach((p) => {
     markIn(p.seen, q);
-    Object.assign(p, { mq: { ...q, options: shuffle(q.o) }, mpick: null, mstop: false, mremoved: [] });
+    Object.assign(p, { mq: { ...q, options: room.tvOn ? room.mshared.options : shuffle(q.o) }, mpick: null, mstop: false, mremoved: [] }); // avec la télé : le même ordre que sur l'écran
     mSend(room, p);
   });
-  [...watchers(room).map((p) => p.ws), ...tvs(room)].forEach((w) => send(w, mWatch(room))); // les éliminés et la télé suivent la partie en direct
+  watchers(room).forEach((p) => send(p.ws, mWatch(room))); tvs(room).forEach((w) => send(w, mWatch(room, true))); // les éliminés et la télé suivent la partie en direct
   mBoard(room);
   if (room.cfg.time) room.timer = setTimeout(() => mReveal(room), room.cfg.time * 1000 + 1500);
 }
@@ -1395,7 +1502,7 @@ function dropTv(ws) {
 // prévient les téléphones qu'une télé est (ou n'est plus) branchée, sans les renvoyer au salon en pleine partie
 function tvNotify(room) {
   if (room.phase === "lobby" || room.phase === "end") return castLobby(room);
-  players(room).forEach((p) => !p.left && send(p.ws, { t: "tvflag", tv: tvs(room).size > 0, kind: room.cfg.kind }));
+  players(room).forEach((p) => !p.left && send(p.ws, { t: "tvflag", tv: tvFlag(room), kind: room.cfg.kind }));
   tvs(room).forEach((w) => send(w, lobbyMsg(room, { id: null }))); // la télé apprend les noms et photos
 }
 
@@ -1438,12 +1545,14 @@ function rejoin(ws, m) {
   const k = room.cfg.kind, L = room.last;
   if (k === "duel" && room.phase === "duel") {
     send(ws, duelState(room));
-    if (p.cq) send(ws, { t: "dq", tag: `${p.cq.t} · ${LEVELS[p.cq.d]}`, q: p.cq.q, img: p.cq.img || null, audio: p.cq.audio || null, options: p.cq.options, left: Math.max(0, room.duel.end - Date.now()) });
+    if (p.cq && room.duel.tv) send(ws, duelPad(room, p.cq));
+    else if (p.cq) send(ws, { t: "dq", tag: `${p.cq.t} · ${LEVELS[p.cq.d]}`, q: p.cq.q, img: p.cq.img || null, audio: p.cq.audio || null, options: p.cq.options, left: Math.max(0, room.duel.end - Date.now()) });
     return;
   }
   if (k === "chrono") {
     send(ws, { t: "cgo", ms: CHRONO_MS }); castBoard(room);
     if (p.done) return send(ws, { t: "cdone", points: p.points, score: p.score });
+    if (room.ct) { if (room.ct.cur && !room.ct.picks.has(p.id)) send(ws, chronoPad(room, room.ct, p)); return; }
     if (p.cq) {
       const left = Math.max(0, p.ms - (Date.now() - p.qAt));
       send(ws, { t: "cq", tag: `${p.cq.t} · ${LEVELS[p.cdiff]}`, q: p.cq.q, img: p.cq.img || null, audio: p.cq.audio || null, options: p.cq.options, ms: left, total: CHRONO_MS, points: p.points, streak: p.streak, diff: p.cdiff });
@@ -1466,7 +1575,7 @@ function rejoin(ws, m) {
     const o = { ...L };
     if (o.t === "q" && o.ms) o.ms = Math.max(1000, o.ms - (Date.now() - L.at));
     if (o.t === "q" && (room.phase === "bet" || room.phase === "q") && room.cfg.kind === "parieurs") Object.assign(o, betsFor(room, p.id)); // les paris déjà placés (cachés à celui qui répond)
-    send(ws, o);
+    send(ws, forPhone(room, o));
   }
 }
 
@@ -1556,6 +1665,9 @@ function handle(ws, m) {
     send(ws, { t: "tvok", code: room.code });
     tvNotify(room); // les téléphones savent qu'une télé est branchée
     if (room.phase === "chrono") castBoard(room);
+    if (room.phase === "chrono" && room.ct && room.ct.cur) { const q = room.ct.cur; send(ws, { ...chronoPad(room, room.ct, {}), q: q.q, img: q.img || null, ms: Math.max(0, CHRONO_QMS - (Date.now() - room.ct.qAt)), n: room.ct.n }); }
+    if (room.phase === "duel") { send(ws, duelState(room)); const q = room.duel.cur; if (room.duel.tv && q) send(ws, { ...duelPad(room, q), q: q.q, img: q.img || null, ms: DUEL_QMS }); }
+    if (room.phase === "mq" && room.mshared) send(ws, mWatch(room, true));
     if (room.phase === "mq" || room.phase === "mres") mBoard(room);
     if (["iclue", "italk", "ivote", "iguess", "ires"].includes(room.phase) && room.impTv) send(ws, room.impTv); // L'Imposteur (jamais la réponse avant la fin)
     return;
@@ -1592,6 +1704,7 @@ function handle(ws, m) {
   if (!me) return;
   const host = me.id === room.hostId;
   if (m.t === "start" && host && room.phase === "lobby") {
+    room.tvOn = tvs(room).size > 0; // une télé est branchée : les questions passent sur la télé, jamais sur les téléphones
     if (room.cfg.kind === "chrono") return startChrono(room); // le Chrono se joue aussi seul
     if (room.cfg.kind === "million") return startMillion(room); // le Millionnaire aussi
     if (players(room).length < 2) return send(ws, { t: "error", msg: "Il faut au moins 2 joueurs." });

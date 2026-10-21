@@ -251,6 +251,12 @@ body{transition:background-color .6s}
 @keyframes tsnapl{12%{transform:translateX(-1vw) rotate(4deg)}100%{transform:translate(-2vw,9vh) rotate(-38deg);opacity:0}}
 @keyframes tsnapr{12%{transform:translateX(1vw) rotate(-4deg)}100%{transform:translate(2vw,9vh) rotate(38deg);opacity:0}}
 .tdtrack.snap .tdknot{animation:tknot 1s cubic-bezier(.3,1.6,.5,1)} @keyframes tknot{40%{transform:scale(1.5)}}
+/* Le Duel avec la télé : la corde au-dessus de la question, sans colonne de droite */
+.grope{margin:-1vh 0 2vh}
+.grope .tduel{width:100%;margin:0;grid-template-columns:16vw 1fr 16vw}
+.grope .tdp{flex-direction:row;justify-content:center;gap:1vw}
+.grope .tdp .avatar{width:7vh;height:7vh;font-size:3vh}
+#tGame.duelon .gbody{grid-template-columns:1fr} #tGame.duelon .side{display:none}
 /* Le Duel */
 .tduel{display:grid;grid-template-columns:18vw 1fr 18vw;align-items:center;gap:3vw;width:90vw;margin:4vh 0}
 .tdp{display:flex;flex-direction:column;align-items:center;gap:1vh;font:800 clamp(18px,3vh,36px) var(--display)}
@@ -320,6 +326,7 @@ body{transition:background-color .6s}
     <div class="gwho" id="gWho"></div>
     <div class="gmeta"><span class="chip sky" id="gTag"></span><span class="chip" id="gCount"></span></div>
   </div>
+  <div class="grope" id="gRope" hidden></div>
   <div class="gbody">
     <div class="stage">
       <div class="qcard" id="gCard">
