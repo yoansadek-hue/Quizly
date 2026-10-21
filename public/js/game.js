@@ -11,7 +11,7 @@ import { initCosmetics, styleName, titleOf } from "./cosmetics.js";
 import { initQuests } from "./quests.js";
 import { impUI, IMP_PTS, answerMatches } from "./impostor.js";
 
-const VERSION = "2.29.2"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.30.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -42,7 +42,7 @@ const S = {
 };
 const M = () => MODES[S.mode];
 document.querySelectorAll(".ver").forEach((e) => (e.textContent = `Quizly v${VERSION} · par YoskanGame`));
-const online = initOnline({ $, show, flash, confetti, imp, me: () => ({ name: S.firstName || "Joueur", photo: S.photo || "", uid: S.uid || "", cos: cosm.get() }),
+const online = initOnline({ $, show, flash, confetti, imp, isChamp: (uid) => friends.isChamp(uid), me: () => ({ name: S.firstName || "Joueur", photo: S.photo || "", uid: S.uid || "", cos: cosm.get() }),
   addFriend: (uid, name) => friends.addByUid(uid, name), isFriend: (uid) => friends.isFriend(uid), record: saveRecord, millionUI, avatarEl, setAudio, noteQ: noteRecent, recent: () => getRecent().arr.slice(-300).map((x) => String(x).slice(0, 220)), setMode: (kind) => (S.mode = KIND_MODE[kind] || "online"), stat: { answer: (t, ok) => statAnswer(t, ok), game: (k) => statGame(k), win: () => quests.tick("win") } });
 // record personnel (gardé sur l'appareil, par compte, puis synchronisé) : en ligne il compte autant que seul
 // k : « bestChrono » (Chrono) ou « bestMillion » (Qui veut gagner des millions)
@@ -922,7 +922,7 @@ function renderProfile() {
   const st = getStats();
   const best = (k) => { try { return +localStorage.getItem(`quizly:${S.uid}:${k}`) || 0; } catch { return 0; } };
   $("profName").textContent = S.firstName || "Profil";
-  styleName($("profName"), cosm.get()); $("profTitle").textContent = titleOf(cosm.get()); $("profTitle").hidden = !titleOf(cosm.get()); // votre couleur de pseudo et votre titre
+  styleName($("profName"), cosm.get()); $("profName").classList.toggle("champ", friends.isChamp("me")); $("profTitle").textContent = titleOf(cosm.get()); $("profTitle").hidden = !titleOf(cosm.get()); // votre couleur de pseudo et votre titre
   $("coinCount").textContent = cosm.coins();
   $("s-profile").querySelector(".profhead").className = `profhead banner ${cosm.get().banner}`; // votre bannière
   $("meEdit").hidden = true;
@@ -1199,7 +1199,7 @@ async function saveDevice() { const sub = await currentSub(); if (sub) friends.s
 $("btnPush").onclick = async () => { $("btnPush").disabled = true; await askPush(); $("btnPush").disabled = false; };
 // barre d'onglets du bas (comme Instagram) : visible sur les écrans principaux, cachée en partie et sur les écrans à bouton fixe
 const TAB_OF = { "s-mode": "s-mode", "s-sub": "s-mode", "s-online": "s-mode", "s-friends": "s-friends", "s-friend": "s-friends", "s-shop": "s-shop", "s-profile": "s-profile", "s-settings": "s-settings", "s-notifs": "", "s-quests": "" };
-const TAB_ORDER = ["s-mode", "s-friends", "s-shop", "s-profile", "s-settings"];
+const TAB_ORDER = ["s-shop", "s-friends", "s-mode", "s-profile", "s-settings"]; // dans l'ordre de la barre du bas (Boutique à gauche, Accueil au milieu)
 function tabbar(id) {
   const bar = $("tabbar"), on = id in TAB_OF;
   bar.hidden = !on;
@@ -1480,7 +1480,7 @@ async function afterCloud() {
   questBadge(quests.ready());
   await friends.start();
   enablePush(S.uid, false).then((st) => { pushUI(st); if (st === "granted") saveDevice(); }); // réinscrit cet appareil (sans rien demander)
-  if (new URLSearchParams(location.search).get("defi")) { try { history.replaceState(null, "", location.pathname); } catch {} openDaily(); } // notification de 10 h touchée
+  if (!S.defiDone && new URLSearchParams(location.search).get("defi")) { S.defiDone = true; try { history.replaceState(null, "", location.pathname); } catch {} openDaily(); } // notification de 10 h touchée (une seule fois)
   if (new URLSearchParams(location.search).get("notifs")) { try { history.replaceState(null, "", location.pathname); } catch {} openNotifs(); } // annonce touchée
   if (new URLSearchParams(location.search).get("amis")) { try { history.replaceState(null, "", location.pathname); } catch {} openFriends(); } // ouvert depuis une notification
   const clubParam = new URLSearchParams(location.search).get("club"); // invitation dans un club touchée
@@ -1524,7 +1524,11 @@ $("btnUser").onclick = () => {
   if (!S.inGame) { stopTimer(); renderProfile(); return show("s-profile"); } // hors partie : le profil
   S.resume = !!S.tid; stopTimer();
   ask("Quitter la partie ?", "Êtes-vous sûr ? La partie en cours sera perdue.", "Quitter",
-    () => { S.inGame = false; S.resume = false; stopTimer(); million.quit(); show("s-mode"); },
+    () => {
+      S.inGame = false; S.resume = false; stopTimer(); million.quit();
+      if (D.running) { D.running = false; clearInterval(D.tid); const d = getDaily(); if (d) { setDaily({ ...d, done: true }); noteDailyDay(d); } } // défi du jour quitté exprès : terminé
+      show("s-mode");
+    },
     () => { if (S.resume) resumeTimer(); S.resume = false; });
 };
 $("cfNo").onclick = () => { $("confirm").hidden = true; const f = S.onNo; S.onYes = S.onNo = null; if (f) f(); };
@@ -1775,20 +1779,33 @@ function dailyCard() {
 const D = { set: null, i: 0, score: 0, ms: 0, t0: 0, tid: null, lock: false };
 const DAILY_SEC = 20;
 async function openDaily() {
-  if (getDaily()) return dailyEnd(); // déjà commencé aujourd'hui (même abandonné) : le résultat et le classement
+  if (D.running && S.inGame) return show("s-daily"); // déjà en cours (ex. deuxième appel au lancement) : on ne l'arrête surtout pas
+  if (D.opening) return; // déjà en train de se charger
+  const d = getDaily();
+  if (d && (d.done !== false || d.i == null)) return dailyEnd(); // déjà fait aujourd'hui : le résultat et le classement
+  D.opening = true;
   $("loadText").textContent = "Préparation du défi…"; $("loadErr").hidden = true; show("s-load");
   try { D.set = await (await fetch("/api/daily")).json(); }
-  catch { $("loadText").textContent = "Impossible de charger le défi du jour."; $("loadErr").hidden = false; return; }
+  catch { D.opening = false; $("loadText").textContent = "Impossible de charger le défi du jour."; $("loadErr").hidden = false; return; }
+  D.opening = false;
   if (!D.set.questions || D.set.questions.length < 10) { $("loadText").textContent = "Le défi du jour n'est pas prêt."; return; }
-  Object.assign(D, { i: 0, score: 0, ms: 0 });
-  setDaily({ day: D.set.day, score: 0, ms: 0, done: false }); // une seule tentative : quitter compte comme terminé
-  S.inGame = true; statGame("daily");
+  if (d && d.done === false) { // commencé puis interrompu (appli rechargée, fermée…) : on reprend là où on en était
+    Object.assign(D, { i: d.i, score: d.score || 0, ms: d.ms || 0 });
+    if (d.shown) { D.i++; D.ms += DAILY_SEC * 1000; } // une question vue mais pas répondue compte comme ratée (pas de triche)
+    if (D.i >= 10) { setDaily({ ...d, i: 10, shown: false, done: true }); return dailyEnd(true); }
+  } else {
+    Object.assign(D, { i: 0, score: 0, ms: 0 });
+    statGame("daily");
+  }
+  setDaily({ day: D.set.day, score: D.score, ms: D.ms, done: false, i: D.i, shown: false }); // une seule tentative
+  D.running = true; S.inGame = true;
   $("dPlay").hidden = false; $("dEnd").hidden = true;
   dailyQ();
 }
 function dailyQ() {
   const q = D.set.questions[D.i];
   D.lock = false;
+  setDaily({ day: D.set.day, score: D.score, ms: D.ms, done: false, i: D.i, shown: true }); // vue : si on quitte maintenant, elle compte comme ratée
   $("dStep").textContent = `Question ${D.i + 1} / 10`;
   $("dScore").textContent = `${D.score} bonne${D.score > 1 ? "s" : ""}`;
   $("dTag").textContent = `${q.t} · ${LEVELS[q.d]}`;
@@ -1815,11 +1832,11 @@ function dailyPick(btn, o) {
   statAnswer(q.t, ok);
   [...$("dOpts").children].forEach((b) => { b.disabled = true; if (b.textContent === q.a) b.classList.add("right"); else if (b === btn) b.classList.add("wrong"); });
   flash(ok ? "ok" : "ko");
-  setDaily({ day: D.set.day, score: D.score, ms: D.ms, done: D.i === 9 });
+  setDaily({ day: D.set.day, score: D.score, ms: D.ms, done: D.i === 9, i: D.i + 1, shown: false });
   setTimeout(() => { if (!S.inGame) return; D.i++; if (D.i < 10) dailyQ(); else dailyEnd(true); }, 1200);
 }
 function dailyEnd(fresh) {
-  S.inGame = false; clearInterval(D.tid);
+  S.inGame = false; D.running = false; clearInterval(D.tid);
   const d = getDaily() || { score: 0, ms: 0 };
   if (d.done === false) setDaily({ ...d, done: true });
   noteDailyDay(d);
@@ -2120,6 +2137,7 @@ function rankRow(p, i, txt) {
   const li = document.createElement("li"); li.className = "rk" + (i === 0 ? " first" : "") + (p.you ? " mine" : "");
   const pos = document.createElement("span"); pos.className = "pos"; pos.textContent = i + 1;
   const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = p.you ? `${p.name} (vous)` : p.name;
+  if (friends.isChamp(p.you ? "me" : p.uid)) nm.classList.add("champ"); // le champion du Défi du jour
   const st = document.createElement("span"); st.className = "st"; st.textContent = txt;
   li.append(pos, avatarEl(p.name, p.photo), nm, st); return li;
 }
@@ -2186,8 +2204,13 @@ const cosm = initCosmetics({
 });
 /* ---------- Défis : défi du jour, défis quotidiens et hebdomadaires, la veille ---------- */
 const quests = initQuests({ $, uid: () => S.uid, earn: (n, why) => cosm.earn(n, why), onChange: (n) => questBadge(n) });
-function questBadge(n) { $("questBadge").hidden = !n; $("questBadge").textContent = n > 9 ? "9+" : n; }
-function openQuests() { renderQuestDaily(); quests.render(); qTab(QTAB); show("s-quests"); }
+function questBadge(n) {
+  $("questBadge").hidden = !n; $("questBadge").textContent = n > 9 ? "9+" : n;
+  // et sur les onglets des Défis : « Du jour » et « Semaine », dès qu'une récompense est à récupérer
+  let p = { day: 0, week: 0 }; try { p = quests.parts(); } catch {}
+  [["qDayBadge", p.day], ["qWeekBadge", p.week]].forEach(([id, k]) => { $(id).hidden = !k; $(id).textContent = k > 9 ? "9+" : k; });
+}
+function openQuests() { renderQuestDaily(); quests.render(); qTab(QTAB); questBadge(quests.ready()); show("s-quests"); }
 // onglets des Défis : Défi du jour · Du jour · Semaine
 let QTAB = "daily";
 function qTab(t) {
@@ -2215,3 +2238,12 @@ function renderQuestDaily() {
 }
 
 $("btnCoins").onclick = () => { cosm.render(); show("s-shop"); };
+
+// le champion du Défi du jour vient de changer : les écrans ouverts se mettent à jour
+document.addEventListener("quizly:champ", () => {
+  if (curScreen === "s-profile") renderProfile();
+  else if (curScreen === "s-quests") renderQuestDaily();
+  else if (curScreen === "s-daily" && !$("dEnd").hidden) renderDailyBoard(getDaily());
+});
+// au démarrage : les pastilles des Défis tout de suite (sans attendre le cloud)
+try { questBadge(quests.ready()); } catch {}

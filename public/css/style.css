@@ -1390,3 +1390,11 @@ html[data-mode=dark] .btn.sun,html[data-mode=dark] .btn.mint,html[data-mode=dark
 .screen:not(.center){display:flow-root}
 .profgrid .stat span{color:rgba(30,15,69,.75)} /* lisible aussi sur le rouge vif */
 #customList.dim .custom-chip{opacity:.3;pointer-events:none} /* Aléatoire actif : thèmes personnalisés verrouillés aussi */
+/* ---------- 2.30 : le champion du Défi du jour : un pseudo doré qui scintille ---------- */
+.champ{background:linear-gradient(90deg,#ffe14d,#ff9f45,#ff3b5c,#c79bff,#62c7ff,#ffe14d);background-size:250% 100%;-webkit-background-clip:text;background-clip:text;color:transparent!important;-webkit-text-fill-color:transparent;animation:champ 3.5s linear infinite;filter:drop-shadow(0 1px 0 rgba(30,15,69,.55))}
+@keyframes champ{to{background-position:250% 0}}
+@media (prefers-reduced-motion:reduce){.champ{animation:none}}
+body.calm .champ{animation:none}
+/* sur une surface claire (lignes de classement, cartes d'amis, salon) : un dégradé plus foncé, toujours lisible */
+.rk .champ,.fcard .champ,#lobbyList .champ{background-image:linear-gradient(90deg,#c2185b,#7b2ff7,#0b7bc4,#e65100,#c2185b);filter:none}
+:root[data-mode=dark] .rk:not(.first) .champ,:root[data-mode=dark] .fcard .champ{background-image:linear-gradient(90deg,#ffe14d,#ff9f45,#ff3b5c,#c79bff,#62c7ff,#ffe14d)}
