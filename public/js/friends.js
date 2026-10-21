@@ -280,15 +280,16 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
       $("rankEmpty").hidden = true; $("rankList").hidden = false; $("rankTabs").hidden = false;
     }
     const k = F.tab, fmt = (v) => (k === "bestMillion" ? euros(v || 0) : `${v || 0} pts`);
-    const sorted = people.sort((a, b) => ((b.records || {})[k] || 0) - ((a.records || {})[k] || 0));
-    $("rankList").replaceChildren(...sorted.map((p, i) => {
+    // seulement ceux qui ont au moins 1 point (un record à 0 n'a rien à faire dans un classement)
+    const sorted = people.filter((p) => ((p.records || {})[k] || 0) >= 1).sort((a, b) => ((b.records || {})[k] || 0) - ((a.records || {})[k] || 0));
+    $("rankList").replaceChildren(...(sorted.length ? sorted.map((p, i) => {
       const li = document.createElement("li"); li.className = "rk" + (i === 0 ? " first" : "");
       const pos = document.createElement("span"); pos.className = "pos"; pos.textContent = i + 1;
       const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = p.you ? `${p.name} (vous)` : p.name;
       const st = document.createElement("span"); st.className = "st"; st.textContent = fmt((p.records || {})[k]);
       li.append(pos, avatarEl(p.name, p.photo), nm, st);
       return li;
-    }));
+    }) : [Object.assign(document.createElement("p"), { className: "lead small", textContent: "Personne n'a encore de points dans ce mode." })]));
     if (F.scope !== "world") {
       $("rankList").hidden = !F.friends.length; $("rankTabs").hidden = !F.friends.length;
       $("rankEmpty").hidden = !!F.friends.length;
