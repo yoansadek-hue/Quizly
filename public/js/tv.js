@@ -5,7 +5,7 @@ import { THEMES } from "./questions.js";
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
-const KIND = { survie: "Survie", chrono: "Chrono 60 s", million: "Qui veut gagner des millions", equipes: "Équipes", parieurs: "Les Parieurs", imposteur: "L'Imposteur" };
+const KIND = { survie: "Survie", chrono: "Chrono 60 s", million: "Qui veut gagner des millions", equipes: "Équipes", parieurs: "Les Parieurs", imposteur: "L'Imposteur", royale: "Le Dernier Debout" };
 const TAUNTS = ["Trop facile", "Tu dors ?", "Pleure pas", "Même pas peur", "Je suis trop fort", "Cadeau !", "Bruh"];
 const T = { ws: null, code: "", pl: {}, kind: "survie", raf: 0, last: null, board: [], mboard: [], who: null, craf: 0 };
 
@@ -55,6 +55,7 @@ function onMsg(m) {
     case "mspec": renderMSpec(m); break;
     case "mout": break; // visible dans la colonne de droite
     case "bets": betCount(m.count); break;
+    case "rcount": $("gLive").replaceChildren(el("span", "chip", `${m.n} / ${m.total} ont répondu`)); break;
     case "imp": renderImp(m); break;
     case "ivoted": $("tImpLive").replaceChildren(el("span", "chip", `${m.count} / ${m.total} ont voté`)); break;
     case "iclued": $("tImpLive").replaceChildren(el("span", "chip", `${m.count} / ${m.total} indices écrits`)); break;
@@ -167,7 +168,7 @@ function renderQ(m) {
   T.last = m;
   paint(m);
   $("gWho").replaceChildren(avatarEl(m.name, photo(m.who), true), el("span", null, m.name));
-  $("gCount").textContent = m.teams ? `Équipe ${m.team}` : `Question ${m.qn || ""}`.trim();
+  $("gCount").textContent = m.royale ? `${m.alive} debout · ${m.sec} s` : m.teams ? `Équipe ${m.team}` : `Question ${m.qn || ""}`.trim();
   const sec = m.ms ? m.ms / 1000 : 0;
   ring("gArc", "gClock", "gRing", sec, sec);
   renderSide(m.board, m.who, m.teams);
@@ -196,6 +197,12 @@ function betsGo(m) { // les paris sont fermés : la réponse arrive
 }
 function renderResult(m) {
   stopRing();
+  if (m.royale) { // Le Dernier Debout : qui tombe à cette manche
+    reveal(m.answer, -1);
+    verdict(m.saved ? "Tout le monde s'est trompé : personne ne tombe !" : m.out.length ? `Éliminé${m.out.length > 1 ? "s" : ""} : ${m.out.join(", ")}` : "Tout le monde reste debout !", m.out.length ? "ko" : "ok");
+    $("gLive").replaceChildren(el("span", "chip", `${m.alive} encore debout`));
+    return renderSide(m.board, null, null);
+  }
   reveal(m.answer, m.picked);
   verdict(m.correct ? `Bonne réponse de ${m.name} !${m.gain ? ` +${m.gain} jetons` : ""}${m.revenge ? ` · vengeance +${m.revenge}` : ""}` : m.dead ? `${m.name} est éliminé` : m.picked < 0 ? "Temps écoulé !" : `Raté pour ${m.name}`, m.correct ? "ok" : "ko");
   if (m.bets) betChips(m.bets);
@@ -214,6 +221,14 @@ function renderSide(board, cur, teams) {
       board.filter((p) => p.team === k).forEach((p) => ms.append(el("span", p.id === cur ? "cur" : "", p.name)));
       d.style.opacity = 0.75 + 0.25 * (t.points / max);
       d.append(h, ms); return d;
+    }));
+    return;
+  }
+  if (T.kind === "royale") { // Le Dernier Debout : les survivants en haut
+    side.replaceChildren(el("h3", null, `Debout · ${board.filter((p) => !p.dead).length}`), ...[...board].sort((a, b) => a.dead - b.dead || b.score - a.score).map((p) => {
+      const r = el("div", "prow" + (p.dead ? " dead" : ""));
+      r.append(avatarEl(p.name, photo(p.id)), el("span", "pn", p.name), el("span", "pv", p.dead ? "éliminé" : `${p.score} ✓`));
+      return r;
     }));
     return;
   }
@@ -306,7 +321,7 @@ function renderRace() {
 /* ---------- fin : podium et confettis ---------- */
 function renderEnd(m) {
   stopRing(); cancelAnimationFrame(T.craf);
-  const fmt = (p) => (m.kind === "million" ? euros(p.points) : m.kind === "parieurs" ? `${p.points} jetons` : m.kind === "imposteur" ? `${p.points} pts` : m.kind === "chrono" || m.kind === "equipes" ? `${p.points} pts` : `${p.score} bonne${p.score > 1 ? "s" : ""}`);
+  const fmt = (p) => (m.kind === "million" ? euros(p.points) : m.kind === "parieurs" ? `${p.points} jetons` : m.kind === "imposteur" ? `${p.points} pts` : m.kind === "royale" ? `${p.score} bonne${p.score > 1 ? "s" : ""}` : m.kind === "chrono" || m.kind === "equipes" ? `${p.points} pts` : `${p.score} bonne${p.score > 1 ? "s" : ""}`);
   $("tEndLead").textContent = m.winner ? "Vainqueur" : "Partie terminée";
   $("tWinner").textContent = m.winner || "Égalité";
   const top = m.ranking.slice(0, 3);
