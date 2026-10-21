@@ -529,6 +529,12 @@ addEventListener("error", function (e) {
     <p class="who"><span class="whoL"><span id="whoAv"></span><span id="whoName"></span></span><span id="whoLives" class="chip small"></span></p>
     <p class="alive" id="alive"></p>
     <div class="mlive" id="sLive" hidden></div>
+    <!-- Le Duel : la corde, tirée vers celui qui répond juste -->
+    <div class="duelbar" id="duelBar" hidden>
+      <div class="dside me"><span id="dMeAv"></span><b id="dMeName">Vous</b><small id="dMeScore">0</small></div>
+      <div class="drope"><div class="dtrack"><i class="dzone l"></i><i class="dzone r"></i><i class="dmid"></i><span class="dknot" id="dKnot"></span></div></div>
+      <div class="dside them"><span id="dThemAv"></span><b id="dThemName"></b><small id="dThemScore">0</small></div>
+    </div>
     <ol class="liveboard" id="liveBoard" hidden aria-label="Classement en direct"></ol>
     <div class="clockrow" id="clockrow"><div class="timer"><i id="bar30"></i></div><span id="clock" class="clock">30</span><button class="chip small stop" id="btnStopTimer" aria-label="Arrêter le timer">Arrêter le timer</button></div>
     <div class="scene" id="scene"><div class="card" id="card" role="button" tabindex="0" aria-label="Retourner la carte">

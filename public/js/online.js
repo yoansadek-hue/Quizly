@@ -126,6 +126,10 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
       // Les Parieurs en ligne
       case "bets": if (O.cur) { O.cur.bets = m.bets; O.cur.count = m.count; if (m.odds) O.cur.odds = m.odds; renderBets(); } break;
       case "go": goAnswer(m); break;
+      // Le Duel : la corde, ma question, ma correction
+      case "rope": duelRope(m); break;
+      case "dq": renderDQ(m); break;
+      case "dres": duelRes(m); break;
       // Le Dernier Debout : combien ont déjà répondu
       case "rcount": if (O.cur && O.cur.royale) $("alive").textContent = `${O.answered ? "Réponse envoyée · " : ""}${m.n} / ${m.total} ont répondu`; break;
       // L'Imposteur en ligne
@@ -213,8 +217,8 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     });
     const host = m.host === m.you;
     $("lobbyCount").textContent = `${m.players.length} / 20 joueurs`;
-    const chrono = m.cfg.kind === "chrono", mill = m.cfg.kind === "million", teams = m.cfg.kind === "equipes", bets = m.cfg.kind === "parieurs", impo = m.cfg.kind === "imposteur", royale = m.cfg.kind === "royale", need = chrono || mill ? 1 : impo ? 3 : 2; // Chrono et Millionnaire se jouent aussi seul
-    $("betBox").hidden = true; $("sLive").hidden = true;
+    const chrono = m.cfg.kind === "chrono", mill = m.cfg.kind === "million", teams = m.cfg.kind === "equipes", bets = m.cfg.kind === "parieurs", impo = m.cfg.kind === "imposteur", royale = m.cfg.kind === "royale", duel = m.cfg.kind === "duel", need = chrono || mill ? 1 : impo ? 3 : 2; // Chrono et Millionnaire se jouent aussi seul
+    $("betBox").hidden = true; $("sLive").hidden = true; $("duelBar").hidden = true;
     tvMode(m.tv, m.cfg.kind);
     // salon télé : pas de code à donner, on rejoint seulement en scannant la télé
     $("lobbyCode").hidden = !!m.tvRoom;
@@ -231,17 +235,19 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     $("lobbyInfo").textContent = chrono
       ? `Chrono 60 s · ${plural(m.cfg.themes.length, "thème")} · le plus de points gagne`
       : mill ? `Qui veut gagner des millions · toutes les catégories · ${m.cfg.time ? m.cfg.time + " s par question" : "sans limite"}`
+      : duel ? `Le Duel · ${plural(m.cfg.themes.length, "thème")} · à deux · 2 minutes · chaque bonne réponse tire la corde vers soi`
       : royale ? `Le Dernier Debout · ${plural(m.cfg.themes.length, "thème")} · tout le monde répond en même temps · 15 s, puis 12 s, 10 s… · jusqu'à 20 joueurs`
       : impo ? `L'Imposteur · ${plural(m.cfg.themes.length, "thème")} · ${m.cfg.time ? m.cfg.time + " s de discussion" : "discussion sans limite"} · 3 joueurs ou plus`
       : bets ? `Les Parieurs · ${plural(m.cfg.themes.length, "thème")} · ${m.cfg.time ? m.cfg.time + " s" : "sans limite"} · 3 questions par joueur · 100 jetons au départ`
       : teams ? `Équipes · ${plural(m.cfg.themes.length, "thème")} · ${m.cfg.time ? m.cfg.time + " s" : "sans limite"} · 3 questions par joueur${m.cfg.auto ? " · difficulté évolutive" : ""}`
       : `${plural(m.cfg.themes.length, "thème")} · ${m.cfg.time ? m.cfg.time + " s" : "sans limite"} · ${plural(m.cfg.lives, "vie")}${m.cfg.auto ? " · difficulté évolutive" : ""}`;
     $("btnLobbyStart").hidden = !host;
-    $("btnLobbyStart").disabled = m.players.length < need;
-    $("btnLobbyStart").textContent = m.players.length < need ? `Il faut au moins ${need} joueurs` : chrono ? "Lancer le chrono" : mill ? "Lancer l'échelle" : "Lancer la partie";
+    const wrong = duel ? m.players.length !== 2 : m.players.length < need; // le Duel : exactement deux joueurs
+    $("btnLobbyStart").disabled = wrong;
+    $("btnLobbyStart").textContent = wrong ? (duel ? "Il faut exactement 2 joueurs" : `Il faut au moins ${need} joueurs`) : chrono ? "Lancer le chrono" : mill ? "Lancer l'échelle" : duel ? "Lancer le Duel" : "Lancer la partie";
     $("btnLobbyEdit").hidden = !host;
-    $("lobbyWait").hidden = host && m.players.length >= need;
-    $("lobbyWait").textContent = host ? `Il faut au moins ${need} joueurs pour lancer.` : "En attente de l'hôte…";
+    $("lobbyWait").hidden = host && !wrong;
+    $("lobbyWait").textContent = host ? (duel ? "Le Duel se joue à deux : invitez un adversaire." : `Il faut au moins ${need} joueurs pour lancer.`) : "En attente de l'hôte…";
     msg("");
   }
 
@@ -271,7 +277,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
 
   /* ----- question ----- */
   function renderQ(m) {
-    O.cur = m; O.answered = false; O.myPick = -1;
+    O.cur = m; O.answered = false; O.myPick = -1; $("duelBar").hidden = true;
     $("liveBoard").hidden = true; // réservé au Chrono
     // Le Dernier Debout : tout le monde répond en même temps (sauf les éliminés, qui regardent)
     const royale = !!m.royale, meRow = (m.board || []).find((p) => p.id === O.you), out = royale && (!meRow || meRow.dead);
@@ -320,6 +326,60 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     renderBets();
     show("s-game");
     startClock(m.ms);
+  }
+
+  /* ----- Le Duel : tir à la corde, chacun ses questions ----- */
+  const mmss = (ms) => { const t = Math.max(0, Math.ceil(ms / 1000)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`; };
+  function duelTick() { // le compte à rebours des 2 minutes, en haut à droite
+    clearInterval(O.dtid);
+    const up = () => { if (O.duel) $("whoLives").textContent = mmss(O.duelEnd - Date.now()); };
+    up(); O.dtid = setInterval(up, 500);
+  }
+  function duelRope(m) {
+    O.duel = m; O.duelEnd = Date.now() + m.left;
+    const meIsA = m.a === O.you, myPull = meIsA ? -m.rope : m.rope; // > 0 : la corde est de mon côté (à gauche)
+    const [mine, them] = meIsA ? m.players : [...m.players].reverse();
+    $("duelBar").hidden = false;
+    $("dMeAv").replaceChildren(avatarEl(mine.name, mine.photo)); $("dMeName").textContent = "Vous"; $("dMeScore").textContent = mine.score;
+    $("dThemAv").replaceChildren(avatarEl(them.name, them.photo)); $("dThemName").textContent = them.name; $("dThemScore").textContent = them.score;
+    const k = $("dKnot");
+    k.style.left = `${50 - (myPull / m.steps) * 42}%`;
+    if (m.by) { k.classList.remove("pull"); void k.offsetWidth; k.classList.add("pull"); }
+    if (m.by && m.ok && m.by !== O.you && O.cur && O.cur.duel && !O.answered) $("alive").textContent = `${them.name} tire !`;
+    if (m.start) { $("alive").textContent = "Tire la corde : réponds vite et juste !"; duelTick(); }
+  }
+  function renderDQ(m) {
+    O.cur = { ...m, duel: true }; O.answered = false;
+    O.duelEnd = Date.now() + m.left;
+    ["liveBoard", "sLive", "betBox", "clockrow"].forEach((id) => ($(id).hidden = true)); stopClock();
+    $("scene").classList.add("compact");
+    const card = $("card"); card.classList.remove("flipped"); card.style.animation = "none"; void card.offsetWidth; card.style.animation = "";
+    $("whoName").textContent = "Duel"; $("whoAv").replaceChildren(avatarEl(me().name, me().photo, true)); $("whoName").classList.remove("retry");
+    $("whoLives").hidden = false; $("alive").hidden = false; $("alive").textContent = "Tire la corde : réponds vite et juste !";
+    $("tag").textContent = m.tag; $("qText").textContent = m.q;
+    $("qText").dataset.len = m.q.length > 170 ? "xl" : m.q.length > 120 ? "l" : m.q.length > 80 ? "m" : "s";
+    const qi = $("qImg");
+    if (m.img) { qi.hidden = false; qi.onerror = () => { qi.hidden = true; }; qi.src = m.img; } else { qi.hidden = true; qi.removeAttribute("src"); }
+    setAudio($, m.audio);
+    ["btnSwap", "dockGame", "dockJudge", "dockNext"].forEach((id) => ($(id).hidden = true));
+    const box = $("mcq"); box.replaceChildren(); box.classList.toggle("long", m.options.some((o) => o.length > 24));
+    m.options.forEach((o, i) => {
+      const b = document.createElement("button"); b.className = "btn white"; b.textContent = o; b.style.animation = `pop .25s ${i * 40}ms backwards`;
+      b.onclick = () => { if (O.answered) return; O.answered = true; b.classList.add("picked"); box.querySelectorAll(".btn").forEach((x) => (x.disabled = true)); send({ t: "answer", i }); };
+      box.append(b);
+    });
+    box.hidden = false;
+    $("duelBar").hidden = false;
+    show("s-game");
+    if (!O.dtid) duelTick();
+  }
+  function duelRes(m) {
+    if (stat && O.cur) stat.answer(theme(O.cur.tag), m.correct);
+    const btns = [...document.querySelectorAll("#mcq .btn")];
+    btns.forEach((b) => { b.disabled = true; if (b.textContent === m.answer) b.classList.add("right"); });
+    if (!m.correct && O.cur && m.picked >= 0) btns.forEach((b) => b.textContent === O.cur.options[m.picked] && b.classList.add("wrong"));
+    $("alive").textContent = m.correct ? "Bien joué : la corde vient vers toi !" : "Raté : une seconde de pénalité…";
+    flash(m.correct ? "ok" : "ko");
   }
 
   // Le Dernier Debout : la bonne réponse, qui tombe, qui reste debout (la manche suivante démarre toute seule)
@@ -449,16 +509,18 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
 
   function renderEnd(m) {
     stopClock();
-    const chrono = m.kind === "chrono", mill = m.kind === "million", teams = m.kind === "equipes", bets = m.kind === "parieurs", impo = m.kind === "imposteur", royale = m.kind === "royale";
-    if (stat) stat.game(chrono ? "chrono" : mill ? "omillion" : teams ? "oteams" : bets ? "obets" : impo ? "oimp" : royale ? "oroyale" : "online");
+    const chrono = m.kind === "chrono", mill = m.kind === "million", teams = m.kind === "equipes", bets = m.kind === "parieurs", impo = m.kind === "imposteur", royale = m.kind === "royale", duel = m.kind === "duel";
+    clearInterval(O.dtid); O.dtid = null; O.duel = null; $("duelBar").hidden = true;
+    if (stat) stat.game(chrono ? "chrono" : mill ? "omillion" : teams ? "oteams" : bets ? "obets" : impo ? "oimp" : royale ? "oroyale" : duel ? "oduel" : "online");
     if (royale) $("endNote").textContent = m.winner ? `Dernier debout après ${m.rounds} manche${m.rounds > 1 ? "s" : ""}` : `${m.rounds} manches : égalité entre les survivants`;
     O.imp = null; if (imp) imp.stop();
-    $("betBox").hidden = true; $("sLive").hidden = true;
+    $("betBox").hidden = true; $("sLive").hidden = true; $("duelBar").hidden = true;
     if (stat && stat.win && !teams && m.winner && m.ranking && m.ranking.length > 1 && m.ranking[0].id === O.you) stat.win(); // victoire : pour les défis
     O.chrono = false; O.cur = null; O.mout = false; O.watch = false; mu.stopClock(); $("liveBoard").hidden = true;
     $("endLead").textContent = m.winner ? "Vainqueur" : "Partie terminée";
     $("winner").textContent = m.winner || "Égalité";
     $("endNote").textContent = "";
+    if (duel) $("endNote").textContent = !m.winner ? "Égalité parfaite !" : m.how === "corde" ? `${m.winner} a tiré la corde jusqu'au bout !` : m.how === "abandon" ? "L'autre joueur est parti." : "Temps écoulé : la corde était de son côté.";
     if (teams && m.mvp) $("endNote").textContent = `Meilleur joueur : ${m.mvp.name} (${m.mvp.points} pts)`;
     if (chrono) {
       const mine = m.ranking.find((p) => p.id === O.you);
@@ -485,7 +547,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
       const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = p.name;
       const av = avatarEl(p.name, p.photo || photoOf(p.id));
       const st = document.createElement("span"); st.className = "st";
-      st.textContent = royale ? (i === 0 && m.winner ? `dernier debout · ${p.score} bonne${p.score > 1 ? "s" : ""}` : `${p.score} bonne${p.score > 1 ? "s" : ""}`) : impo ? `${p.points} pts · imposteur ${p.score}×` : teams ? `${p.points} pts` : bets ? `${jetons(p.points)} · ${p.score} bonne${p.score > 1 ? "s" : ""}` : mill ? `${euros(p.points)} · ${p.score} bonne${p.score > 1 ? "s" : ""}` : chrono ? `${p.points} pts · ${p.score} bonne${p.score > 1 ? "s" : ""}` : `${p.score} bonne${p.score > 1 ? "s" : ""} · ${HEART} ${p.lives}`;
+      st.textContent = duel ? `${p.score} bonne${p.score > 1 ? "s" : ""}` : royale ? (i === 0 && m.winner ? `dernier debout · ${p.score} bonne${p.score > 1 ? "s" : ""}` : `${p.score} bonne${p.score > 1 ? "s" : ""}`) : impo ? `${p.points} pts · imposteur ${p.score}×` : teams ? `${p.points} pts` : bets ? `${jetons(p.points)} · ${p.score} bonne${p.score > 1 ? "s" : ""}` : mill ? `${euros(p.points)} · ${p.score} bonne${p.score > 1 ? "s" : ""}` : chrono ? `${p.points} pts · ${p.score} bonne${p.score > 1 ? "s" : ""}` : `${p.score} bonne${p.score > 1 ? "s" : ""} · ${HEART} ${p.lives}`;
       li.append(pos, av, nm, st);
       ol.append(li);
     });
