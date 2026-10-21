@@ -5,22 +5,24 @@
 let ctx = null, out = null, noiseBuf = null, on = true;
 const AC = window.AudioContext || window.webkitAudioContext;
 
-// le son ne peut démarrer qu'après un premier geste (iPhone, navigateurs) : on prépare tout au premier appui
-function boot() {
-  if (!AC) return null;
-  if (!ctx) {
-    try { ctx = new AC(); } catch { return null; }
-    const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 6;
-    out = ctx.createGain(); out.gain.value = 0.55;
-    out.connect(comp).connect(ctx.destination);
-    noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 0.5, ctx.sampleRate);
-    const d = noiseBuf.getChannelData(0);
-    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-  }
-  if (ctx.state === "suspended") ctx.resume().catch(() => {});
-  return ctx;
+// Créer le contexte audio coûte une image entière sur un téléphone : on le fait quand l'appli ne fait rien
+// (jamais pendant un geste). Il naît « en pause » ; le son ne peut démarrer qu'après un vrai geste (iPhone,
+// navigateurs) : la fin d'un appui le réveille, ce qui ne coûte presque rien.
+function make() {
+  if (ctx || !AC || !on) return;
+  try { ctx = new AC(); } catch { return; }
+  const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 6;
+  out = ctx.createGain(); out.gain.value = 0.55;
+  out.connect(comp).connect(ctx.destination);
 }
-["pointerdown", "keydown", "touchend"].forEach((ev) => addEventListener(ev, boot, { capture: true, passive: true }));
+const idle = window.requestIdleCallback || ((f) => setTimeout(f, 1200));
+addEventListener("load", () => idle(make, { timeout: 4000 }));
+function wake() {
+  if (!on) return;
+  if (!ctx) return idle(make, { timeout: 1000 }); // pas encore prêt : à la prochaine pause
+  if (ctx.state === "suspended") ctx.resume().catch(() => {});
+}
+["click", "keydown", "touchend"].forEach((ev) => addEventListener(ev, wake, { capture: true, passive: true }));
 
 // une note : forme d'onde, fréquence (avec glissé), départ, durée, volume
 function tone(f, t, dur, { type = "sine", to = 0, gain = 0.15, attack = 0.006 } = {}) {
@@ -34,6 +36,11 @@ function tone(f, t, dur, { type = "sine", to = 0, gain = 0.15, attack = 0.006 } 
 }
 // un souffle filtré (glissement d'écran, déclic)
 function noise(t, dur, { from = 800, to = 2400, q = 1.2, gain = 0.06 } = {}) {
+  if (!noiseBuf) { // un souffle blanc d'une demi-seconde, préparé au premier besoin
+    noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 0.5, ctx.sampleRate);
+    const d = noiseBuf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  }
   const s = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain(), t0 = ctx.currentTime + t;
   s.buffer = noiseBuf; f.type = "bandpass"; f.Q.value = q;
   f.frequency.setValueAtTime(from, t0); f.frequency.exponentialRampToValueAtTime(to, t0 + dur);
@@ -67,30 +74,47 @@ const SFX = {
 };
 let last = {};
 export function sfx(name) {
-  if (!on || !SFX[name] || !boot() || ctx.state !== "running") return;
+  if (!on || !SFX[name] || !ctx || ctx.state !== "running") return;
   const now = performance.now(); // pas deux fois le même son dans la même rafale
   if (now - (last[name] || 0) < 45) return;
   last[name] = now;
   try { SFX[name](); } catch {}
 }
-export function soundOn(v) { on = !!v; }
+export function soundOn(v) { on = !!v; if (!on && ctx) ctx.suspend().catch(() => {}); if (on && !ctx && document.readyState === "complete") idle(make, { timeout: 4000 }); }
 
 /* ---------- l'onde sous le doigt et le son des appuis ---------- */
+// le son part au « clic » (le navigateur n'en envoie pas si le doigt a glissé : un balayage reste muet) ;
+// l'onde attend un instant pour ne pas fleurir au départ d'un balayage, sauf si l'appui est déjà fini
 const RIPPLE = ".btn, .mode, .daily, .qdaily, .clubcard, .setacct, .fcard, .quest";
 const TAP = ".btn, .chip, .mode, .iconbtn, .coinchip, #btnUser, .tab, .ftab, .scope button, .seg button, .shoptabs button, .daily, .qdaily, .item, .fcard, .frow, .goback, .link, .penbtn, .avedit, .card, .reactfab, .quest, .qchest, .clubcard";
 const QUIET = ".grid .btn, #mOpts .btn, .tab"; // les réponses (le verdict sonne juste après) et la barre (elle a son tic)
-addEventListener("pointerdown", (e) => {
+addEventListener("click", (e) => {
   const t = e.target.closest && e.target.closest(TAP);
-  if (!t || t.disabled || t.getAttribute("aria-disabled") === "true") return;
-  if (!t.matches(QUIET)) sfx(t.matches(".chip, .ftab, .scope button, .seg button, .shoptabs button") ? "select" : "tap");
-  if (!t.matches(RIPPLE) || document.body.classList.contains("calm")) return;
-  const r = t.getBoundingClientRect(), d = Math.max(r.width, r.height) * 2.2;
+  if (!t || t.disabled || t.getAttribute("aria-disabled") === "true" || t.matches(QUIET)) return;
+  sfx(t.matches(".chip, .ftab, .scope button, .seg button, .shoptabs button") ? "select" : "tap");
+}, { capture: true, passive: true });
+let press = null;
+function ripple() {
+  const p = press; press = null;
+  if (!p) return;
+  clearTimeout(p.timer);
+  const r = p.t.getBoundingClientRect(), d = Math.max(r.width, r.height) * 2.2;
   const s = document.createElement("span");
   s.className = "ripple";
-  s.style.cssText = `width:${d}px;height:${d}px;left:${e.clientX - r.left - d / 2}px;top:${e.clientY - r.top - d / 2}px`;
-  t.append(s);
+  s.style.cssText = `width:${d}px;height:${d}px;left:${p.x - r.left - d / 2}px;top:${p.y - r.top - d / 2}px`;
+  p.t.append(s);
   setTimeout(() => s.remove(), 650);
+}
+addEventListener("pointerdown", (e) => {
+  const t = e.target.closest && e.target.closest(RIPPLE);
+  if (press) clearTimeout(press.timer);
+  press = null;
+  if (!t || t.disabled || document.body.classList.contains("calm")) return;
+  press = { t, x: e.clientX, y: e.clientY, timer: setTimeout(ripple, 90) };
 }, { passive: true });
+addEventListener("pointermove", (e) => { if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 8) { clearTimeout(press.timer); press = null; } }, { passive: true });
+addEventListener("pointerup", ripple, { passive: true });
+addEventListener("pointercancel", () => { if (press) { clearTimeout(press.timer); press = null; } }, { passive: true });
 addEventListener("change", (e) => { if (e.target.matches && e.target.matches(".tgl")) sfx("toggle"); });
 
 /* ---------- les nombres qui défilent ---------- */
