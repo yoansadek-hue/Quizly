@@ -34,7 +34,7 @@ export const ITEMS = {
   "nc-plain": ["name", "Blanc", 0], "nc-sun": ["name", "Citron", 120], "nc-mint": ["name", "Menthe", 120], "nc-coral": ["name", "Pamplemousse", 120],
   "nc-sky": ["name", "Ciel", 120], "nc-gold": ["name", "Or", 550], "nc-neon": ["name", "Néon", 650], "nc-fire": ["name", "Feu", 750],
   "nc-rose": ["name", "Rose", 150], "nc-lilac": ["name", "Lilas", 150], "nc-ice": ["name", "Glace", 450], "nc-toxic": ["name", "Toxique", 650],
-  "nc-galaxy": ["name", "Galaxie", 950], "nc-prism": ["name", "Prisme", 1500],
+  "nc-galaxy": ["name", "Galaxie", 950],
   // thème de l'appli (visible seulement par vous)
   "th-berry": ["theme", "Myrtille", 0], "th-night": ["theme", "Minuit", 300], "th-ocean": ["theme", "Océan", 380], "th-forest": ["theme", "Forêt", 380],
   "th-sunset": ["theme", "Crépuscule", 500], "th-cherry": ["theme", "Cerise", 500], "th-cosmos": ["theme", "Cosmos", 880],
@@ -47,7 +47,8 @@ export function rarity(id) {
   return need ? ["Exclusif", "x"] : p === 0 ? ["De base", "b"] : p <= 150 ? ["Commun", "c"] : p <= 400 ? ["Rare", "r"] : p <= 700 ? ["Épique", "e"] : ["Légendaire", "l"];
 }
 // articles retirés de la Boutique : remboursés à ceux qui les avaient achetés
-const REMOVED = { "fr-rainbow": 400, "sk-rainbow": 380, "bn-rainbow": 420, "nc-rainbow": 450 };
+// « Prisme » : retiré, il ressemblait trop au pseudo du champion du Défi du jour (réservé au 1er)
+const REMOVED = { "fr-rainbow": 400, "sk-rainbow": 380, "bn-rainbow": 420, "nc-rainbow": 450, "nc-prism": 1500 };
 const DEFAULT = { frame: "fr-ink", bubble: "sk-classic", banner: "bn-plain", title: "ti-none", name: "nc-plain", theme: "th-berry" };
 const CATS = [["frame", "Cadres"], ["bubble", "Bulles"], ["banner", "Bannières"], ["title", "Titres"], ["name", "Pseudo"], ["theme", "Thèmes"]];
 const HOW = { title: "Affiché sous votre pseudo, pour tout le monde.", name: "La couleur de votre pseudo, pour tout le monde.", theme: "Le fond de toute l'appli, visible seulement par vous." };

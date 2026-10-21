@@ -11,7 +11,7 @@ import { initCosmetics, styleName, titleOf } from "./cosmetics.js";
 import { initQuests } from "./quests.js";
 import { impUI, IMP_PTS, answerMatches } from "./impostor.js";
 
-const VERSION = "2.32.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.32.1"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -1439,9 +1439,12 @@ function prepAround(id) {
     if (half !== sw.half) { sw.half = half; tabsOn(half ? sw.next : sw.from); haptic(); }
     if (!sw.next !== sw.edge) { sw.edge = !sw.next; if (sw.edge) haptic(); } // on bute contre le bord
     if (!sw.raf) sw.raf = requestAnimationFrame(() => { if (sw) { sw.raf = 0; paint(sw.dx); } }); // au plus un dessin par image
+    // filet de sécurité : si la fin du toucher n'arrive jamais (le téléphone l'a avalée), le geste se termine tout seul
+    clearTimeout(sw.idle); sw.idle = setTimeout(() => { if (sw && sw.lock) finish(!!sw.next && Math.abs(sw.dx) > sw.W * 0.5); }, 1500);
   }
   function finish(go) {
     const s = sw; sw = null;
+    if (s) clearTimeout(s.idle);
     removeEventListener("touchmove", move, { passive: false });
     if (!s || !s.lock) return;
     cancelAnimationFrame(s.raf);
@@ -1452,7 +1455,7 @@ function prepAround(id) {
     if (go && !s.half) haptic(); // lancé d'un coup sec : le tic arrive au changement d'onglet
     tabsOn(go ? s.next : s.from);
     pillGlide(TABS.find((b) => b.dataset.go === (go ? s.next : s.from))); // la bulle se cale avec les pages
-    pend = { run: () => { if (go) show(s.next); swipeReset(); }, t: setTimeout(() => settle(), 290) };
+    pend = { run: () => { try { if (go) show(s.next); } finally { swipeReset(); } }, t: setTimeout(() => settle(), 290) }; // toujours remis en place, même si l'écran suivant plante
   }
   function abort() { if (sw && sw.lock) finish(false); else { if (sw && sw.hdr) sw.hdr.remove(); sw = null; removeEventListener("touchmove", move, { passive: false }); } }
   function end(e) {

@@ -1436,10 +1436,9 @@ html[data-mode=dark] ol > li.rk:nth-child(-n+3){color:var(--ink);--muted:#5b4a8f
 .ncol.nc-rose{color:#ff8fb1!important}
 .ncol.nc-lilac{color:#c4b8ff!important}
 .ncol.nc-toxic{color:#7dff6b!important;text-shadow:0 0 8px rgba(125,255,107,.85)}
-.ncol.nc-ice,.ncol.nc-galaxy,.ncol.nc-prism{-webkit-background-clip:text;background-clip:text;color:transparent!important;-webkit-text-fill-color:transparent}
+.ncol.nc-ice,.ncol.nc-galaxy{-webkit-background-clip:text;background-clip:text;color:transparent!important;-webkit-text-fill-color:transparent}
 .ncol.nc-ice{background-image:linear-gradient(90deg,#e8fbff,#7fd8ff 55%,#c4b8ff)}
 .ncol.nc-galaxy{background-image:linear-gradient(90deg,#c79bff,#62c7ff 50%,#ff8fb1)}
-.ncol.nc-prism{background-image:linear-gradient(90deg,#ff3b5c,#ff9f45,#ffe14d,#34e3b0,#62c7ff,#c79bff,#ff3b5c);background-size:250% 100%;animation:champ 3s linear infinite}
 /* thèmes de l'appli */
 :root[data-theme="th-mint"]{--bg:#145c4b;--bg-deep:#0d3f33}
 :root[data-theme="th-lagoon"]{--bg:#0e6b6b;--bg-deep:#094d4d}
@@ -1456,3 +1455,10 @@ html[data-mode=dark] ol > li.rk:nth-child(-n+3){color:var(--ink);--muted:#5b4a8f
 #shopGrid .item .st.price{display:inline-flex;align-items:center;gap:3px;white-space:nowrap;font-size:12px;padding:2px 9px}
 #shopGrid .item .st.price .coin{width:15px;height:15px;border-width:2px}
 #shopGrid .item .st.price .coin::after{font-size:8px}
+/* ---------- 2.32.1 : la grille de la Boutique ne déborde plus ----------
+   un titre long (« Chouette de nuit », « Légende vivante ») élargissait sa colonne : la grille sortait de l'écran */
+#shopGrid .shopgrid{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media (min-width:700px){#shopGrid .shopgrid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+#shopGrid .item{min-width:0}
+#shopGrid .item b{overflow-wrap:anywhere}
+#shopGrid .pv .ptitle{white-space:normal;width:auto;max-width:96%;text-align:center;line-height:1.15;font-size:9px;letter-spacing:.02em;padding:3px 7px;overflow-wrap:normal;word-break:keep-all}
