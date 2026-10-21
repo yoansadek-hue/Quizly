@@ -5,34 +5,46 @@ import { setFrame } from "./million.js";
 // id : [catégorie, nom, prix, succès requis (article exclusif)]
 export const ITEMS = {
   // cadres de photo
-  "fr-ink": ["frame", "Encre", 0], "fr-sun": ["frame", "Citron", 40], "fr-mint": ["frame", "Menthe", 40], "fr-coral": ["frame", "Pamplemousse", 40],
-  "fr-sky": ["frame", "Ciel", 40], "fr-peach": ["frame", "Abricot", 40], "fr-cotton": ["frame", "Barbe à papa", 70], "fr-forest": ["frame", "Forêt", 90],
-  "fr-ice": ["frame", "Glace", 120], "fr-pixel": ["frame", "Pixel", 140], "fr-neon": ["frame", "Néon", 180], "fr-lava": ["frame", "Lave", 220],
-  "fr-gold": ["frame", "Or", 260], "fr-galaxy": ["frame", "Galaxie", 320], "fr-diamond": ["frame", "Diamant", 520],
+  "fr-ink": ["frame", "Encre", 0], "fr-sun": ["frame", "Citron", 100], "fr-mint": ["frame", "Menthe", 100], "fr-coral": ["frame", "Pamplemousse", 100],
+  "fr-sky": ["frame", "Ciel", 100], "fr-peach": ["frame", "Abricot", 100], "fr-cotton": ["frame", "Barbe à papa", 180], "fr-forest": ["frame", "Forêt", 220],
+  "fr-ice": ["frame", "Glace", 300], "fr-pixel": ["frame", "Pixel", 350], "fr-neon": ["frame", "Néon", 450], "fr-lava": ["frame", "Lave", 550],
+  "fr-gold": ["frame", "Or", 650], "fr-galaxy": ["frame", "Galaxie", 800], "fr-diamond": ["frame", "Diamant", 1300],
   "fr-crown": ["frame", "Millionnaire", 0, "million"],
+  "fr-rose": ["frame", "Rose", 150], "fr-lilac": ["frame", "Lilas", 150], "fr-ocean": ["frame", "Océan", 300], "fr-sunset": ["frame", "Coucher de soleil", 450],
+  "fr-ruby": ["frame", "Rubis", 650], "fr-emerald": ["frame", "Émeraude", 650], "fr-cosmic": ["frame", "Cosmique", 950], "fr-phoenix": ["frame", "Phénix", 1500],
   // bulles du chat
-  "sk-classic": ["bubble", "Classique", 0], "sk-mint": ["bubble", "Menthe", 60], "sk-sky": ["bubble", "Ciel", 60], "sk-ink": ["bubble", "Nuit", 80],
-  "sk-pastel": ["bubble", "Pastel", 80], "sk-candy": ["bubble", "Bonbon", 100], "sk-neon": ["bubble", "Néon", 160], "sk-lava": ["bubble", "Lave", 190],
-  "sk-gold": ["bubble", "Or", 240], "sk-galaxy": ["bubble", "Galaxie", 290],
+  "sk-classic": ["bubble", "Classique", 0], "sk-mint": ["bubble", "Menthe", 150], "sk-sky": ["bubble", "Ciel", 150], "sk-ink": ["bubble", "Nuit", 200],
+  "sk-pastel": ["bubble", "Pastel", 200], "sk-candy": ["bubble", "Bonbon", 250], "sk-neon": ["bubble", "Néon", 400], "sk-lava": ["bubble", "Lave", 480],
+  "sk-gold": ["bubble", "Or", 600], "sk-galaxy": ["bubble", "Galaxie", 720],
+  "sk-coral": ["bubble", "Corail", 150], "sk-peach": ["bubble", "Abricot", 150], "sk-forest": ["bubble", "Forêt", 300], "sk-ice": ["bubble", "Glace", 450],
+  "sk-ruby": ["bubble", "Rubis", 650], "sk-aurora": ["bubble", "Aurore", 950],
   // bannières du profil
-  "bn-plain": ["banner", "Myrtille", 0], "bn-mint": ["banner", "Menthe", 60], "bn-stripes": ["banner", "Rayures", 80], "bn-check": ["banner", "Damier", 100],
-  "bn-sunset": ["banner", "Coucher de soleil", 120], "bn-lagoon": ["banner", "Lagon", 120], "bn-night": ["banner", "Nuit étoilée", 170], "bn-galaxy": ["banner", "Galaxie", 220],
-  "bn-fire": ["banner", "Flammes", 250], "bn-aurora": ["banner", "Aurore", 300], "bn-streak": ["banner", "Série de feu", 0, "streak7"],
+  "bn-plain": ["banner", "Myrtille", 0], "bn-mint": ["banner", "Menthe", 150], "bn-stripes": ["banner", "Rayures", 200], "bn-check": ["banner", "Damier", 250],
+  "bn-sunset": ["banner", "Coucher de soleil", 300], "bn-lagoon": ["banner", "Lagon", 300], "bn-night": ["banner", "Nuit étoilée", 420], "bn-galaxy": ["banner", "Galaxie", 550],
+  "bn-fire": ["banner", "Flammes", 620], "bn-aurora": ["banner", "Aurore", 750], "bn-streak": ["banner", "Série de feu", 0, "streak7"],
+  "bn-sky": ["banner", "Ciel d'été", 200], "bn-candy": ["banner", "Bonbon", 300], "bn-abyss": ["banner", "Abysses", 450], "bn-matrix": ["banner", "Code", 650],
+  "bn-volcano": ["banner", "Volcan", 950],
   // titres, sous le pseudo
-  "ti-none": ["title", "Aucun", 0], "ti-rookie": ["title", "Recrue", 30], "ti-curious": ["title", "Curieux", 60], "ti-fast": ["title", "Éclair", 90],
-  "ti-brain": ["title", "Cerveau", 120], "ti-pro": ["title", "Pro du quiz", 200], "ti-genius": ["title", "Génie", 320], "ti-legend": ["title", "Légende vivante", 500],
+  "ti-none": ["title", "Aucun", 0], "ti-rookie": ["title", "Recrue", 80], "ti-curious": ["title", "Curieux", 150], "ti-fast": ["title", "Éclair", 220],
+  "ti-brain": ["title", "Cerveau", 300], "ti-pro": ["title", "Pro du quiz", 500], "ti-genius": ["title", "Génie", 800], "ti-legend": ["title", "Légende vivante", 1250],
   "ti-million": ["title", "Millionnaire", 0, "million"], "ti-flame": ["title", "Inarrêtable", 0, "streak7"],
+  "ti-owl": ["title", "Chouette de nuit", 200], "ti-rocket": ["title", "Fusée", 300], "ti-sage": ["title", "Sage", 450], "ti-master": ["title", "Maître du quiz", 750],
+  "ti-boss": ["title", "Le Boss", 1000], "ti-oracle": ["title", "Oracle", 1500], "ti-champion": ["title", "Champion", 2000],
   // couleur du pseudo
-  "nc-plain": ["name", "Blanc", 0], "nc-sun": ["name", "Citron", 50], "nc-mint": ["name", "Menthe", 50], "nc-coral": ["name", "Pamplemousse", 50],
-  "nc-sky": ["name", "Ciel", 50], "nc-gold": ["name", "Or", 220], "nc-neon": ["name", "Néon", 260], "nc-fire": ["name", "Feu", 300],
+  "nc-plain": ["name", "Blanc", 0], "nc-sun": ["name", "Citron", 120], "nc-mint": ["name", "Menthe", 120], "nc-coral": ["name", "Pamplemousse", 120],
+  "nc-sky": ["name", "Ciel", 120], "nc-gold": ["name", "Or", 550], "nc-neon": ["name", "Néon", 650], "nc-fire": ["name", "Feu", 750],
+  "nc-rose": ["name", "Rose", 150], "nc-lilac": ["name", "Lilas", 150], "nc-ice": ["name", "Glace", 450], "nc-toxic": ["name", "Toxique", 650],
+  "nc-galaxy": ["name", "Galaxie", 950], "nc-prism": ["name", "Prisme", 1500],
   // thème de l'appli (visible seulement par vous)
-  "th-berry": ["theme", "Myrtille", 0], "th-night": ["theme", "Minuit", 120], "th-ocean": ["theme", "Océan", 150], "th-forest": ["theme", "Forêt", 150],
-  "th-sunset": ["theme", "Crépuscule", 200], "th-cherry": ["theme", "Cerise", 200], "th-cosmos": ["theme", "Cosmos", 350]
+  "th-berry": ["theme", "Myrtille", 0], "th-night": ["theme", "Minuit", 300], "th-ocean": ["theme", "Océan", 380], "th-forest": ["theme", "Forêt", 380],
+  "th-sunset": ["theme", "Crépuscule", 500], "th-cherry": ["theme", "Cerise", 500], "th-cosmos": ["theme", "Cosmos", 880],
+  "th-mint": ["theme", "Menthe glacée", 400], "th-lagoon": ["theme", "Lagon", 400], "th-volcano": ["theme", "Volcan", 650], "th-royal": ["theme", "Royal", 650],
+  "th-abyss": ["theme", "Abysses", 950],
 };
 // rareté, selon le prix
 export function rarity(id) {
   const [, , p, need] = ITEMS[id];
-  return need ? ["Exclusif", "x"] : p === 0 ? ["De base", "b"] : p <= 50 ? ["Commun", "c"] : p <= 150 ? ["Rare", "r"] : p <= 260 ? ["Épique", "e"] : ["Légendaire", "l"];
+  return need ? ["Exclusif", "x"] : p === 0 ? ["De base", "b"] : p <= 150 ? ["Commun", "c"] : p <= 400 ? ["Rare", "r"] : p <= 700 ? ["Épique", "e"] : ["Légendaire", "l"];
 }
 // articles retirés de la Boutique : remboursés à ceux qui les avaient achetés
 const REMOVED = { "fr-rainbow": 400, "sk-rainbow": 380, "bn-rainbow": 420, "nc-rainbow": 450 };
@@ -102,16 +114,7 @@ export function initCosmetics({ $, ask, uid, name, photo, achs, avatarEl, onChan
     e[cat] = id; write("cos", e);
     apply(); render();
   }
-  // offre du jour : un article (pas encore à vous) à -40 %, le même pour tout le monde ce jour-là
-  const day = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(Date.now());
-  function deal() {
-    const pool = Object.keys(ITEMS).filter((id) => ITEMS[id][2] > 0 && !ITEMS[id][3]);
-    let h = 0; for (const ch of day()) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-    const own = owned(), list = pool.filter((id) => !own.has(id));
-    const id = (list.length ? list : pool)[h % (list.length || pool.length)];
-    return { id, price: Math.round(ITEMS[id][2] * 0.6) };
-  }
-  const priceOf = (id) => (deal().id === id ? deal().price : ITEMS[id][2]);
+  const priceOf = (id) => ITEMS[id][2];
   let sel = null; // l'article essayé
   function preview(id, big) {
     const [cat] = ITEMS[id];
@@ -151,20 +154,12 @@ export function initCosmetics({ $, ask, uid, name, photo, achs, avatarEl, onChan
   }
   function render() {
     $("coinCount").textContent = coins();
-    $("shopCoins").textContent = coins();
-    const e = equipped(), own = owned(), d = deal();
+    const e = equipped(), own = owned();
     document.querySelectorAll("#shopTabs button").forEach((b) => { // chaque onglet montre combien d'articles sont à vous
       b.setAttribute("aria-pressed", String(b.dataset.c === tab));
       const all = Object.keys(ITEMS).filter((id) => ITEMS[id][0] === b.dataset.c);
       b.querySelector("small").textContent = `${all.filter((id) => own.has(id)).length}/${all.length}`;
     });
-    // offre du jour
-    const [, dn, dp] = ITEMS[d.id];
-    $("dealPv").replaceChildren(preview(d.id)); $("dealName").textContent = dn; $("dealOld").textContent = dp; $("dealNew").textContent = d.price;
-    const now = new Date(), mid = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Paris" })); const left = 24 - mid.getHours();
-    $("dealLeft").textContent = own.has(d.id) ? "déjà à vous" : `encore ${left} h`;
-    $("dealCard").classList.toggle("got", own.has(d.id));
-    $("dealCard").onclick = () => { tab = ITEMS[d.id][0]; sel = d.id; render(); };
     // la grille, rangée en trois parties : à vous (l'équipé d'abord), à acheter (du moins cher au plus cher), exclusifs
     const ids = Object.keys(ITEMS).filter((id) => ITEMS[id][0] === tab);
     const mine = ids.filter((id) => own.has(id)).sort((a, b) => (e[tab] === b) - (e[tab] === a));
@@ -181,13 +176,17 @@ export function initCosmetics({ $, ask, uid, name, photo, achs, avatarEl, onChan
     tryOn();
   }
   function card(id) { // une carte de la grille
-    const e = equipped(), own = owned(), d = deal();
+    const e = equipped(), own = owned();
     const [cat, nm, , need] = ITEMS[id], [rl, rk] = rarity(id);
     const card = document.createElement("button"); card.className = `item r-${rk}` + (e[cat] === id ? " on" : "") + (sel === id ? " sel" : "");
     const t = document.createElement("b"); t.textContent = nm;
     const st = document.createElement("small"); st.className = "st";
-    st.textContent = e[cat] === id ? "Équipé" : own.has(id) ? "Possédé" : need ? (unlocked(id) ? "Offert" : "Verrouillé") : `${priceOf(id)} Q-Bucks${d.id === id ? " · −40 %" : ""}`;
-    if (!own.has(id) && !need) st.classList.add("price");
+    st.textContent = e[cat] === id ? "Équipé" : own.has(id) ? "Possédé" : need ? (unlocked(id) ? "Offert" : "Verrouillé") : "";
+    if (!own.has(id) && !need) { // le prix : une pièce et le nombre, sur une ligne
+      st.classList.add("price");
+      const c = document.createElement("span"); c.className = "coin"; st.append(c, document.createTextNode(` ${priceOf(id)}`));
+      st.title = `${priceOf(id)} Q-Bucks`;
+    }
     card.append(preview(id), t, st);
     card.title = rl; // la rareté se voit à la couleur du haut de la carte
     card.onclick = () => { sel = id; $("shopMsg").textContent = ""; render(); $("tryOn").scrollIntoView({ behavior: "smooth", block: "nearest" }); };

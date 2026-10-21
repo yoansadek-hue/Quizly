@@ -1397,7 +1397,62 @@ html[data-mode=dark] .btn.sun,html[data-mode=dark] .btn.mint,html[data-mode=dark
 body.calm .champ{animation:none}
 /* sur une surface claire (lignes de classement, cartes d'amis, salon) : un dégradé plus foncé, toujours lisible */
 .rk .champ,.fcard .champ,#lobbyList .champ{background-image:linear-gradient(90deg,#c2185b,#7b2ff7,#0b7bc4,#e65100,#c2185b);filter:none}
-:root[data-mode=dark] .rk:not(.first) .champ,:root[data-mode=dark] .fcard .champ{background-image:linear-gradient(90deg,#ffe14d,#ff9f45,#ff3b5c,#c79bff,#62c7ff,#ffe14d)}
+:root[data-mode=dark] li.rk:nth-child(n+4) .champ,:root[data-mode=dark] .fcard .champ{background-image:linear-gradient(90deg,#ffe14d,#ff9f45,#ff3b5c,#c79bff,#62c7ff,#ffe14d)}
 /* 2.31 : un ami en partie : « joue à … » en vert */
 .fmeta.playing{color:var(--mint);font-weight:800}
 :root:not([data-mode=dark]) .fmeta.playing{color:#0f9a72}
+/* ---------- 2.32 : classements : fond or, argent, bronze pour les 3 premiers (partout) ---------- */
+ol > li.rk:nth-child(1){background:linear-gradient(135deg,#fff3a6 0%,#ffd84a 45%,#e6a800 100%);box-shadow:var(--edge)}
+ol > li.rk:nth-child(2){background:linear-gradient(135deg,#ffffff 0%,#dfe4ec 50%,#a9b2c3 100%)}
+ol > li.rk:nth-child(3){background:linear-gradient(135deg,#ffe3c8 0%,#e3a06b 50%,#b0682f 100%)}
+ol > li.rk:nth-child(-n+3){color:var(--ink);--muted:#5b4a8f}
+html[data-mode=dark] ol > li.rk:nth-child(-n+3){color:var(--ink);--muted:#5b4a8f}
+/* ---------- 2.32 : nouveaux cosmétiques ---------- */
+/* cadres */
+.avatar.fr-rose{border-color:#ff8fb1;box-shadow:0 0 0 2px var(--ink)}
+.avatar.fr-lilac{border-color:#c4b8ff;box-shadow:0 0 0 2px var(--ink)}
+.avatar.fr-ocean{border-color:#2f9bff;box-shadow:0 0 0 2px #0a2e5c,0 0 0 4px #62c7ff}
+.avatar.fr-sunset{border-color:#ff7a45;box-shadow:0 0 0 2px #ff3b5c,0 0 0 4px #ffe14d,0 0 10px 3px rgba(255,122,69,.6)}
+.avatar.fr-ruby{border-color:#ff2d55;box-shadow:0 0 0 2px #5a0017,0 0 14px 4px rgba(255,45,85,.75)}
+.avatar.fr-emerald{border-color:#19d38a;box-shadow:0 0 0 2px #04331f,0 0 14px 4px rgba(25,211,138,.75)}
+.avatar.fr-cosmic{border-color:#c79bff;box-shadow:0 0 0 2px #0a0420,0 0 0 4px #62c7ff,0 0 0 6px #ff3b5c,0 0 18px 6px rgba(155,107,255,.75)}
+.avatar.fr-phoenix{border-color:#ffb02e;box-shadow:0 0 0 2px #7a1500,0 0 0 4px #ff3d00,0 0 16px 6px rgba(255,120,0,.85),0 0 30px 10px rgba(255,61,0,.4);animation:phoenix 1.6s ease-in-out infinite alternate}
+@keyframes phoenix{to{box-shadow:0 0 0 2px #7a1500,0 0 0 4px #ffb02e,0 0 22px 8px rgba(255,170,0,.95),0 0 40px 14px rgba(255,61,0,.5)}}
+/* bulles */
+.bubble.sk-coral,.bubble-pv.sk-coral,.trybub.sk-coral{background:var(--coral)!important;color:var(--ink);border-color:var(--ink)}
+.bubble.sk-peach,.bubble-pv.sk-peach,.trybub.sk-peach{background:var(--peach)!important;color:var(--ink)}
+.bubble.sk-forest,.bubble-pv.sk-forest,.trybub.sk-forest{background:linear-gradient(135deg,#1d5e3b,#2f8f5b)!important;color:#eafff3;border-color:#0b2a19}
+.bubble.sk-ice,.bubble-pv.sk-ice,.trybub.sk-ice{background:linear-gradient(135deg,#e8fbff,#a7e6ff)!important;color:#0a3a55;border-color:#5fb6dd}
+.bubble.sk-ruby,.bubble-pv.sk-ruby,.trybub.sk-ruby{background:linear-gradient(135deg,#ff2d55,#9b0030)!important;color:#fff;border-color:#4a0016;box-shadow:0 0 12px rgba(255,45,85,.6)}
+.bubble.sk-aurora,.bubble-pv.sk-aurora,.trybub.sk-aurora{background:linear-gradient(120deg,#34e3b0,#62c7ff 50%,#c79bff)!important;color:var(--ink);border-color:#3b1d8f}
+/* bannières */
+.pv.bn-sky,.tryban.bn-sky,.profhead.bn-sky{background:linear-gradient(180deg,#62c7ff,#bfe9ff)}
+.pv.bn-candy,.tryban.bn-candy,.profhead.bn-candy{background:repeating-linear-gradient(135deg,#ffd6e7 0 16px,#fff 16px 32px)}
+.pv.bn-abyss,.tryban.bn-abyss,.profhead.bn-abyss{background:radial-gradient(circle at 30% 120%,rgba(98,199,255,.55),transparent 60%),linear-gradient(180deg,#02101f,#06315a)}
+.pv.bn-matrix,.tryban.bn-matrix,.profhead.bn-matrix{background:repeating-linear-gradient(90deg,rgba(52,227,176,.25) 0 2px,transparent 2px 14px),linear-gradient(180deg,#00140b,#00331d)}
+.pv.bn-volcano,.tryban.bn-volcano,.profhead.bn-volcano{background:radial-gradient(ellipse at 50% 110%,#ffb02e,transparent 55%),linear-gradient(180deg,#2a0700,#8a1d00)}
+.tryban.bn-sky b,.tryban.bn-candy b,.profhead.bn-sky h2,.profhead.bn-candy h2{color:var(--ink)}
+/* couleurs de pseudo */
+.ncol.nc-rose{color:#ff8fb1!important}
+.ncol.nc-lilac{color:#c4b8ff!important}
+.ncol.nc-toxic{color:#7dff6b!important;text-shadow:0 0 8px rgba(125,255,107,.85)}
+.ncol.nc-ice,.ncol.nc-galaxy,.ncol.nc-prism{-webkit-background-clip:text;background-clip:text;color:transparent!important;-webkit-text-fill-color:transparent}
+.ncol.nc-ice{background-image:linear-gradient(90deg,#e8fbff,#7fd8ff 55%,#c4b8ff)}
+.ncol.nc-galaxy{background-image:linear-gradient(90deg,#c79bff,#62c7ff 50%,#ff8fb1)}
+.ncol.nc-prism{background-image:linear-gradient(90deg,#ff3b5c,#ff9f45,#ffe14d,#34e3b0,#62c7ff,#c79bff,#ff3b5c);background-size:250% 100%;animation:champ 3s linear infinite}
+/* thèmes de l'appli */
+:root[data-theme="th-mint"]{--bg:#145c4b;--bg-deep:#0d3f33}
+:root[data-theme="th-lagoon"]{--bg:#0e6b6b;--bg-deep:#094d4d}
+:root[data-theme="th-volcano"]{--bg:#7a1f0e;--bg-deep:#4f1308}
+:root[data-theme="th-royal"]{--bg:#2a1b6b;--bg-deep:#1a1048}
+:root[data-theme="th-abyss"]{--bg:#04121f;--bg-deep:#020a12}
+:root[data-theme="th-abyss"] body::after{background-image:radial-gradient(rgba(98,199,255,.5) 1px,transparent 1.6px),radial-gradient(rgba(52,227,176,.3) 1.2px,transparent 1.8px);background-size:46px 46px,23px 23px;background-position:0 0,11px 17px}
+:root[data-theme="th-royal"] body::after{background-image:radial-gradient(rgba(255,225,77,.22) 1.2px,transparent 1.4px);background-size:22px 22px}
+.pv.th-mint{background:radial-gradient(rgba(255,255,255,.15) 1.2px,transparent 1.4px) 0 0/12px 12px,linear-gradient(135deg,#145c4b,#0d3f33)}
+.pv.th-lagoon{background:radial-gradient(rgba(255,255,255,.15) 1.2px,transparent 1.4px) 0 0/12px 12px,linear-gradient(135deg,#0e6b6b,#094d4d)}
+.pv.th-volcano{background:radial-gradient(rgba(255,176,46,.35) 1.2px,transparent 1.4px) 0 0/12px 12px,linear-gradient(135deg,#7a1f0e,#4f1308)}
+.pv.th-royal{background:radial-gradient(rgba(255,225,77,.4) 1.2px,transparent 1.4px) 0 0/12px 12px,linear-gradient(135deg,#2a1b6b,#1a1048)}
+.pv.th-abyss{background:radial-gradient(rgba(98,199,255,.7) 1px,transparent 1.6px) 0 0/18px 18px,linear-gradient(135deg,#04121f,#020a12)}
+#shopGrid .item .st.price{display:inline-flex;align-items:center;gap:3px;white-space:nowrap;font-size:12px;padding:2px 9px}
+#shopGrid .item .st.price .coin{width:15px;height:15px;border-width:2px}
+#shopGrid .item .st.price .coin::after{font-size:8px}

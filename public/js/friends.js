@@ -386,12 +386,21 @@ export function initFriends({ $, ask, avatarEl, euros, me, records, summary, dai
     $("inviteList").replaceChildren(...(F.friends.length ? F.friends.map((f) => {
       const b = btn("Inviter", "sun", async () => {
         b.disabled = true; b.textContent = "Envoi…";
-        try {
-          const m = me();
-          await F.fs.setDoc(ref("invites", f.uid, "list", F.uid), { code: room.code, kind: room.kind, name: m.name, photo: m.photo || "", at: Date.now() });
-          notify(f.uid, "invite", `${m.name} vous invite à jouer${KIND[room.kind] ? ` (${KIND[room.kind]})` : ""}.`, `/?tv=${room.code}`); // un appui rejoint le salon
-          b.textContent = "Invité";
-        } catch { b.disabled = false; b.textContent = "Réessayer"; }
+        const m = me(), inv = { code: room.code, kind: room.kind, name: m.name, photo: m.photo || "", at: Date.now() };
+        let saved = false;
+        try { await F.fs.setDoc(ref("invites", f.uid, "list", F.uid), inv); saved = true; }
+        catch {
+          // compte développeur : « tout le monde en amis » n'est qu'un affichage ; la base refuse l'invitation à
+          // quelqu'un qui n'est pas vraiment ami. On crée la vraie amitié, puis on réessaie.
+          if (dev()) try {
+            await F.fs.setDoc(ref("friends", F.uid, "list", f.uid), { since: Date.now() });
+            await F.fs.setDoc(ref("friends", f.uid, "list", F.uid), { since: Date.now() });
+            await F.fs.setDoc(ref("invites", f.uid, "list", F.uid), inv); saved = true;
+          } catch {}
+        }
+        // la notification part dans tous les cas (elle passe par le serveur) : un appui rejoint le salon
+        notify(f.uid, "invite", `${m.name} vous invite à jouer${KIND[room.kind] ? ` (${KIND[room.kind]})` : ""}.`, `/?tv=${room.code}`);
+        b.textContent = saved ? "Invité" : "Notification envoyée";
       });
       return row(f, [b]);
     }) : [Object.assign(document.createElement("p"), { className: "lead small", textContent: "Ajoutez des amis depuis votre Profil pour les inviter." })]));
