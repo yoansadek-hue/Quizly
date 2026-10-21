@@ -1468,3 +1468,24 @@ html[data-mode=dark] ol > li.rk:nth-child(-n+3){color:var(--ink);--muted:#5b4a8f
 /* 2.34.1 : la barre du minuteur garde un bout arrondi en se vidant (elle rétrécit en largeur, plus en échelle) */
 .timer i{border-radius:99px;transform:none}
 @keyframes drain{from{width:100%}to{width:0}}
+/* ---------- 2.35 : Le Duel : la barre de tir à la corde ---------- */
+.duelbar{display:grid;grid-template-columns:64px 1fr 64px;align-items:center;gap:8px;margin:6px 0 10px}
+.duelbar[hidden]{display:none}
+.dside{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0;text-align:center}
+.dside .avatar{width:38px;height:38px;font-size:16px}
+.dside b{font:800 11px var(--display);max-width:64px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--txt-light)}
+.dside small{font:800 13px var(--display);color:var(--sun)}
+.dside.them small{color:var(--coral)}
+.drope{padding:0 4px}
+.dtrack{position:relative;height:26px;border-radius:99px;background:var(--bg-deep);border:3px solid var(--ink);overflow:visible}
+.dzone{position:absolute;top:0;bottom:0;width:16%;border-radius:99px}
+.dzone.l{left:0;background:linear-gradient(90deg,rgba(255,225,77,.55),transparent)}
+.dzone.r{right:0;background:linear-gradient(270deg,rgba(255,59,92,.55),transparent)}
+.dmid{position:absolute;left:50%;top:-4px;bottom:-4px;width:3px;margin-left:-1.5px;background:rgba(255,255,255,.35);border-radius:3px}
+.dtrack::before{content:"";position:absolute;left:4px;right:4px;top:50%;height:4px;margin-top:-2px;background:repeating-linear-gradient(90deg,#c9a46a 0 6px,#a07a43 6px 12px);border-radius:4px}
+.dknot{position:absolute;top:50%;left:50%;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;background:var(--paper);border:3px solid var(--ink);box-shadow:var(--edge-s);transition:left .45s cubic-bezier(.3,1.6,.5,1)}
+.dknot::after{content:"";position:absolute;inset:6px;border-radius:50%;background:var(--coral)}
+.dknot.pull{animation:tug .4s}
+@keyframes tug{30%{transform:scale(1.25)}}
+.mode[data-m=duel]{background:linear-gradient(135deg,#62c7ff,#c79bff);color:var(--ink)}
+.mode[data-m=duel]::after{width:150px;height:14px;right:-20px;top:40%;border-radius:8px;background:repeating-linear-gradient(90deg,rgba(30,15,69,.18) 0 10px,rgba(30,15,69,.08) 10px 20px);transform:rotate(-12deg)}

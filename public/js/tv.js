@@ -5,7 +5,7 @@ import { THEMES } from "./questions.js";
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
-const KIND = { survie: "Survie", chrono: "Chrono 60 s", million: "Qui veut gagner des millions", equipes: "Équipes", parieurs: "Les Parieurs", imposteur: "L'Imposteur", royale: "Le Dernier Debout" };
+const KIND = { survie: "Survie", chrono: "Chrono 60 s", million: "Qui veut gagner des millions", equipes: "Équipes", parieurs: "Les Parieurs", imposteur: "L'Imposteur", royale: "Le Dernier Debout", duel: "Le Duel" };
 const TAUNTS = ["Trop facile", "Tu dors ?", "Pleure pas", "Même pas peur", "Je suis trop fort", "Cadeau !", "Bruh"];
 const T = { ws: null, code: "", pl: {}, kind: "survie", raf: 0, last: null, board: [], mboard: [], who: null, craf: 0 };
 
@@ -55,6 +55,7 @@ function onMsg(m) {
     case "mspec": renderMSpec(m); break;
     case "mout": break; // visible dans la colonne de droite
     case "bets": betCount(m.count); break;
+    case "rope": renderDuel(m); break;
     case "rcount": $("gLive").replaceChildren(el("span", "chip", `${m.n} / ${m.total} ont répondu`)); break;
     case "imp": renderImp(m); break;
     case "ivoted": $("tImpLive").replaceChildren(el("span", "chip", `${m.count} / ${m.total} ont voté`)); break;
@@ -129,6 +130,20 @@ function splash(name, ph) {
   $("gSplashName").textContent = name;
   s.hidden = false; s.style.animation = "none"; void s.offsetWidth; s.style.animation = "";
   clearTimeout(T.splashT); T.splashT = setTimeout(() => (s.hidden = true), 1400);
+}
+
+/* ---------- Le Duel ---------- */
+function renderDuel(m) {
+  stopRing(); clearInterval(T.dtid);
+  const [a, b] = m.players;
+  const side = (p) => { const d = el("div"); d.append(avatarEl(p.name, p.photo || photo(p.id), true), el("span", null, p.name), el("small", null, `${p.score}`)); return d.childNodes; };
+  $("tDuelA").replaceChildren(...side(a)); $("tDuelB").replaceChildren(...side(b));
+  $("tDuelKnot").style.left = `${50 + (m.rope / m.steps) * 42}%`; // a tire vers la gauche, b vers la droite
+  if (m.by && m.ok) $("tDuelMsg").textContent = `${(m.by === a.id ? a : b).name} tire !`;
+  const end = Date.now() + m.left;
+  const tick = () => { const t = Math.max(0, Math.ceil((end - Date.now()) / 1000)); $("tDuelTime").textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`; };
+  tick(); T.dtid = setInterval(tick, 500);
+  show("tDuel");
 }
 
 /* ---------- L'Imposteur ---------- */
@@ -320,8 +335,8 @@ function renderRace() {
 
 /* ---------- fin : podium et confettis ---------- */
 function renderEnd(m) {
-  stopRing(); cancelAnimationFrame(T.craf);
-  const fmt = (p) => (m.kind === "million" ? euros(p.points) : m.kind === "parieurs" ? `${p.points} jetons` : m.kind === "imposteur" ? `${p.points} pts` : m.kind === "royale" ? `${p.score} bonne${p.score > 1 ? "s" : ""}` : m.kind === "chrono" || m.kind === "equipes" ? `${p.points} pts` : `${p.score} bonne${p.score > 1 ? "s" : ""}`);
+  stopRing(); clearInterval(T.dtid); cancelAnimationFrame(T.craf);
+  const fmt = (p) => (m.kind === "million" ? euros(p.points) : m.kind === "parieurs" ? `${p.points} jetons` : m.kind === "imposteur" ? `${p.points} pts` : m.kind === "royale" || m.kind === "duel" ? `${p.score} bonne${p.score > 1 ? "s" : ""}` : m.kind === "chrono" || m.kind === "equipes" ? `${p.points} pts` : `${p.score} bonne${p.score > 1 ? "s" : ""}`);
   $("tEndLead").textContent = m.winner ? "Vainqueur" : "Partie terminée";
   $("tWinner").textContent = m.winner || "Égalité";
   const top = m.ranking.slice(0, 3);

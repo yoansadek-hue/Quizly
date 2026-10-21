@@ -603,6 +603,7 @@ function startGame(room) {
   if (room.cfg.kind === "parieurs") makeBetOrder(room);
   if (room.cfg.kind === "imposteur") return impStart(room);
   if (room.cfg.kind === "royale") { room.rr = { round: 0 }; return royaleRound(room); }
+  if (room.cfg.kind === "duel") return duelStart(room);
   nextTurn(room);
 }
 function nextTurn(room) {
@@ -749,6 +750,69 @@ function endTeams(room) {
     t: "end", kind: "equipes", winner: tie ? null : `Équipe ${teams[0].name}`,
     mvp: mvp && mvp.points > 0 ? { name: mvp.name, points: mvp.points } : null, // pas de « meilleur joueur » à 0 point
     ranking: teams.map((t, k) => ({ id: `t${k}`, name: `${t.name} (${t.members.map((p) => p.name).join(", ")})`, score: t.members.length, points: t.points, lives: 0, photo: "" }))
+  });
+}
+
+/* ====================== Le Duel (à deux) ====================== */
+// Une corde tendue entre les deux joueurs : chaque bonne réponse la tire d'un cran vers soi. Le premier qui l'amène
+// de son côté (DUEL_STEPS crans) gagne ; au bout de 2 minutes, celui de quel côté est la corde gagne.
+// Chacun a ses propres questions (comme au Chrono) : la vitesse compte autant que la justesse.
+const DUEL_STEPS = 5, DUEL_MS = +process.env.DUEL_MS || 120000;
+function duelState(room, extra = {}) {
+  const [a, b] = room.duel.side;
+  return { t: "rope", rope: room.duel.rope, steps: DUEL_STEPS, left: Math.max(0, room.duel.end - Date.now()), a, b, ...extra,
+    players: [a, b].map((id) => { const p = room.players.get(id) || {}; return { id, name: p.name, photo: p.photo || "", score: p.score || 0 }; }) };
+}
+function duelStart(room) {
+  const ps = players(room).filter((p) => !p.left);
+  Object.assign(room, { phase: "duel", buf: [], asked: [], loads: new Map(), soft: null });
+  room.duel = { rope: 0, side: shuffle(ps.map((p) => p.id)), end: Date.now() + DUEL_MS }; // side[0] tire vers -, side[1] vers +
+  ps.forEach((p) => Object.assign(p, { score: 0, points: 0, streak: 0, cdiff: 1, seen: new Set(), cq: null, fails: 0, dead: false }));
+  clearTimeout(room.timer);
+  room.timer = setTimeout(() => duelEnd(room), DUEL_MS);
+  const st = duelState(room, { start: true });
+  players(room).forEach((p) => send(p.ws, st)); tvs(room).forEach((ws) => send(ws, st));
+  ps.forEach((p) => duelNext(room, p));
+}
+async function duelNext(room, p) {
+  if (room.phase !== "duel" || p.left) return;
+  p.cq = null;
+  let q;
+  try { q = await takeFor(room, p); }
+  catch (e) { console.error(e.message); if (++p.fails >= 3) return duelEnd(room); return setTimeout(() => duelNext(room, p), 2000); }
+  if (room.phase !== "duel" || p.left) return;
+  p.fails = 0;
+  p.cq = { ...q, options: shuffle(q.o) };
+  send(p.ws, { t: "dq", tag: `${q.t} · ${LEVELS[p.cdiff]}`, q: q.q, img: q.img || null, audio: q.audio || null, options: p.cq.options, left: Math.max(0, room.duel.end - Date.now()) });
+}
+function duelAnswer(room, p, i) {
+  if (room.phase !== "duel" || !p.cq || !Number.isInteger(i) || i < 0 || i >= p.cq.options.length) return;
+  const q = p.cq, ok = q.options[i] === q.a;
+  p.cq = null;
+  if (ok) {
+    p.score++; p.points++; p.streak++;
+    if (p.score % 3 === 0) p.cdiff = Math.min(5, p.cdiff + 1); // de plus en plus dur
+    room.duel.rope += room.duel.side[0] === p.id ? -1 : 1; // la corde vient vers lui
+  } else p.streak = 0;
+  send(p.ws, { t: "dres", correct: ok, picked: i, answer: q.a });
+  const st = duelState(room, { by: p.id, ok });
+  players(room).forEach((x) => send(x.ws, st)); tvs(room).forEach((ws) => send(ws, st));
+  if (Math.abs(room.duel.rope) >= DUEL_STEPS) return duelEnd(room); // la corde est de son côté : gagné
+  setTimeout(() => duelNext(room, p), ok ? 600 : 1500); // une erreur coûte un peu de temps
+}
+function duelEnd(room, quitter) {
+  if (room.phase !== "duel") return;
+  clearTimeout(room.timer);
+  room.phase = "end";
+  const d = room.duel, [a, b] = d.side.map((id) => room.players.get(id)).filter(Boolean).length === 2 ? d.side.map((id) => room.players.get(id)) : [null, null];
+  let w = null;
+  if (quitter && a && b) w = quitter === a.id ? b : a; // l'autre est parti : abandon
+  else if (a && b) w = d.rope < 0 ? a : d.rope > 0 ? b : a.score !== b.score ? (a.score > b.score ? a : b) : null;
+  const order = [a, b].filter(Boolean).sort((x, y) => (y === w) - (x === w) || y.score - x.score);
+  cast(room, {
+    t: "end", kind: "duel", winner: w ? w.name : null, rope: d.rope, steps: DUEL_STEPS,
+    how: quitter ? "abandon" : Math.abs(d.rope) >= DUEL_STEPS ? "corde" : "temps",
+    ranking: order.map((p) => ({ id: p.id, name: p.name, score: p.score, points: p.score, lives: 0, photo: p.photo }))
   });
 }
 
@@ -1354,6 +1418,11 @@ function rejoin(ws, m) {
   if (room.chat && room.chat.length) send(ws, { t: "chatlog", list: room.chat }); // l'historique du chat
   if (room.phase === "lobby") return castLobby(room);
   const k = room.cfg.kind, L = room.last;
+  if (k === "duel" && room.phase === "duel") {
+    send(ws, duelState(room));
+    if (p.cq) send(ws, { t: "dq", tag: `${p.cq.t} · ${LEVELS[p.cdiff]}`, q: p.cq.q, img: p.cq.img || null, audio: p.cq.audio || null, options: p.cq.options, left: Math.max(0, room.duel.end - Date.now()) });
+    return;
+  }
   if (k === "chrono") {
     send(ws, { t: "cgo", ms: CHRONO_MS }); castBoard(room);
     if (p.done) return send(ws, { t: "cdone", points: p.points, score: p.score });
@@ -1407,6 +1476,7 @@ function leave(ws) {
   if (lobbyLike) return castLobby(room);
   if (room.cfg.kind === "chrono") { clearTimeout(me.ctimer); me.done = true; me.cq = null; castBoard(room); return checkChronoEnd(room); }
   if (room.cfg.kind === "million") { if (!me.mout) { me.mout = true; me.mq = null; } return mCheck(room); }
+  if (room.cfg.kind === "duel") return duelEnd(room, me.id); // l'autre gagne par abandon
   if (room.cfg.kind === "royale") { // le joueur parti est éliminé (fait plus haut) : la manche continue sans lui
     if (standing(room).length <= 1) return royaleEnd(room);
     if (room.phase === "rq" && standing(room).filter((p) => !p.away).every((p) => room.rr.answers.has(p.id))) royaleResolve(room);
@@ -1438,7 +1508,7 @@ function leave(ws) {
 function readCfg(m) {
   const themes = (Array.isArray(m.themes) ? m.themes : []).map((t) => clean(t, 50)).filter(Boolean).slice(0, 60);
   if (!themes.length) return "Choisissez au moins un thème.";
-  return { auto: !!m.auto, kind: ["chrono", "million", "equipes", "parieurs", "imposteur", "royale"].includes(m.kind) ? m.kind : "survie", themes, time: clamp(+m.time, 0, 120), lives: clamp(+m.lives || 2, 1, 5) };
+  return { auto: !!m.auto, kind: ["chrono", "million", "equipes", "parieurs", "imposteur", "royale", "duel"].includes(m.kind) ? m.kind : "survie", themes, time: clamp(+m.time, 0, 120), lives: clamp(+m.lives || 2, 1, 5) };
 }
 
 function handle(ws, m) {
@@ -1493,6 +1563,7 @@ function handle(ws, m) {
     if (!room) return send(ws, { t: "error", msg: "Salle introuvable." });
     if (room.phase !== "lobby") return send(ws, { t: "error", msg: "La partie a déjà commencé." });
     if (players(room).length >= 20) return send(ws, { t: "error", msg: "Salle pleine (20 joueurs)." });
+    if (room.cfg.kind === "duel" && players(room).filter((p) => !p.left).length >= 2) return send(ws, { t: "error", msg: "Ce Duel est déjà complet (deux joueurs)." });
     if (ws.room) leave(ws);
     join(ws, room, m.name, m.photo, m.hist, m.uid, m.cos);
     if (room.chat && room.chat.length) send(ws, { t: "chatlog", list: room.chat });
@@ -1506,9 +1577,11 @@ function handle(ws, m) {
     if (room.cfg.kind === "chrono") return startChrono(room); // le Chrono se joue aussi seul
     if (room.cfg.kind === "million") return startMillion(room); // le Millionnaire aussi
     if (players(room).length < 2) return send(ws, { t: "error", msg: "Il faut au moins 2 joueurs." });
+    if (room.cfg.kind === "duel" && players(room).length !== 2) return send(ws, { t: "error", msg: "Le Duel se joue à deux, exactement." });
     if (room.cfg.kind === "imposteur" && players(room).length < 3) return send(ws, { t: "error", msg: "L'Imposteur se joue à 3 joueurs ou plus." });
     startGame(room);
   } else if (m.t === "answer" && room.cfg.kind === "royale") { royaleAnswer(room, me, Number(m.i));
+  } else if (m.t === "answer" && room.cfg.kind === "duel") { duelAnswer(room, me, Number(m.i));
   } else if (m.t === "answer") {
     if (room.cfg.kind === "chrono") chronoAnswer(room, me, Number(m.i));
     else if (room.cfg.kind === "million") mAnswer(room, me, Number(m.i));
