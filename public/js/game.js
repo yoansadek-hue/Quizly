@@ -11,7 +11,7 @@ import { initCosmetics, styleName, titleOf } from "./cosmetics.js";
 import { initQuests } from "./quests.js";
 import { impUI, IMP_PTS, answerMatches } from "./impostor.js";
 
-const VERSION = "2.36.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.37.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -29,6 +29,7 @@ const MODES = {
   oteams: { name: "Équipes en ligne", qcm: true, time: 30, joker: false, lives: false, online: true, teams: true, hidden: true },
   obets: { name: "Les Parieurs", qcm: true, time: 30, joker: false, lives: false, online: true, bets: true, hidden: true },
   oduel: { name: "Le Duel", qcm: true, time: 120, joker: false, lives: false, online: true, duel: true, hidden: true },
+  osprint: { name: "Le Sprint", qcm: true, time: 15, joker: false, lives: false, online: true, sprint: true, hidden: true },
   oroyale: { name: "Le Dernier Debout", qcm: true, time: 15, joker: false, lives: false, online: true, royale: true, hidden: true },
   oimp: { name: "L'Imposteur en ligne", qcm: true, time: 60, joker: false, lives: false, online: true, impostor: true, hidden: true },
   omillion: { name: "Millionnaire en ligne", qcm: true, time: 30, joker: false, lives: false, online: true, million: true, hidden: true }
@@ -96,7 +97,7 @@ function show(id) {
   if (sp) { sp.classList.add("off"); setTimeout(() => sp.remove(), 450); }
 }
 // le jeu en cours, montré à vos amis (« joue à Survie en ligne »), ou null hors partie
-const ONLINE_NAMES = { survie: "Survie en ligne", chrono: "Chrono en ligne", million: "Qui veut gagner des millions en ligne", equipes: "Équipes en ligne", parieurs: "Les Parieurs", imposteur: "L'Imposteur en ligne", royale: "Le Dernier Debout", duel: "Le Duel" };
+const ONLINE_NAMES = { survie: "Survie en ligne", chrono: "Chrono en ligne", million: "Qui veut gagner des millions en ligne", equipes: "Équipes en ligne", parieurs: "Les Parieurs", imposteur: "L'Imposteur en ligne", royale: "Le Dernier Debout", duel: "Le Duel", sprint: "Le Sprint" };
 function playingName(id) {
   let on = false; try { on = online.active(); } catch {}
   if (on && S.soloChrono) return ["s-game", "s-load", "s-end"].includes(id) ? "Chrono" : null;
@@ -926,7 +927,7 @@ function statGame(kind) {
   cosm.earn(2, "partie"); // 2 Q-Bucks par partie
   quests.tick("game");
   friends.clubSync(); // le club voit vos chiffres de la semaine
-  if (["online", "chrono", "omillion", "oteams", "obets", "oimp", "oroyale", "oduel"].includes(kind)) quests.tick("online");
+  if (["online", "chrono", "omillion", "oteams", "obets", "oimp", "oroyale", "oduel", "osprint"].includes(kind)) quests.tick("online");
   if (kind === "chrono") quests.tick("chrono");
   if (kind === "million" || kind === "omillion") quests.tick("million");
   checkAch();
@@ -1613,7 +1614,7 @@ $("btnThemes").onclick = () => {
   if (!S.rand && !S.themes.size) { $("setupMsg").textContent = "Choisissez au moins un thème, ou « Aléatoire »."; return; }
   $("setupMsg").textContent = "";
   S.active = S.rand ? new Set(THEMES) : new Set(S.themes);
-  if (M().chrono || M().royale || M().duel) return submitRoom(); // Chrono (60 s) et Dernier Debout (15 s, 12 s…) : temps imposé, on crée la salle tout de suite
+  if (M().chrono || M().royale || M().duel || M().sprint) return submitRoom(); // Chrono (60 s) et Dernier Debout (15 s, 12 s…) : temps imposé, on crée la salle tout de suite
   $("btnTime").textContent = M().joker || M().online ? "Valider" : "Lancer la partie";
   renderTime(); show("s-time");
 };
@@ -1624,7 +1625,7 @@ $("btnTime").onclick = () => {
   else startGame();
 };
 function submitRoom() {
-  const cfg = { auto: S.cfg.auto, kind: M().chrono ? "chrono" : M().million ? "million" : M().teams ? "equipes" : M().bets ? "parieurs" : M().impostor ? "imposteur" : M().royale ? "royale" : M().duel ? "duel" : "survie", themes: [...S.active].filter((t) => !M().impostor || t !== SONG_THEME), time: S.cfg.time, lives: S.cfg.lives };
+  const cfg = { auto: S.cfg.auto, kind: M().chrono ? "chrono" : M().million ? "million" : M().teams ? "equipes" : M().bets ? "parieurs" : M().impostor ? "imposteur" : M().royale ? "royale" : M().duel ? "duel" : M().sprint ? "sprint" : "survie", themes: [...S.active].filter((t) => !M().impostor || t !== SONG_THEME), time: S.cfg.time, lives: S.cfg.lives };
   if (S.editRoom) { S.editRoom = false; online.setEditing(false); online.config(cfg); } // l'hôte modifie la salle
   else online.create(S.soloChrono ? { ...cfg, solo: true } : cfg); // Chrono seul : lancé tout de suite
 }
@@ -1662,11 +1663,12 @@ const ROOM_MODES = [
   ["oteams", "teams", "Équipes", "Les joueurs sont répartis en équipes qui jouent chacune leur tour. Les points s'additionnent."],
   ["obets", "bets", "Les Parieurs", "Chacun répond à son tour. Avant sa réponse, les autres parient leurs jetons : réussira-t-il ou non ? Le plus riche gagne."],
   ["oduel", "duel", "Le Duel", "À deux : une corde au milieu, chaque bonne réponse la tire vers soi. Chacun ses questions, la vitesse compte. Le premier qui l'amène de son côté gagne, en 2 minutes."],
+  ["osprint", "sprint", "Le Sprint", "Jusqu'à 8 coureurs : 15 questions, les mêmes pour tous, chacun à son rythme. Vite et juste, c'est une grande foulée ; une erreur, on trébuche. Le premier sur la ligne gagne."],
   ["oroyale", "royale", "Le Dernier Debout", "Jusqu'à 20 joueurs : tout le monde répond en même temps, une erreur et c'est fini. Le temps fond à chaque manche (15 s, 12 s, 10 s…). Le dernier debout gagne."],
   ["oimp", "impostor", "L'Imposteur", "Tout le monde voit la bonne réponse sauf l'imposteur, qui doit faire semblant en discutant. Ensuite, on vote pour le démasquer."],
   ["omillion", "million", "Qui veut gagner des millions", "La même échelle de 15 questions pour tous, chacun avec ses jokers. Celui qui repart avec le plus gagne."]
 ];
-const KIND_MODE = { survie: "online", chrono: "chrono", million: "omillion", equipes: "oteams", parieurs: "obets", imposteur: "oimp", royale: "oroyale", duel: "oduel" };
+const KIND_MODE = { survie: "online", chrono: "chrono", million: "omillion", equipes: "oteams", parieurs: "obets", imposteur: "oimp", royale: "oroyale", duel: "oduel", sprint: "osprint" };
 function renderRoomModes(current) {
   const box = $("roomModes");
   box.replaceChildren();
@@ -2112,7 +2114,7 @@ function achFacts() {
     games: Object.values(g).reduce((a, v) => a + v, 0), good: t.reduce((a, x) => a + x.ok, 0), themes: Object.keys(st.themes || {}).length,
     bestRun: st.bestRun || 0, best2: b("best2"), bestChrono: b("bestChrono"), bestMillion: b("bestMillion"),
     perfect: !!(d && d.done !== false && d.score === 10) || !!getAch().perfect, streak: dailyStreak(),
-    onlineGames: (g.online || 0) + (g.chrono || 0) + (g.omillion || 0) + (g.oteams || 0) + (g.obets || 0) + (g.oimp || 0) + (g.oroyale || 0) + (g.oduel || 0), friends: friends.ready() ? friends.count() : 0,
+    onlineGames: (g.online || 0) + (g.chrono || 0) + (g.omillion || 0) + (g.oteams || 0) + (g.obets || 0) + (g.oimp || 0) + (g.oroyale || 0) + (g.oduel || 0) + (g.osprint || 0), friends: friends.ready() ? friends.count() : 0,
     // 2.27 : nouvelles familles de succès
     dailies: dailyDays().length, party: (g.classic || 0) + (g.qcm || 0) + (g.teams || 0) + (g.million || 0) + (g.impostor || 0),
     imp: (g.impostor || 0) + (g.oimp || 0), bets: g.obets || 0, mill: (g.million || 0) + (g.omillion || 0),

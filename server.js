@@ -503,7 +503,7 @@ const alive = (room) => players(room).filter((p) => !p.dead);
 const tvs = (room) => room.tvs || (room.tvs = new Set());
 // les téléphones cachent la question quand elle est sur la télé : en partie, seulement si la partie a démarré avec la télé
 // (le Chrono, le Duel et le Millionnaire sans télé donnent à chacun sa propre question)
-const tvFlag = (room) => room.phase === "lobby" || room.phase === "end" ? tvs(room).size > 0 : !!room.tvOn || (tvs(room).size > 0 && !["chrono", "duel", "million"].includes(room.cfg.kind));
+const tvFlag = (room) => room.phase === "lobby" || room.phase === "end" ? tvs(room).size > 0 : !!room.tvOn || (tvs(room).size > 0 && !["chrono", "duel", "million", "sprint"].includes(room.cfg.kind));
 const LAST = ["q", "result", "level", "load", "fail", "end"];
 // avec la télé, les téléphones reçoivent les réponses mais jamais l'énoncé (ni l'image, ni l'extrait)
 const forPhone = (room, o) => (room.tvOn && o.t === "q" ? { ...o, q: "", img: null, audio: null } : o);
@@ -610,6 +610,7 @@ function startGame(room) {
   if (room.cfg.kind === "imposteur") return impStart(room);
   if (room.cfg.kind === "royale") { room.rr = { round: 0 }; return royaleRound(room); }
   if (room.cfg.kind === "duel") return duelStart(room);
+  if (room.cfg.kind === "sprint") return sprintStart(room);
   nextTurn(room);
 }
 function nextTurn(room) {
@@ -873,6 +874,129 @@ function duelEnd(room, quitter) {
     t: "end", kind: "duel", winner: w ? w.name : null, rope: d.rope, steps: DUEL_STEPS,
     how: quitter ? "abandon" : Math.abs(d.rope) >= DUEL_STEPS ? "corde" : "temps",
     ranking: order.map((p) => ({ id: p.id, name: p.name, score: p.score, points: p.score, lives: 0, photo: p.photo }))
+  });
+}
+
+/* ====================== Le Sprint (jusqu'à 8 joueurs) ====================== */
+// Une course en ligne droite : 15 questions, les mêmes pour tous, chacun à son rythme (pas de minuteur global).
+// Une bonne réponse fait avancer d'une foulée d'autant plus grande qu'elle est rapide ; une erreur fait trébucher
+// (on recule un peu). Le premier qui franchit la ligne gagne, même si les autres n'ont pas fini leurs questions.
+// Tout le monde voit la piste en direct.
+const SPRINT_Q = 15, SPRINT_LEN = +process.env.SPRINT_LEN || 100, SPRINT_MAX = 8, SPRINT_QMS = 15000, SPRINT_TRIP = 3;
+const sprintStep = (ms) => Math.round(5 + 7 * Math.max(0, 1 - ms / 9000)); // de 5 (lent) à 12 (immédiat)
+function sprintBoard(room) {
+  return { t: "sboard", len: SPRINT_LEN, total: SPRINT_Q, list: players(room).map((p) => ({ id: p.id, name: p.name, photo: p.photo || "", dist: p.dist || 0, n: p.si || 0, score: p.score || 0, done: !!p.done, left: !!p.left })) };
+}
+const sprintQ = (q, n) => ({ t: "sq", tag: `${q.t} · ${LEVELS[q.d]}`, q: q.q, img: q.img || null, audio: q.audio || null, options: q.options, n, total: SPRINT_Q, ms: SPRINT_QMS });
+async function sprintStart(room) {
+  const ps = players(room).filter((p) => !p.left);
+  Object.assign(room, { phase: "sload", buf: [], asked: [], loads: new Map(), soft: null });
+  const sp = room.sp = { pool: [], seen: new Set(), fails: 0, tv: !!room.tvOn, qi: 0, cur: null };
+  ps.forEach((p) => { clearTimeout(p.ctimer); Object.assign(p, { score: 0, points: 0, streak: 0, dist: 0, si: 0, cq: null, done: false, dead: false }); });
+  clearTimeout(room.timer);
+  cast(room, { t: "load", msg: "Préparation de la course…" });
+  const ai = room.cfg.themes.some((t) => !LOCAL_THEMES.includes(t));
+  if (ai) await Promise.allSettled([1, 2, 3, 4, 5].map((d) => fill(room, d))); // l'IA écrit tous les niveaux en même temps
+  const tmp = { seen: sp.seen };
+  while (sp.pool.length < SPRINT_Q && room.phase === "sload" && rooms.has(room.code)) { // les 15 questions, prêtes avant le départ
+    tmp.cdiff = Math.min(5, 1 + Math.floor(sp.pool.length / 3)); // de plus en plus dures
+    let q;
+    try { q = await takeFor(room, tmp); } catch (e) { console.error(e.message); if (++sp.fails >= 4) break; continue; }
+    sp.pool.push({ ...q, d: tmp.cdiff, options: shuffle(q.o) });
+    cast(room, { t: "load", msg: `Préparation de la course… ${sp.pool.length} / ${SPRINT_Q} questions` });
+  }
+  if (room.phase !== "sload" || !rooms.has(room.code)) return;
+  if (sp.pool.length < SPRINT_Q) { room.phase = "error"; return cast(room, { t: "fail", msg: "Impossible de préparer les questions de la course." }); }
+  room.phase = "sprint"; // partez !
+  cast(room, { ...sprintBoard(room), start: true, tv: sp.tv });
+  if (sp.tv) sprintTvNext(room); else ps.forEach((p) => sprintNext(room, p));
+}
+function sprintNext(room, p) {
+  if (room.phase !== "sprint" || p.left || p.done) return;
+  if (p.si >= SPRINT_Q) { // ses 15 questions sont faites : il attend les autres
+    p.done = true; p.cq = null;
+    send(p.ws, { t: "sdone" });
+    cast(room, sprintBoard(room));
+    return sprintCheck(room);
+  }
+  const q = room.sp.pool[p.si++];
+  p.cq = q; p.qAt = Date.now();
+  clearTimeout(p.ctimer); p.ctimer = setTimeout(() => sprintAnswer(room, p, -1), SPRINT_QMS + 500);
+  send(p.ws, sprintQ(q, p.si));
+}
+function sprintMove(p, ok, ms, picked) { // la foulée : grande si vite et juste, on trébuche sur une erreur
+  let step = 0;
+  if (ok) { p.score++; p.streak++; step = sprintStep(ms); }
+  else { p.streak = 0; if (picked >= 0) step = -Math.min(p.dist, SPRINT_TRIP); } // sans réponse : on n'avance pas
+  p.dist = Math.min(SPRINT_LEN, p.dist + step); p.points = p.dist;
+  return step;
+}
+function sprintAnswer(room, p, i) {
+  if (room.phase !== "sprint" || !p.cq || p.done) return;
+  if (i !== -1 && (!Number.isInteger(i) || i < 0 || i >= p.cq.options.length)) return;
+  if (room.sp.tv) return sprintTvAnswer(room, p, i);
+  clearTimeout(p.ctimer);
+  const q = p.cq, ok = i >= 0 && q.options[i] === q.a;
+  p.cq = null;
+  const step = sprintMove(p, ok, Date.now() - p.qAt, i);
+  send(p.ws, { t: "sres", correct: ok, picked: i, answer: q.a, step, dist: p.dist });
+  cast(room, { ...sprintBoard(room), by: p.id, step });
+  if (p.dist >= SPRINT_LEN) return sprintEnd(room, p); // la ligne est franchie
+  setTimeout(() => sprintNext(room, p), ok ? 650 : 1500); // une erreur coûte aussi un peu de temps
+}
+function sprintCheck(room) { // personne n'a franchi la ligne et tout le monde a fini : le plus loin gagne
+  if (room.phase === "sprint" && players(room).every((p) => p.left || p.done)) sprintEnd(room, null);
+}
+// Avec une télé : une question à la fois, sur la télé ; la foulée dépend de la vitesse de chacun sur cette question
+function sprintTvNext(room) {
+  const sp = room.sp;
+  if (room.phase !== "sprint") return;
+  if (sp.qi >= SPRINT_Q) return sprintEnd(room, null);
+  const q = sp.pool[sp.qi++];
+  sp.cur = q; sp.qAt = Date.now(); sp.picks = new Map();
+  players(room).forEach((p) => { if (p.left) return; p.cq = q; p.si = sp.qi; send(p.ws, { ...sprintQ(q, sp.qi), tv: true, q: "", img: null, audio: null }); });
+  tvs(room).forEach((ws) => send(ws, { ...sprintQ(q, sp.qi), tv: true }));
+  clearTimeout(sp.qt); sp.qt = setTimeout(() => sprintTvReveal(room), SPRINT_QMS);
+}
+function sprintTvAnswer(room, p, i) {
+  const sp = room.sp;
+  if (!sp.cur || sp.picks.has(p.id) || i < 0) return;
+  sp.picks.set(p.id, { i, ms: Date.now() - sp.qAt });
+  send(p.ws, { t: "sres", tv: true, wait: true, picked: i });
+  tvs(room).forEach((ws) => send(ws, { t: "rcount", n: sp.picks.size, total: players(room).filter((x) => !x.left).length }));
+  if (players(room).every((x) => x.left || sp.picks.has(x.id))) sprintTvReveal(room); // tout le monde a répondu
+}
+function sprintTvReveal(room) {
+  const sp = room.sp, q = sp && sp.cur;
+  if (room.phase !== "sprint" || !q) return;
+  clearTimeout(sp.qt); sp.cur = null;
+  const results = [];
+  players(room).forEach((p) => {
+    if (p.left) return;
+    const r = sp.picks.get(p.id), ok = !!r && q.options[r.i] === q.a;
+    const step = sprintMove(p, ok, r ? r.ms : SPRINT_QMS, r ? r.i : -1);
+    p.cq = null;
+    results.push({ id: p.id, name: p.name, ok, step });
+    send(p.ws, { t: "sres", tv: true, correct: ok, picked: r ? r.i : -1, answer: q.a, step, dist: p.dist });
+  });
+  tvs(room).forEach((ws) => send(ws, { t: "sreveal", answer: q.a, results }));
+  cast(room, sprintBoard(room));
+  const fin = players(room).filter((p) => !p.left && p.dist >= SPRINT_LEN) // le plus rapide sur cette question passe la ligne en premier
+    .sort((a, b) => b.dist - a.dist || sp.picks.get(a.id).ms - sp.picks.get(b.id).ms);
+  if (fin.length) { sp.over = true; return setTimeout(() => sprintEnd(room, fin[0]), 1500); }
+  setTimeout(() => sprintTvNext(room), 1800);
+}
+function sprintEnd(room, w) {
+  if (room.phase !== "sprint" && room.phase !== "sload") return;
+  room.phase = "end";
+  clearTimeout(room.timer); clearTimeout(room.sp.qt);
+  players(room).forEach((p) => { clearTimeout(p.ctimer); p.cq = null; });
+  const order = [...players(room)].sort((a, b) => (b === w) - (a === w) || b.dist - a.dist || b.score - a.score);
+  if (!w && order.length > 1 && order[0].dist > order[1].dist) w = order[0]; // personne n'a fini la course : le plus loin gagne
+  if (!w && order.length === 1) w = order[0];
+  cast(room, {
+    t: "end", kind: "sprint", winner: w ? w.name : null, how: w && w.dist >= SPRINT_LEN ? "ligne" : "fin", len: SPRINT_LEN,
+    ranking: order.map((p) => ({ id: p.id, name: p.name, score: p.score, points: Math.round(p.dist), lives: 0, photo: p.photo }))
   });
 }
 
@@ -1549,6 +1673,13 @@ function rejoin(ws, m) {
     else if (p.cq) send(ws, { t: "dq", tag: `${p.cq.t} · ${LEVELS[p.cq.d]}`, q: p.cq.q, img: p.cq.img || null, audio: p.cq.audio || null, options: p.cq.options, left: Math.max(0, room.duel.end - Date.now()) });
     return;
   }
+  if (k === "sprint" && room.phase === "sprint") {
+    send(ws, sprintBoard(room));
+    if (p.done) return send(ws, { t: "sdone" });
+    if (p.cq && room.sp.tv) { if (!room.sp.picks.has(p.id)) send(ws, { ...sprintQ(p.cq, p.si), tv: true, q: "", img: null, audio: null, ms: Math.max(1000, SPRINT_QMS - (Date.now() - room.sp.qAt)) }); }
+    else if (p.cq) send(ws, { ...sprintQ(p.cq, p.si), ms: Math.max(1000, SPRINT_QMS - (Date.now() - p.qAt)) });
+    return;
+  }
   if (k === "chrono") {
     send(ws, { t: "cgo", ms: CHRONO_MS }); castBoard(room);
     if (p.done) return send(ws, { t: "cdone", points: p.points, score: p.score });
@@ -1604,6 +1735,12 @@ function leave(ws) {
   if (room.cfg.kind === "chrono") { clearTimeout(me.ctimer); me.done = true; me.cq = null; castBoard(room); return checkChronoEnd(room); }
   if (room.cfg.kind === "million") { if (!me.mout) { me.mout = true; me.mq = null; } return mCheck(room); }
   if (room.cfg.kind === "duel") return duelEnd(room, me.id); // l'autre gagne par abandon
+  if (room.cfg.kind === "sprint" && room.phase === "sprint") { // le coureur parti quitte la piste, la course continue
+    clearTimeout(me.ctimer); me.cq = null; me.done = true;
+    cast(room, sprintBoard(room));
+    if (room.sp.tv && room.sp.cur && players(room).every((x) => x.left || room.sp.picks.has(x.id))) return sprintTvReveal(room);
+    return sprintCheck(room);
+  }
   if (room.cfg.kind === "royale") { // le joueur parti est éliminé (fait plus haut) : la manche continue sans lui
     if (standing(room).length <= 1) return royaleEnd(room);
     if (room.phase === "rq" && standing(room).filter((p) => !p.away).every((p) => room.rr.answers.has(p.id))) royaleResolve(room);
@@ -1635,7 +1772,7 @@ function leave(ws) {
 function readCfg(m) {
   const themes = (Array.isArray(m.themes) ? m.themes : []).map((t) => clean(t, 50)).filter(Boolean).slice(0, 60);
   if (!themes.length) return "Choisissez au moins un thème.";
-  return { auto: !!m.auto, kind: ["chrono", "million", "equipes", "parieurs", "imposteur", "royale", "duel"].includes(m.kind) ? m.kind : "survie", themes, time: clamp(+m.time, 0, 120), lives: clamp(+m.lives || 2, 1, 5) };
+  return { auto: !!m.auto, kind: ["chrono", "million", "equipes", "parieurs", "imposteur", "royale", "duel", "sprint"].includes(m.kind) ? m.kind : "survie", themes, time: clamp(+m.time, 0, 120), lives: clamp(+m.lives || 2, 1, 5) };
 }
 
 function handle(ws, m) {
@@ -1666,6 +1803,7 @@ function handle(ws, m) {
     tvNotify(room); // les téléphones savent qu'une télé est branchée
     if (room.phase === "chrono") castBoard(room);
     if (room.phase === "chrono" && room.ct && room.ct.cur) { const q = room.ct.cur; send(ws, { ...chronoPad(room, room.ct, {}), q: q.q, img: q.img || null, ms: Math.max(0, CHRONO_QMS - (Date.now() - room.ct.qAt)), n: room.ct.n }); }
+    if (room.phase === "sprint") { send(ws, { ...sprintBoard(room), tv: room.sp.tv }); const q = room.sp.cur; if (room.sp.tv && q) send(ws, { ...sprintQ(q, room.sp.qi), tv: true, ms: Math.max(1000, SPRINT_QMS - (Date.now() - room.sp.qAt)) }); }
     if (room.phase === "duel") { send(ws, duelState(room)); const q = room.duel.cur; if (room.duel.tv && q) send(ws, { ...duelPad(room, q), q: q.q, img: q.img || null, ms: DUEL_QMS }); }
     if (room.phase === "mq" && room.mshared) send(ws, mWatch(room, true));
     if (room.phase === "mq" || room.phase === "mres") mBoard(room);
@@ -1694,6 +1832,7 @@ function handle(ws, m) {
     if (room.phase !== "lobby") return send(ws, { t: "error", msg: "La partie a déjà commencé." });
     if (players(room).length >= 20) return send(ws, { t: "error", msg: "Salle pleine (20 joueurs)." });
     if (room.cfg.kind === "duel" && players(room).filter((p) => !p.left).length >= 2) return send(ws, { t: "error", msg: "Ce Duel est déjà complet (deux joueurs)." });
+    if (room.cfg.kind === "sprint" && players(room).filter((p) => !p.left).length >= SPRINT_MAX) return send(ws, { t: "error", msg: `Ce Sprint est complet (${SPRINT_MAX} coureurs).` });
     if (ws.room) leave(ws);
     join(ws, room, m.name, m.photo, m.hist, m.uid, m.cos);
     if (room.chat && room.chat.length) send(ws, { t: "chatlog", list: room.chat });
@@ -1707,12 +1846,15 @@ function handle(ws, m) {
     room.tvOn = tvs(room).size > 0; // une télé est branchée : les questions passent sur la télé, jamais sur les téléphones
     if (room.cfg.kind === "chrono") return startChrono(room); // le Chrono se joue aussi seul
     if (room.cfg.kind === "million") return startMillion(room); // le Millionnaire aussi
+    if (room.cfg.kind === "sprint" && players(room).length > SPRINT_MAX) return send(ws, { t: "error", msg: `Le Sprint se court à ${SPRINT_MAX} au plus.` });
+    if (room.cfg.kind === "sprint") return startGame(room); // seul aussi : contre la montre
     if (players(room).length < 2) return send(ws, { t: "error", msg: "Il faut au moins 2 joueurs." });
     if (room.cfg.kind === "duel" && players(room).length !== 2) return send(ws, { t: "error", msg: "Le Duel se joue à deux, exactement." });
     if (room.cfg.kind === "imposteur" && players(room).length < 3) return send(ws, { t: "error", msg: "L'Imposteur se joue à 3 joueurs ou plus." });
     startGame(room);
   } else if (m.t === "answer" && room.cfg.kind === "royale") { royaleAnswer(room, me, Number(m.i));
   } else if (m.t === "answer" && room.cfg.kind === "duel") { duelAnswer(room, me, Number(m.i));
+  } else if (m.t === "answer" && room.cfg.kind === "sprint") { sprintAnswer(room, me, Number(m.i));
   } else if (m.t === "answer") {
     if (room.cfg.kind === "chrono") chronoAnswer(room, me, Number(m.i));
     else if (room.cfg.kind === "million") mAnswer(room, me, Number(m.i));
@@ -1723,7 +1865,7 @@ function handle(ws, m) {
   else if (m.t === "mstop" && room.cfg.kind === "million") mStop(room, me);
   else if (m.t === "retry" && host && room.phase === "merror") mNext(room, true);
   else if (m.t === "level" && host && room.phase === "level") chooseLevel(room, !!m.up);
-  else if (m.t === "retry" && host && room.phase === "error") room.cfg.kind === "imposteur" ? impRound(room) : room.cfg.kind === "royale" ? royaleRound(room) : loadQuestion(room);
+  else if (m.t === "retry" && host && room.phase === "error") room.cfg.kind === "imposteur" ? impRound(room) : room.cfg.kind === "royale" ? royaleRound(room) : room.cfg.kind === "duel" ? duelStart(room) : room.cfg.kind === "sprint" ? sprintStart(room) : loadQuestion(room);
   else if (m.t === "impvote" && host && room.phase === "italk") impVoteStart(room); // l'hôte lance le vote
   else if (m.t === "vote" && room.cfg.kind === "imposteur") impVote(room, me, m.id);
   else if (m.t === "iclue" && room.cfg.kind === "imposteur") impClue(room, me, m.text);

@@ -5,7 +5,7 @@ import { THEMES } from "./questions.js";
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
-const KIND = { survie: "Survie", chrono: "Chrono 60 s", million: "Qui veut gagner des millions", equipes: "Équipes", parieurs: "Les Parieurs", imposteur: "L'Imposteur", royale: "Le Dernier Debout", duel: "Le Duel" };
+const KIND = { survie: "Survie", chrono: "Chrono 60 s", million: "Qui veut gagner des millions", equipes: "Équipes", parieurs: "Les Parieurs", imposteur: "L'Imposteur", royale: "Le Dernier Debout", duel: "Le Duel", sprint: "Le Sprint" };
 const TAUNTS = ["Trop facile", "Tu dors ?", "Pleure pas", "Même pas peur", "Je suis trop fort", "Cadeau !", "Bruh"];
 const T = { ws: null, code: "", pl: {}, kind: "survie", raf: 0, last: null, board: [], mboard: [], who: null, craf: 0 };
 
@@ -53,6 +53,9 @@ function onMsg(m) {
     case "cq": renderTQ(m, "chrono"); break;
     case "creveal": reveal(m.answer, -1); chronoReveal(m); break;
     case "dq": renderTQ(m, "duel"); break;
+    case "sboard": renderSprint(m); break;
+    case "sq": renderTQ(m, "sprint"); break;
+    case "sreveal": reveal(m.answer, -1); sprintReveal(m); break;
     case "dreveal": reveal(m.answer, -1); verdict(m.by ? `${m.by} tire la corde !` : "Personne n'a trouvé !", m.by ? "ok" : "ko"); stopRing(); break;
     case "mq": renderMQ(m); break;
     case "mboard": T.mboard = m.list; renderMSide(); break;
@@ -65,7 +68,7 @@ function onMsg(m) {
     case "ivoted": $("tImpLive").replaceChildren(el("span", "chip", `${m.count} / ${m.total} ont voté`)); break;
     case "iclued": $("tImpLive").replaceChildren(el("span", "chip", `${m.count} / ${m.total} indices écrits`)); break;
     case "go": betsGo(m); break;
-    case "end": if (m.kind === "duel" && (!$("tDuel").hidden || T.dtv)) duelFinale(m); else renderEnd(m); break; // la corde casse, puis le podium
+    case "end": if (m.kind === "duel" && (!$("tDuel").hidden || T.dtv)) duelFinale(m); else if (m.kind === "sprint" && T.sp) sprintFinale(m); else renderEnd(m); break; // la corde casse, puis le podium
     case "react": bubble(m.name, TAUNTS[m.r] || "", `r${m.r} ${m.sk || ""}`); break;
     case "chat": chat(m.name, m.text, m.sk); break;
     case "host": T.host = m.host; hostTheme(); break;
@@ -75,7 +78,7 @@ function onMsg(m) {
 /* ---------- salle d'attente ---------- */
 function renderLobby(m) {
   T.kind = m.cfg.kind || "survie";
-  if (m.phase === "lobby") { T.ctv = T.dtv = false; ropeIn(false); }
+  if (m.phase === "lobby") { T.ctv = T.dtv = T.stv = false; T.sp = null; ropeIn(false); trackIn(false); }
   T.pl = Object.fromEntries(m.players.map((p) => [p.id, p]));
   T.host = m.host; hostTheme();
   m.players.forEach((p) => setFrame(p.name, (p.cos || {}).frame)); // cadres des joueurs
@@ -172,11 +175,17 @@ function renderTQ(m, kind) {
   T.last = m;
   paint(m);
   $("gVerdict").hidden = true;
-  if (kind === "duel") {
+  if (kind === "sprint") {
+    $("gRope").hidden = true; trackIn(true);
+    $("gWho").replaceChildren(el("span", null, "Le Sprint"));
+    $("gCount").textContent = `Question ${m.n} / ${m.total}`;
+    $("gLive").replaceChildren(el("span", "chip", "Vite et juste : grande foulée !"));
+  } else if (kind === "duel") {
+    $("gTrack").hidden = true;
     $("gWho").replaceChildren(el("span", null, "Le Duel"));
     $("gLive").replaceChildren(el("span", "chip", "Le premier qui répond juste tire la corde !"));
   } else {
-    $("tGame").classList.remove("duelon"); $("gRope").hidden = true;
+    $("tGame").classList.remove("duelon"); $("gRope").hidden = true; $("gTrack").hidden = true;
     const t = Math.ceil((m.left || 0) / 1000);
     $("gWho").replaceChildren(el("span", null, "Chrono"));
     $("gCount").textContent = `Question ${m.n} · reste ${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`;
@@ -185,6 +194,57 @@ function renderTQ(m, kind) {
   }
   ring("gArc", "gClock", "gRing", (m.ms || 0) / 1000, (m.ms || 0) / 1000);
   show("tGame");
+}
+/* ---------- Le Sprint : la piste vue de haut ---------- */
+function trackIn(on) { // avec la télé, la piste passe au-dessus de la question
+  const tr = $("tTrack");
+  if (on) $("gTrack").append(tr); else $("tSprint").insertBefore(tr, $("tSprintMsg"));
+  $("gTrack").hidden = !on;
+  if (on) $("tGame").classList.add("duelon");
+}
+function renderSprint(m) {
+  const prev = T.sp ? T.sp.list : [];
+  if (m.start) T.stv = !!m.tv;
+  T.sp = m;
+  const tr = $("tTrack");
+  if (m.start || tr.children.length !== m.list.length) tr.replaceChildren(...m.list.map((p) => {
+    const lane = el("div", "tlane"); lane.dataset.id = p.id;
+    const run = el("span", "trun"); run.append(avatarEl(p.name, p.photo || photo(p.id)), el("b", null, p.name));
+    lane.append(run, el("i", "tpos"));
+    return lane;
+  }));
+  const order = m.list.filter((p) => !p.left).sort((a, b) => b.dist - a.dist || b.score - a.score);
+  m.list.forEach((p) => {
+    const lane = tr.querySelector(`[data-id="${p.id}"]`); if (!lane) return;
+    const run = lane.querySelector(".trun"), d = Math.min(1, p.dist / m.len), i = order.indexOf(p);
+    run.style.setProperty("--d", d);
+    run.classList.toggle("rev", d > 0.7);
+    lane.classList.toggle("out", !!p.left);
+    lane.classList.toggle("lead", i === 0 && p.dist > 0);
+    lane.querySelector(".tpos").textContent = p.left ? "" : i === 0 ? "1er" : `${i + 1}e`;
+    const was = prev.find((x) => x.id === p.id);
+    if (was && was.dist !== p.dist) { run.classList.remove("leap", "trip"); void run.offsetWidth; run.classList.add(p.dist > was.dist ? "leap" : "trip"); }
+  });
+  const lead = order[0];
+  $("tSprintMsg").textContent = lead && lead.dist > 0 ? `${lead.name} mène la course · ${Math.round(lead.dist)} m sur ${m.len}` : "Partez ! Vite et juste : grande foulée";
+  trackIn(T.stv);
+  if (!T.stv) { stopRing(); show("tSprint"); }
+}
+function sprintReveal(m) {
+  stopRing();
+  const ok = m.results.filter((r) => r.ok);
+  verdict(ok.length ? `Bonne réponse : ${ok.map((r) => r.name).join(", ")}` : "Personne n'a trouvé !", ok.length ? "ok" : "ko");
+  $("gLive").replaceChildren(...m.results.map((r) => el("span", "chip" + (r.ok ? " won" : " lost"), `${r.name} · ${r.step > 0 ? `+${r.step} m` : r.step < 0 ? `trébuche ${r.step} m` : "reste sur place"}`)));
+}
+function sprintFinale(m) {
+  stopRing();
+  const w = m.winner && m.ranking[0];
+  const lane = w && $("tTrack").querySelector(`[data-id="${w.id}"]`);
+  if (lane && m.how === "ligne") { lane.querySelector(".trun").style.setProperty("--d", 1); lane.classList.add("win"); }
+  const txt = !m.winner ? "Égalité !" : m.how === "ligne" ? `${m.winner} franchit la ligne !` : `Personne à l'arrivée : ${m.winner} est allé le plus loin`;
+  $("tSprintMsg").textContent = txt;
+  if (T.stv) verdict(txt, "ok");
+  setTimeout(() => { T.sp = null; renderEnd(m); }, 2600);
 }
 function chronoSide() {
   $("gSide").replaceChildren(el("h3", null, "Classement"), ...T.board.map((p, i) => {
@@ -235,7 +295,7 @@ function renderImp(m) {
 /* ---------- Survie et Équipes ---------- */
 function renderQ(m) {
   T.last = m;
-  $("tGame").classList.remove("duelon"); $("gRope").hidden = true;
+  $("tGame").classList.remove("duelon"); $("gRope").hidden = true; $("gTrack").hidden = true;
   paint(m);
   $("gWho").replaceChildren(avatarEl(m.name, photo(m.who), true), el("span", null, m.name));
   $("gCount").textContent = m.royale ? `${m.alive} debout · ${m.sec} s` : m.teams ? `Équipe ${m.team}` : `Question ${m.qn || ""}`.trim();
@@ -327,7 +387,7 @@ function renderLevel(m) {
 /* ---------- Millionnaire ---------- */
 function renderMQ(m) {
   T.last = m;
-  $("tGame").classList.remove("duelon"); $("gRope").hidden = true;
+  $("tGame").classList.remove("duelon"); $("gRope").hidden = true; $("gTrack").hidden = true;
   paint(m);
   $("gWho").replaceChildren(el("span", null, `Pour ${euros(PRIZES[m.n])}`));
   $("gCount").textContent = `Question ${m.n + 1} / 15`;
@@ -392,7 +452,7 @@ function renderRace() {
 /* ---------- fin : podium et confettis ---------- */
 function renderEnd(m) {
   stopRing(); clearInterval(T.dtid); cancelAnimationFrame(T.craf);
-  const fmt = (p) => (m.kind === "million" ? euros(p.points) : m.kind === "parieurs" ? `${p.points} jetons` : m.kind === "imposteur" ? `${p.points} pts` : m.kind === "royale" || m.kind === "duel" ? `${p.score} bonne${p.score > 1 ? "s" : ""}` : m.kind === "chrono" || m.kind === "equipes" ? `${p.points} pts` : `${p.score} bonne${p.score > 1 ? "s" : ""}`);
+  const fmt = (p) => (m.kind === "sprint" ? `${Math.min(100, p.points)} m · ${p.score} bonne${p.score > 1 ? "s" : ""}` : m.kind === "million" ? euros(p.points) : m.kind === "parieurs" ? `${p.points} jetons` : m.kind === "imposteur" ? `${p.points} pts` : m.kind === "royale" || m.kind === "duel" ? `${p.score} bonne${p.score > 1 ? "s" : ""}` : m.kind === "chrono" || m.kind === "equipes" ? `${p.points} pts` : `${p.score} bonne${p.score > 1 ? "s" : ""}`);
   $("tEndLead").textContent = m.winner ? "Vainqueur" : "Partie terminée";
   $("tWinner").textContent = m.winner || "Égalité";
   const top = m.ranking.slice(0, 3);
