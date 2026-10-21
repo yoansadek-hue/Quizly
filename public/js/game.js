@@ -11,7 +11,7 @@ import { initCosmetics, styleName, titleOf } from "./cosmetics.js";
 import { initQuests } from "./quests.js";
 import { impUI, IMP_PTS, answerMatches } from "./impostor.js";
 
-const VERSION = "2.30.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.31.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -74,7 +74,7 @@ function show(id) {
   curScreen = id;
   if (id === "s-lobby") { $("btnInvite").hidden = !friends.ready(); friends.hideInvitePanel(); } // inviter ses amis dans le salon
   if (id === "s-mode") { try { dailyCard(); } catch {} try { menuPushUI(); } catch {} }
-  $("btnNotifs").hidden = $("btnQuests").hidden = id === "s-login" || PLAYING.includes(id) || id === "s-lobby"; // la cloche et les Défis, hors partie
+  $("btnNotifs").hidden = $("btnProfile").hidden = id === "s-login" || PLAYING.includes(id) || id === "s-lobby"; // la cloche et le Profil, hors partie
   tabbar(id); // la barre d'onglets du bas
   if (id === "s-end") setTimeout(() => friends.syncRecords(), 800); // nouveaux records visibles par les amis
   // rond des réactions : seulement pendant une partie en ligne
@@ -87,10 +87,20 @@ function show(id) {
   if (id !== "s-game") stopAudio(); // l'extrait s'arrête quand on quitte la question
   document.querySelectorAll(".screen").forEach((s) => { s.hidden = s.id !== id; if (s.id !== id) s.classList.remove("noanim"); swipeClean(s); }); // jamais d'écran resté décalé
   userLabel();
+  try { friends.setPlaying(playingName(id)); } catch {} // vos amis voient à quoi vous jouez
   $("bar").hidden = id === "s-login" || id === "s-local";
   window.scrollTo(0, 0);
   const sp = document.getElementById("splash"); // le jeu est prêt : on retire l'écran de démarrage
   if (sp) { sp.classList.add("off"); setTimeout(() => sp.remove(), 450); }
+}
+// le jeu en cours, montré à vos amis (« joue à Survie en ligne »), ou null hors partie
+const ONLINE_NAMES = { survie: "Survie en ligne", chrono: "Chrono en ligne", million: "Qui veut gagner des millions en ligne", equipes: "Équipes en ligne", parieurs: "Les Parieurs", imposteur: "L'Imposteur en ligne" };
+function playingName(id) {
+  let on = false; try { on = online.active(); } catch {}
+  if (on) { const k = (online.cfg() || {}).kind; return ["s-lobby", "s-game", "s-million", "s-load", "s-imp", "s-level", "s-end"].includes(id) ? ONLINE_NAMES[k] || "En ligne" : null; }
+  if (id === "s-daily") return "Défi du jour";
+  if ((PLAYING.includes(id) || id === "s-imp") && S.inGame !== false) return M() ? M().name : null;
+  return null;
 }
 function flash(kind) {
   if (setting("vibrate")) { if (navigator.vibrate) navigator.vibrate(kind === "ok" ? 30 : [40, 60, 40]); else if (hapSw) hapSw.click(); } // réglage « vibrations » (iPhone : un tic)
@@ -1135,6 +1145,29 @@ const profKey = "quizly:profiles";
 const getProfiles = () => { try { return JSON.parse(localStorage.getItem(profKey) || "{}"); } catch { return {}; } };
 // QR code de la télé scanné avec l'appareil photo du téléphone : quizly…/?tv=ABCDEFGH rejoint le salon télé dès la connexion
 let pendingJoin = new URLSearchParams(location.search).get("tv");
+// notification touchée alors que l'appli était déjà ouverte : le service worker nous envoie l'adresse
+function openLink(url) {
+  let p; try { p = new URL(url, location.origin).searchParams; } catch { return; }
+  if (!S.uid) { if (p.get("tv")) pendingJoin = p.get("tv"); return; } // pas encore connecté : à la connexion
+  const tv = p.get("tv"), club = p.get("club");
+  if (tv) { // une invitation à jouer : on rejoint le salon tout de suite
+    const code = tv.toUpperCase().slice(0, 12);
+    if (online.active()) online.leave();
+    S.inGame = false; stopTimer();
+    chooseMode("online"); online.join(code);
+  } else if (p.get("defi")) openDaily();
+  else if (p.get("amis")) openFriends();
+  else if (p.get("notifs")) openNotifs();
+  else if (club) friends.clubInvite(club);
+}
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.onmessage = (e) => {
+    const d = e.data || {};
+    if (d.type !== "link") return;
+    if (e.ports && e.ports[0]) e.ports[0].postMessage("ok"); // reçu : le service worker ne recharge pas la page
+    openLink(d.url);
+  };
+}
 function enter(uid, name, photo) {
   S.uid = uid;
   setUser(name, photo);
@@ -1173,8 +1206,8 @@ const friends = initFriends({
 });
 function openNotifs() { friends.renderNotifs(); adminUI(); show("s-notifs"); }
 $("btnNotifs").onclick = openNotifs;
-$("btnQuests").onclick = openQuests;
-function openFriends() { friends.render(); friends.syncRecords(); pushUI(); show("s-friends"); }
+$("btnProfile").onclick = () => { renderProfile(); show("s-profile"); }; // le Profil, en haut (les Défis sont dans la barre du bas)
+function openFriends() { friends.render(); friends.freshen(); friends.syncRecords(); pushUI(); show("s-friends"); }
 // bandeau des notifications dans l'onglet Amis
 function menuPushUI() { // bandeau du menu : tant que les notifications ne sont ni acceptées ni refusées
   let later = false; try { later = Date.now() - (+localStorage.getItem("quizly:pushLater") || 0) < 3 * 86400000; } catch {}
@@ -1198,8 +1231,8 @@ async function askPush() { const st = await enablePush(S.uid, true); pushUI(st);
 async function saveDevice() { const sub = await currentSub(); if (sub) friends.saveSub(sub.toJSON()); } // le serveur le retrouve même après s'être endormi
 $("btnPush").onclick = async () => { $("btnPush").disabled = true; await askPush(); $("btnPush").disabled = false; };
 // barre d'onglets du bas (comme Instagram) : visible sur les écrans principaux, cachée en partie et sur les écrans à bouton fixe
-const TAB_OF = { "s-mode": "s-mode", "s-sub": "s-mode", "s-online": "s-mode", "s-friends": "s-friends", "s-friend": "s-friends", "s-shop": "s-shop", "s-profile": "s-profile", "s-settings": "s-settings", "s-notifs": "", "s-quests": "" };
-const TAB_ORDER = ["s-shop", "s-friends", "s-mode", "s-profile", "s-settings"]; // dans l'ordre de la barre du bas (Boutique à gauche, Accueil au milieu)
+const TAB_OF = { "s-mode": "s-mode", "s-sub": "s-mode", "s-online": "s-mode", "s-friends": "s-friends", "s-friend": "s-friends", "s-shop": "s-shop", "s-profile": "", "s-settings": "s-settings", "s-notifs": "", "s-quests": "s-quests" }; // le Profil : barre visible, aucun onglet allumé
+const TAB_ORDER = ["s-shop", "s-friends", "s-mode", "s-quests", "s-settings"]; // dans l'ordre de la barre du bas (Boutique à gauche, Accueil au milieu)
 function tabbar(id) {
   const bar = $("tabbar"), on = id in TAB_OF;
   bar.hidden = !on;
@@ -1212,7 +1245,7 @@ function goTab(t) {
   const go = t.dataset.go || t;
   if (go === "s-friends") return openFriends();
   if (go === "s-shop") { cosm.render(); return show("s-shop"); }
-  if (go === "s-profile") { renderProfile(); return show("s-profile"); }
+  if (go === "s-quests") return openQuests();
   if (go === "s-settings") { renderSettings(); return show("s-settings"); }
   show("s-mode");
 }
@@ -1313,7 +1346,7 @@ TABS.forEach((t) => (t.onclick = (e) => { if (e.detail === 0) goTab(t); })); // 
 addEventListener("resize", () => { if (!bar.hidden) { P.shown = false; pillTo(bar.querySelector(".tab.on")); } });
 // balayer l'écran (comme Instagram) : l'écran suit le doigt et l'onglet voisin glisse à côté ; on le lâche, il se cale.
 // Règle de sûreté : en dehors d'un geste, un seul écran est visible et aucun n'est déplacé (voir swipeReset).
-const PREP = { "s-mode": () => { menuPushUI(); dailyCard(); }, "s-friends": () => friends.render(), "s-shop": () => cosm.render(), "s-profile": () => renderProfile(), "s-settings": () => renderSettings() };
+const PREP = { "s-mode": () => { menuPushUI(); dailyCard(); }, "s-friends": () => friends.render(), "s-shop": () => cosm.render(), "s-quests": () => { renderQuestDaily(); quests.render(); qTab(QTAB); }, "s-settings": () => renderSettings() };
 // une ancienne règle (#main>.screen{transform:none!important}) bloquait le déplacement des écrans : d'où les écrans superposés.
 // Pendant un geste, on déplace donc avec la même priorité.
 function slideTo(el, x, ease) { if (!el) return; if (ease !== undefined) el.style.setProperty("transition", ease, "important"); el.style.setProperty("transform", `translate3d(${x}px,0,0)`, "important"); }

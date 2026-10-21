@@ -1398,3 +1398,6 @@ body.calm .champ{animation:none}
 /* sur une surface claire (lignes de classement, cartes d'amis, salon) : un dégradé plus foncé, toujours lisible */
 .rk .champ,.fcard .champ,#lobbyList .champ{background-image:linear-gradient(90deg,#c2185b,#7b2ff7,#0b7bc4,#e65100,#c2185b);filter:none}
 :root[data-mode=dark] .rk:not(.first) .champ,:root[data-mode=dark] .fcard .champ{background-image:linear-gradient(90deg,#ffe14d,#ff9f45,#ff3b5c,#c79bff,#62c7ff,#ffe14d)}
+/* 2.31 : un ami en partie : « joue à … » en vert */
+.fmeta.playing{color:var(--mint);font-weight:800}
+:root:not([data-mode=dark]) .fmeta.playing{color:#0f9a72}
