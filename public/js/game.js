@@ -11,7 +11,7 @@ import { initCosmetics, styleName, titleOf } from "./cosmetics.js";
 import { initQuests } from "./quests.js";
 import { impUI, IMP_PTS, answerMatches } from "./impostor.js";
 
-const VERSION = "2.33.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.34.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -81,7 +81,7 @@ function show(id) {
   // rond des réactions : seulement pendant une partie en ligne
   // le chat reste ouvert d'une question à l'autre (on peut finir sa phrase) ; il se ferme seulement hors du jeu
   let onl = false; try { onl = online.active(); } catch {}
-  const chat = onl && ["s-lobby", "s-game", "s-million", "s-load", "s-imp"].includes(id); // le chat : dès la salle d'attente, puis pendant toute la partie
+  const chat = onl && !S.soloChrono && ["s-lobby", "s-game", "s-million", "s-load", "s-imp"].includes(id); // le chat : dès la salle d'attente, puis pendant toute la partie
   if (id !== "s-imp") imp.stop(); // le compte à rebours de l'Imposteur s'arrête en quittant son écran
   if (!chat) try { online.closeReacts(); } catch {}
   $("reactFab").hidden = !chat;
@@ -98,6 +98,7 @@ function show(id) {
 const ONLINE_NAMES = { survie: "Survie en ligne", chrono: "Chrono en ligne", million: "Qui veut gagner des millions en ligne", equipes: "Équipes en ligne", parieurs: "Les Parieurs", imposteur: "L'Imposteur en ligne", royale: "Le Dernier Debout" };
 function playingName(id) {
   let on = false; try { on = online.active(); } catch {}
+  if (on && S.soloChrono) return ["s-game", "s-load", "s-end"].includes(id) ? "Chrono" : null;
   if (on) { const k = (online.cfg() || {}).kind; return ["s-lobby", "s-game", "s-million", "s-load", "s-imp", "s-level", "s-end"].includes(id) ? ONLINE_NAMES[k] || "En ligne" : null; }
   if (id === "s-daily") return "Défi du jour";
   if ((PLAYING.includes(id) || id === "s-imp") && S.inGame !== false) return M() ? M().name : null;
@@ -1080,8 +1081,9 @@ const SECTIONS = {
     ["classic"], ["qcm"], ["teams"], ["impostor"],
     ["million", "Qui veut gagner des millions", "À plusieurs : chacun son échelle de 15 questions et ses 3 jokers. Celui qui repart avec le plus gagne."]
   ]],
-  solosec: ["Solo", "Seul face aux questions : Solo et Qui veut gagner des millions.", [
+  solosec: ["Solo", "Seul face aux questions : Solo, Chrono et Qui veut gagner des millions.", [
     ["solo"],
+    ["chrono", "Chrono", "Seul contre la montre : 60 secondes pour marquer un maximum de points. La difficulté monte, les séries rapportent. Battez votre record !", "chrono"],
     ["million", "Qui veut gagner des millions", "Seul face à l'échelle : 15 questions, 3 jokers, des paliers sûrs. Visez le million !", true]
   ]]
 };
@@ -1111,7 +1113,7 @@ function openSection(key) {
   const grid = document.createElement("div"); grid.className = "modes";
   items.forEach(([id, name, desc, solo], i) => {
     const m = MODES[id];
-    grid.append(modeCard(id, name || m.name, desc || m.desc, () => (solo ? millionSolo() : chooseMode(id)), i));
+    grid.append(modeCard(id, name || m.name, desc || m.desc, () => (solo === "chrono" ? chronoSolo() : solo ? millionSolo() : chooseMode(id)), i));
   });
   $("subModes").replaceChildren(grid);
   show("s-sub");
@@ -1125,9 +1127,15 @@ function millionSolo() { // Millionnaire seul : on lance directement, à votre n
   startMillion();
 }
 
+// Chrono seul : la même partie que le Chrono en ligne (60 s, chrono en pause entre les questions, record),
+// dans un salon privé lancé tout de suite, sans salle d'attente
+function chronoSolo() {
+  S.mode = "chrono"; S.mSolo = false; S.soloChrono = true; S.editRoom = false; S.cfg.time = 60;
+  renderThemes(); show("s-themes");
+}
 function chooseMode(id) {
   S.mode = id;
-  S.mSolo = false;
+  S.mSolo = false; S.soloChrono = false;
   S.cfg.time = M().time;
   if (M().online) {
     $("onMsg").textContent = "";
@@ -1573,7 +1581,7 @@ $("cfYes").onclick = () => { $("confirm").hidden = true; const f = S.onYes; S.on
 $("btnResetLives").onclick = () => ask("Réinitialiser les vies ?", "Toutes les vies de tous les joueurs reviendront à 0.", "Réinitialiser", resetLives);
 document.querySelectorAll("[data-back]").forEach((b) => (b.onclick = () => {
   let t = b.dataset.back;
-  if (t === "auto") t = M().online ? "s-roomtype" : M().solo ? "s-mode" : M().teams ? "s-teams" : "s-names";
+  if (t === "auto") t = S.soloChrono ? "s-sub" : M().online ? "s-roomtype" : M().solo ? "s-mode" : M().teams ? "s-teams" : "s-names";
   if (t === "s-themes" && M().million) t = "s-roomtype"; // le Millionnaire n'a pas d'écran de thèmes
   if (t === "s-lobby") { S.editRoom = false; online.setEditing(false); }
   if (t === "s-mode" && S.menuSec && ["s-count", "s-themes"].includes(curScreen)) t = "s-sub"; // retour à la liste Party / Solo
@@ -1617,7 +1625,7 @@ $("btnTime").onclick = () => {
 function submitRoom() {
   const cfg = { auto: S.cfg.auto, kind: M().chrono ? "chrono" : M().million ? "million" : M().teams ? "equipes" : M().bets ? "parieurs" : M().impostor ? "imposteur" : M().royale ? "royale" : "survie", themes: [...S.active].filter((t) => !M().impostor || t !== SONG_THEME), time: S.cfg.time, lives: S.cfg.lives };
   if (S.editRoom) { S.editRoom = false; online.setEditing(false); online.config(cfg); } // l'hôte modifie la salle
-  else online.create(cfg);
+  else online.create(S.soloChrono ? { ...cfg, solo: true } : cfg); // Chrono seul : lancé tout de suite
 }
 $("btnStart").onclick = () => (M().online ? submitRoom() : startGame());
 $("btnRetry").onclick = () => (M().online ? online.retry() : M().million ? million.retry() : M().impostor ? impRound() : loadAndPlay());
@@ -1635,6 +1643,7 @@ $("btnDie").onclick = () => revive(false);
 $("btnUp").onclick = () => (M().online ? online.level(true) : chooseLevel(true));
 $("btnStay").onclick = () => (M().online ? online.level(false) : chooseLevel(false));
 $("btnAgain").onclick = () => {
+  if (M().online && S.soloChrono) { online.leave(); return submitRoom(); } // Chrono seul : on relance directement
   if (M().online) return online.again();
   if (M().million && S.mSolo) return millionSolo(); // Millionnaire seul : on relance directement
   if (M().solo) { renderThemes(); show("s-themes"); } else show("s-count"); // même mode, sans lancer la partie
@@ -1675,7 +1684,7 @@ function renderRoomModes(current) {
     box.append(b);
   });
 }
-$("btnRoomCreate").onclick = () => { S.editRoom = false; online.setEditing(false); renderRoomModes(null); show("s-roomtype"); };
+$("btnRoomCreate").onclick = () => { S.soloChrono = false; S.editRoom = false; online.setEditing(false); renderRoomModes(null); show("s-roomtype"); };
 $("btnRoomTypeBack").onclick = () => {
   if (S.editRoom) { S.editRoom = false; online.setEditing(false); show("s-lobby"); } // retour au salon sans rien changer
   else show("s-online");

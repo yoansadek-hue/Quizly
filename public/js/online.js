@@ -64,7 +64,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
   const api = {
     active: () => O.active,
     // on envoie les questions vues récemment : le serveur évite de les reposer
-    create: (cfg) => open({ t: "create", ...me(), hist: recent ? recent() : [], ...cfg }),
+    create: (cfg) => { O.soloStart = !!cfg.solo; return open({ t: "create", ...me(), hist: recent ? recent() : [], ...cfg }); }, // solo : partie lancée sans salle d'attente
     join: (code) => open({ t: "join", ...me(), hist: recent ? recent() : [], code: String(code || "").trim() }),
     leave() {
       clearSess(); O.reconnecting = false; O.dropAt = 0;
@@ -96,7 +96,13 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     if (O.inRoom) touchSess();
     if (noteQ && (m.t === "q" || m.t === "cq" || (m.t === "mq" && !m.watch))) noteQ({ q: m.q, img: m.img, audio: m.audio }); // mémorisée pour les prochaines parties
     switch (m.t) {
-      case "lobby": O.inRoom = true; O.you = m.you; O.host = m.host; O.cfg = m.cfg; saveSess(m); renderLobby(m); if (!O.editing) show("s-lobby"); break;
+      case "lobby":
+        O.inRoom = true; O.you = m.you; O.host = m.host; O.cfg = m.cfg; saveSess(m); renderLobby(m);
+        if (O.soloStart && m.host === m.you && m.phase === "lobby") { // Chrono seul : on lance tout de suite
+          O.soloStart = false; send({ t: "start" });
+          $("loadText").textContent = "Préparation du chrono…"; $("loadErr").hidden = true; show("s-load"); break;
+        }
+        if (!O.editing) show("s-lobby"); break;
       case "resume": // de retour dans la salle : l'écran de la partie suit
         O.inRoom = true; O.reconnecting = false; O.you = m.you; O.host = m.host; O.cfg = m.cfg; saveSess(m);
         if (setMode) setMode(m.cfg.kind);
@@ -459,6 +465,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
       if (mine && record) {
         const r = record(mine.points); // record personnel du Chrono, gardé sur l'appareil
         $("endNote").textContent = `${r.rec ? "Nouveau record ! " : ""}Vous : ${mine.points} pts · record : ${r.best} pts`;
+        if (m.ranking.length === 1) { $("endLead").textContent = "Score final"; $("winner").textContent = `${mine.points} pts`; } // Chrono seul
       }
     }
     if (mill) { // Millionnaire en ligne : votre gain compte pour votre record, comme seul
