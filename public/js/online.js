@@ -3,7 +3,7 @@ import { setFrame } from "./million.js";
 import { styleName, titleEl } from "./cosmetics.js";
 // Jeu en ligne : le serveur mène la partie, ce fichier affiche ce qu'il envoie.
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
-const PALETTE = ["#ffe14d", "#34e3b0", "#ff3b5c", "#62c7ff", "#c4b8ff", "#ffb36b", "#f6f3ff", "#9df0d4"]; // couleurs des jetons
+const PALETTE = ["#c6ff33", "#33e3ff", "#ff3d81", "#ff8a2b", "#9a63ff", "#ffcf3d", "#2bf59a", "#ff6bd5"]; // couleurs des jetons
 const HEART = "\u2665\uFE0E"; // cœur « texte » (jamais l'emoji rouge)
 
 export function initOnline({ $, show, flash, confetti, me, record, millionUI, avatarEl, setAudio, stat, setMode, noteQ, recent, addFriend, isFriend, imp, isChamp = () => false }) {

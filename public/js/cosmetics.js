@@ -1,6 +1,7 @@
 // Cosmétiques : on gagne des Q-Bucks en jouant, on les dépense dans la Boutique.
 // Cadre de photo, bulle de chat, bannière, titre et couleur du pseudo sont visibles par les autres joueurs ; le thème, seulement par vous.
 import { setFrame } from "./million.js";
+import { countUp, coinFly } from "./juice.js";
 
 // id : [catégorie, nom, prix, succès requis (article exclusif)]
 export const ITEMS = {
@@ -84,12 +85,14 @@ export function initCosmetics({ $, ask, uid, name, photo, achs, avatarEl, onChan
   // Q-Bucks gagnés en jouant (avec un petit « +5 » qui s'envole)
   function earn(n, why) {
     if (!uid() || !n) return;
-    write("coins", coins() + n);
-    $("coinCount").textContent = coins(); // le compteur du haut
+    const was = coins();
+    write("coins", was + n);
+    countUp($("coinCount"), coins(), { from: was, dur: 900 }); // le compteur du haut défile
     const t = $("coinPop");
     t.textContent = `+${n} Q-Buck${n > 1 ? "s" : ""}${why ? ` · ${why}` : ""}`;
     t.hidden = false; t.classList.remove("go"); void t.offsetWidth; t.classList.add("go");
     clearTimeout(t._t); t._t = setTimeout(() => (t.hidden = true), 1600);
+    coinFly(n, t); // les pièces filent vers le compteur
   }
   // rattrapage : les Q-Bucks qu'on aurait gagnés avant la Boutique (calcul sans doublon : on compare au total déjà gagné)
   function backpay(owed) {

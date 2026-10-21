@@ -10,8 +10,9 @@ import { enablePush, disablePush, pushMuted, pushState, currentSub } from "./pus
 import { initCosmetics, styleName, titleOf } from "./cosmetics.js";
 import { initQuests } from "./quests.js";
 import { impUI, IMP_PTS, answerMatches } from "./impostor.js";
+import { sfx, soundOn } from "./juice.js";
 
-const VERSION = "2.37.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "3.0.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -74,6 +75,11 @@ function userLabel() {
 }
 function show(id) {
   if (curScreen === "s-scan" && id !== "s-scan") stopScan(); // on coupe la caméra en quittant le scanner
+  if (id !== curScreen) { // le son des grands moments : le début d'une partie, un palier, la fin
+    if (id === "s-level") sfx("level");
+    else if (id === "s-end") sfx("whoosh");
+    else if (["s-game", "s-million", "s-imp", "s-daily", "s-lobby", "s-count"].includes(id) && !PLAYING.includes(curScreen)) sfx("go");
+  }
   curScreen = id;
   if (id === "s-lobby") { $("btnInvite").hidden = !friends.ready(); friends.hideInvitePanel(); } // inviter ses amis dans le salon
   if (id === "s-mode") { try { dailyCard(); } catch {} try { menuPushUI(); } catch {} }
@@ -107,6 +113,7 @@ function playingName(id) {
   return null;
 }
 function flash(kind) {
+  sfx(kind === "ok" ? "ok" : "ko");
   if (setting("vibrate")) { if (navigator.vibrate) navigator.vibrate(kind === "ok" ? 30 : [40, 60, 40]); else if (hapSw) hapSw.click(); } // réglage « vibrations » (iPhone : un tic)
   const fx = $("fx");
   fx.className = ""; void fx.offsetWidth; fx.className = kind;
@@ -116,11 +123,12 @@ function flash(kind) {
   }
 }
 function confetti() {
-  const cols = ["#ffe14d", "#34e3b0", "#ff3b5c", "#62c7ff", "#f6f3ff"];
+  sfx("win");
+  const cols = ["#c6ff33", "#33e3ff", "#ff3d81", "#ff8a2b", "#9a63ff", "#ffcf3d"];
   for (let n = 0; n < 60; n++) {
     const c = document.createElement("i");
     c.className = "conf";
-    c.style.cssText = `left:${Math.random() * 100}vw;background:${cols[n % 5]};--t:${2 + Math.random() * 2.5}s;animation-delay:${Math.random() * .8}s`;
+    c.style.cssText = `left:${Math.random() * 100}vw;background:${cols[n % cols.length]};--t:${2 + Math.random() * 2.5}s;--dx:${(Math.random() - .5) * 120}px;--rot:${(Math.random() < .5 ? -1 : 1) * (360 + Math.random() * 540)}deg;animation-delay:${Math.random() * .8}s`;
     document.body.append(c);
     setTimeout(() => c.remove(), 5500);
   }
@@ -523,7 +531,7 @@ function runTimer() {
   S.tid = setInterval(() => {
     S.left--;
     clock.textContent = Math.max(S.left, 0);
-    if (S.left <= warn) clock.classList.add("urgent");
+    if (S.left <= warn) { clock.classList.add("urgent"); if (S.left > 0) sfx(S.left % 2 ? "tick" : "tock"); }
     if (S.left <= 0) timeUp();
   }, 1000);
 }
@@ -1907,13 +1915,16 @@ $("btnDailyBack").onclick = openQuests;
 
 /* ---------- Paramètres (gardés sur cet appareil) ---------- */
 const SETKEY = "quizly:settings";
-const DEFAULTS = { autoplay: true, vibrate: true, calm: false, auto: true, dark: false };
+const DEFAULTS = { autoplay: true, vibrate: true, calm: false, auto: true, light: false, sound: true };
 function settings() { try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(SETKEY) || "{}") }; } catch { return { ...DEFAULTS }; } }
 function setting(k) { return settings()[k]; }
 function saveSetting(k, v) { const s2 = settings(); s2[k] = v; try { localStorage.setItem(SETKEY, JSON.stringify(s2)); } catch {} applySettings(); }
 function applySettings() {
-  if (setting("dark")) document.documentElement.dataset.mode = "dark"; else delete document.documentElement.dataset.mode; // mode sombre
+  const light = !!setting("light"); // ambiance claire (sinon le plateau de nuit)
+  if (light) document.documentElement.dataset.mode = "light"; else delete document.documentElement.dataset.mode;
+  const tc = document.querySelector('meta[name="theme-color"]'); if (tc) tc.content = light ? "#f3f1fb" : "#0a0916";
   document.body.classList.toggle("calm", !!setting("calm"));
+  soundOn(setting("sound"));
   S.cfg.auto = !!setting("auto"); // difficulté proposée par défaut avant chaque partie
 }
 function renderSettings() {
@@ -2151,7 +2162,7 @@ function achToast(title) {
   const el = $("achToast");
   $("achToastName").textContent = title;
   el.hidden = false; el.classList.remove("show"); void el.offsetWidth; el.classList.add("show");
-  confetti();
+  confetti(); sfx("unlock");
   clearTimeout(el._t); el._t = setTimeout(() => (el.hidden = true), 3200);
 }
 // la grille des succès (le vôtre ou celui d'un ami) : une carte par famille, avec son niveau (bronze, argent, or…)
