@@ -2,7 +2,6 @@
 import { avatarEl, setFrame } from "./million.js";
 import { euros, PRIZES, SAFE } from "./local.js";
 import { THEMES } from "./questions.js";
-import { sfx } from "./juice.js";
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -89,8 +88,6 @@ function renderLobby(m) {
   $("tLobbyInfo").textContent = m.players.length ? `${KIND[T.kind]} · ${plural(m.players.length, "joueur")}` : "";
   const host = T.pl[m.host];
   $("tWait").textContent = host ? `${host.name} choisit le mode et lance la partie…` : "Le premier qui scanne choisit le mode et lance la partie.";
-  if (m.players.length > (T.np || 0)) sfx("pop"); // un joueur arrive dans le salon
-  T.np = m.players.length;
   $("tPlayers").replaceChildren(...m.players.map((p) => { const c = el("span", "chip"); c.append(avatarEl(p.name, p.photo), document.createTextNode(p.name)); return c; }));
   T.who = null;
   show("tLobby");
@@ -108,7 +105,6 @@ function ring(arcId, clockId, ringId, sec, total) {
     $(arcId).style.strokeDashoffset = len * (1 - left / (total * 1000));
     $(clockId).textContent = s;
     $(ringId).classList.toggle("urgent", s <= 5);
-    if (s <= 5 && s > 0 && s !== T.tickS) { T.tickS = s; sfx(s % 2 ? "tick" : "tock"); } // les dernières secondes s'entendent
     if (left > 0) T.raf = requestAnimationFrame(tick);
   };
   tick();
@@ -119,7 +115,6 @@ function paint(m) {
   $("gVerdict").hidden = true;
   $("gTag").textContent = m.tag;
   const card = $("gCard"); card.classList.remove("enter"); void card.offsetWidth; card.classList.add("enter");
-  sfx("whoosh");
   $("gText").textContent = m.q;
   const im = $("gImg");
   if (m.img) { im.hidden = false; im.onerror = () => (im.hidden = true); im.src = m.img; } else { im.hidden = true; im.removeAttribute("src"); }
@@ -135,13 +130,13 @@ function reveal(answer, picked) {
     else b.classList.add("dim");
   });
 }
-function verdict(text, kind) { sfx(kind === "ok" ? "ok" : kind === "ko" ? "ko" : "pop"); const v = $("gVerdict"); v.className = `verdict ${kind}`; v.textContent = text; v.hidden = false; }
+function verdict(text, kind) { const v = $("gVerdict"); v.className = `verdict ${kind}`; v.textContent = text; v.hidden = false; }
 // écran « Au tour de… » quand le joueur change
 function splash(name, ph) {
   const s = $("gSplash");
   $("gSplashAv").replaceChildren(avatarEl(name, ph, true));
   $("gSplashName").textContent = name;
-  s.hidden = false; s.style.animation = "none"; void s.offsetWidth; s.style.animation = ""; sfx("go");
+  s.hidden = false; s.style.animation = "none"; void s.offsetWidth; s.style.animation = "";
   clearTimeout(T.splashT); T.splashT = setTimeout(() => (s.hidden = true), 1400);
 }
 
@@ -476,8 +471,7 @@ function renderEnd(m) {
   confetti();
 }
 function confetti() {
-  sfx("win");
-  const cols = ["#c6ff33", "#33e3ff", "#ff3d81", "#ff8a2b", "#9a63ff", "#ffcf3d"];
+  const cols = ["#ffe14d", "#34e3b0", "#ff3b5c", "#62c7ff", "#f6f3ff"];
   for (let i = 0; i < 90; i++) {
     const c = el("div", "conf");
     c.style.left = `${Math.random() * 100}vw`; c.style.background = cols[i % cols.length];

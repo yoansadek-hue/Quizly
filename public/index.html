@@ -3,26 +3,26 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<meta name="theme-color" content="#0a0916">
+<meta name="theme-color" content="#3b1d8f">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="apple-touch-icon" href="icons/icon-180.png?v=4">
-<link rel="icon" type="image/png" href="icons/icon-32.png?v=4">
+<link rel="apple-touch-icon" href="icons/icon-180.png?v=3">
+<link rel="icon" type="image/png" href="icons/icon-32.png?v=3">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@500;700;800&family=Unbounded:wght@700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
 <title>Quizly</title>
 <script>
-// avant le premier affichage : le thème de fond acheté et l'ambiance claire (gardés sur l'appareil),
+// avant le premier affichage : le thème de fond acheté et le mode sombre (gardés sur l'appareil),
 // pour ne jamais voir le fond de base une seconde au lancement
 try {
   var qs = JSON.parse(localStorage.getItem("quizly:session") || "null");
   var qc = qs && JSON.parse(localStorage.getItem("quizly:" + qs.uid + ":cos") || "null");
   if (qc && /^th-[a-z]+$/.test(qc.theme || "")) document.documentElement.dataset.theme = qc.theme;
   var qset = JSON.parse(localStorage.getItem("quizly:settings") || "{}");
-  if (qset.light) { document.documentElement.dataset.mode = "light"; document.querySelector('meta[name="theme-color"]').content = "#f3f1fb"; }
+  if (qset.dark) document.documentElement.dataset.mode = "dark";
 } catch (e) {}
 </script>
 <script>
@@ -238,13 +238,8 @@ addEventListener("error", function (e) {
       <button class="btn white sm" id="setEditMe">Modifier</button>
     </div>
     <div class="setgroup">
-      <h3 class="setg">Ambiance</h3>
-        <div class="setitem"><span class="sico c3"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><path stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></svg></span><div class="stxt"><b>Ambiance claire</b><small>Le plateau de nuit passe en plein jour : fond clair, mêmes couleurs vives.</small></div><input type="checkbox" class="tgl" data-set="light" aria-label="Ambiance claire"></div>
-        <div class="setitem"><span class="sico c4"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.47 4.47 0 0 0 2.5-4zM14 3.23v2.06a7 7 0 0 1 0 13.42v2.06A9 9 0 0 0 14 3.23z"/></svg></span><div class="stxt"><b>Sons</b><small>Les petits sons des réponses, des gains et des boutons.</small></div><input type="checkbox" class="tgl" data-set="sound" aria-label="Sons"></div>
-        <div class="setitem"><span class="sico c1"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 3a9 9 0 1 0 9 9A9 9 0 0 0 12 3zm-4 9h8v2H8v-2z"/></svg></span><div class="stxt"><b>Animations réduites</b><small>Moins de mouvements à l'écran.</small></div><input type="checkbox" class="tgl" data-set="calm" aria-label="Animations réduites"></div>
-    </div>
-    <div class="setgroup">
       <h3 class="setg">Notifications</h3>
+        <div class="setitem"><span class="sico c3"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M20.7 14.6A8.5 8.5 0 0 1 9.4 3.3a8.5 8.5 0 1 0 11.3 11.3z"/></svg></span><div class="stxt"><b>Mode sombre</b><small>Un fond presque noir et des cartes sombres, plus doux pour les yeux le soir.</small></div><input type="checkbox" class="tgl" data-set="dark" aria-label="Mode sombre"></div>
         <div class="setitem"><span class="sico c1"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22zm7-6V11a7 7 0 0 0-5.5-6.84V3.5a1.5 1.5 0 0 0-3 0v.66A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2z"/></svg></span><div class="stxt"><b>Notifications</b><small id="setPushTxt"></small></div><input type="checkbox" class="tgl" id="setPushTgl" aria-label="Notifications"><span class="schip" id="setPushChip"></span></div>
     </div>
     <div class="setgroup">
@@ -252,6 +247,7 @@ addEventListener("error", function (e) {
         <div class="setitem" id="setDiffRow"><span class="sico c2"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M3 20h4v-6H3v6zm7 0h4V9h-4v11zm7-16v16h4V4h-4z"/></svg></span><div class="stxt"><b>Difficulté par défaut</b><small>Évolutive : elle monte toute seule à chaque tour.</small></div><div class="seg" id="setDiff"><button data-v="1">Évolutive</button><button data-v="0">Au choix</button></div></div>
         <div class="setitem"><span class="sico c3"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg></span><div class="stxt"><b>Extraits musicaux</b><small>Lancer l'extrait tout seul dans « Devine la chanson ».</small></div><input type="checkbox" class="tgl" data-set="autoplay" aria-label="Lecture automatique"></div>
         <div class="setitem" id="setVibRow"><span class="sico c4"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M7 4h10a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zm1 2v12h8V6H8zM2 9h2v6H2V9zm18 0h2v6h-2V9z"/></svg></span><div class="stxt"><b>Vibrations</b><small id="setVibTxt">Une petite vibration à chaque réponse.</small></div><input type="checkbox" class="tgl" data-set="vibrate" aria-label="Vibrations"></div>
+        <div class="setitem"><span class="sico c1"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 3a9 9 0 1 0 9 9A9 9 0 0 0 12 3zm-4 9h8v2H8v-2z"/></svg></span><div class="stxt"><b>Animations réduites</b><small>Moins de mouvements à l'écran.</small></div><input type="checkbox" class="tgl" data-set="calm" aria-label="Animations réduites"></div>
     </div>
     <div class="setgroup">
       <h3 class="setg">En ligne</h3>

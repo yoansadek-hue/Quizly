@@ -207,7 +207,7 @@ export function millionLocal({ $, show, flash, ask, ui, getQ, onEnd, stat, photo
 // cadre équipé par chaque joueur (cosmétique), retrouvé par son nom
 const FRAMES = new Map();
 export function setFrame(name, frame) { if (name) { if (frame && frame !== "fr-ink") FRAMES.set(String(name), String(frame).replace(/[^a-z-]/g, "")); else FRAMES.delete(String(name)); } }
-const AV_COLORS = ["#c6ff33", "#33e3ff", "#ff3d81", "#9a63ff", "#ff8a2b", "#ffcf3d"];
+const AV_COLORS = ["#ffe14d", "#34e3b0", "#ff3b5c", "#62c7ff", "#c4b8ff", "#ffb36b"];
 export function avatarEl(name, photo, big) {
   const fr = FRAMES.get(String(name || ""));
   const cls = "avatar" + (big ? " big" : "") + (fr ? ` ${fr}` : "");
