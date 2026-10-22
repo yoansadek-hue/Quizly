@@ -220,7 +220,7 @@ function renderSprint(m) {
     run.style.setProperty("--d", d);
     run.classList.toggle("rev", d > 0.7);
     lane.classList.toggle("out", !!p.left);
-    lane.classList.toggle("lead", i === 0 && p.dist > 0);
+    lane.classList.toggle("ahead", i === 0 && p.dist > 0);
     lane.querySelector(".tpos").textContent = p.left ? "" : i === 0 ? "1er" : `${i + 1}e`;
     const was = prev.find((x) => x.id === p.id);
     if (was && was.dist !== p.dist) { run.classList.remove("leap", "trip"); void run.offsetWidth; run.classList.add(p.dist > was.dist ? "leap" : "trip"); }
