@@ -1616,3 +1616,9 @@ html[data-mode=dark] ol > li.rk:nth-child(-n+3){color:var(--ink);--muted:#5b4a8f
 :is(#roomModes,#subModes) .mode[data-m]:last-child:nth-child(odd){display:flex;align-items:flex-start;min-height:84px}
 :is(#roomModes,#subModes) .mode[data-m]:last-child:nth-child(odd)::after{width:110px;height:110px;bottom:-30px;right:-6px}
 :is(#roomModes,#subModes) .mode[data-m] strong{text-wrap:balance}
+
+/* les grandes cartes de l'accueil : exactement les couleurs vives d'avant, pleines */
+#modes .mode[data-m=online]{--mc:var(--mint)}
+#modes .mode[data-m=party]{--mc:var(--coral)}
+#modes .mode[data-m=solosec]{--mc:var(--sun)}
+#modes .mode[data-m]{background:var(--mc)}
