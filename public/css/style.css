@@ -1572,3 +1572,32 @@ html[data-mode=dark] ol > li.rk:nth-child(-n+3){color:var(--ink);--muted:#5b4a8f
   #modes .mode strong{font-size:42px}
   #modes .mode[data-m]::after{width:240px;height:240px}
 }
+
+/* Mode du salon : une grille de petites cartes, l'essentiel en un coup d'œil (la règle complète au survol) */
+#roomModes{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+#roomModes .mode[data-m]{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:4px;min-height:0;padding:14px 12px 14px 14px;border-radius:22px}
+#roomModes .mode[data-m]::before{align-self:flex-start;width:42px;height:42px;border-radius:13px;background-size:22px;margin-bottom:6px}
+/* le dernier (9e) prend toute la largeur, en ligne : la grille reste pleine */
+#roomModes .mode[data-m]:last-child:nth-child(odd){grid-column:1 / -1;display:grid;grid-template-columns:42px 1fr;column-gap:12px;align-items:center}
+#roomModes .mode[data-m]:last-child:nth-child(odd)::before{grid-row:1 / span 2;align-self:center;margin:0}
+#roomModes .mode strong{font-size:17px;line-height:1.1;margin:0}
+#roomModes .mode span{font-size:13px;line-height:1.3}
+#roomModes .mode.cur{outline:3px solid var(--sun);outline-offset:3px}
+#roomModes .mode.cur strong::after{content:"actuel";display:inline-block;margin-left:6px;padding:1px 7px;border-radius:99px;background:var(--ink);color:var(--sun);font:800 10px var(--font);vertical-align:middle}
+@media (min-width:700px){#roomModes{grid-template-columns:repeat(3,1fr);gap:16px} #roomModes .mode strong{font-size:21px} #roomModes .mode span{font-size:15px}}
+
+/* Mode du salon : toutes les cartes comme L'Imposteur (fond nuit, contour, ombre, pastille et titre dans la couleur du mode) */
+#roomModes .mode[data-m=survie]{--mc:var(--mint)}
+#roomModes .mode[data-m=chrono]{--mc:var(--peach)}
+#roomModes .mode[data-m=teams]{--mc:var(--coral)}
+#roomModes .mode[data-m=bets]{--mc:var(--sky)}
+#roomModes .mode[data-m=duel]{--mc:#c79bff}
+#roomModes .mode[data-m=sprint]{--mc:var(--sun)}
+#roomModes .mode[data-m=royale]{--mc:#ff7a45}
+#roomModes .mode[data-m=impostor]{--mc:var(--coral)}
+#roomModes .mode[data-m=million]{--mc:var(--sun)}
+#roomModes .mode[data-m]{background:linear-gradient(135deg,#34207a,#120833);color:var(--mc);border-color:var(--mc);box-shadow:0 6px 0 var(--mc)}
+#roomModes .mode[data-m] strong{color:var(--mc)}
+#roomModes .mode[data-m] span{color:var(--lilac)}
+#roomModes .mode[data-m]::before{background-color:var(--mc);border-color:var(--ink);box-shadow:none}
+#roomModes .mode[data-m]:active{box-shadow:0 2px 0 var(--mc)}

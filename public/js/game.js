@@ -11,7 +11,7 @@ import { initCosmetics, styleName, titleOf } from "./cosmetics.js";
 import { initQuests } from "./quests.js";
 import { impUI, IMP_PTS, answerMatches } from "./impostor.js";
 
-const VERSION = "2.38.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.39.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -1658,25 +1658,27 @@ document.addEventListener("focusout", () => document.body.classList.remove("typi
 // jeu en ligne : créer / rejoindre une salle
 // créer un salon : on choisit d'abord son mode (Survie ou Chrono)
 const ROOM_MODES = [
-  ["online", "survie", "Survie", "Chacun son tour, avec des vies. Le dernier en vie gagne."],
-  ["chrono", "chrono", "Chrono 60 s", "Tout le monde joue en même temps pendant 60 secondes. Le plus de points gagne."],
-  ["oteams", "teams", "Équipes", "Les joueurs sont répartis en équipes qui jouent chacune leur tour. Les points s'additionnent."],
-  ["obets", "bets", "Les Parieurs", "Chacun répond à son tour. Avant sa réponse, les autres parient leurs jetons : réussira-t-il ou non ? Le plus riche gagne."],
-  ["oduel", "duel", "Le Duel", "À deux : une corde au milieu, chaque bonne réponse la tire vers soi. Chacun ses questions, la vitesse compte. Le premier qui l'amène de son côté gagne, en 2 minutes."],
-  ["osprint", "sprint", "Le Sprint", "Jusqu'à 8 coureurs : 15 questions, les mêmes pour tous, chacun à son rythme. Vite et juste, c'est une grande foulée ; une erreur, on trébuche. Le premier sur la ligne gagne."],
-  ["oroyale", "royale", "Le Dernier Debout", "Jusqu'à 20 joueurs : tout le monde répond en même temps, une erreur et c'est fini. Le temps fond à chaque manche (15 s, 12 s, 10 s…). Le dernier debout gagne."],
-  ["oimp", "impostor", "L'Imposteur", "Tout le monde voit la bonne réponse sauf l'imposteur, qui doit faire semblant en discutant. Ensuite, on vote pour le démasquer."],
-  ["omillion", "million", "Qui veut gagner des millions", "La même échelle de 15 questions pour tous, chacun avec ses jokers. Celui qui repart avec le plus gagne."]
+  ["online", "survie", "Survie", "Chacun son tour, avec des vies. Le dernier en vie gagne.", "Chacun son tour, avec des vies"],
+  ["chrono", "chrono", "Chrono 60 s", "Tout le monde joue en même temps pendant 60 secondes. Le plus de points gagne.", "Tous en même temps, 60 secondes"],
+  ["oteams", "teams", "Équipes", "Les joueurs sont répartis en équipes qui jouent chacune leur tour. Les points s'additionnent.", "Par équipes, les points s'additionnent"],
+  ["obets", "bets", "Les Parieurs", "Chacun répond à son tour. Avant sa réponse, les autres parient leurs jetons : réussira-t-il ou non ? Le plus riche gagne.", "On mise sur la réponse des autres"],
+  ["oduel", "duel", "Le Duel", "À deux : une corde au milieu, chaque bonne réponse la tire vers soi. Chacun ses questions, la vitesse compte. Le premier qui l'amène de son côté gagne, en 2 minutes.", "À deux, chacun tire la corde"],
+  ["osprint", "sprint", "Le Sprint", "Jusqu'à 8 coureurs : 15 questions, les mêmes pour tous, chacun à son rythme. Vite et juste, c'est une grande foulée ; une erreur, on trébuche. Le premier sur la ligne gagne.", "Une course jusqu'à 8 joueurs"],
+  ["oroyale", "royale", "Le Dernier Debout", "Jusqu'à 20 joueurs : tout le monde répond en même temps, une erreur et c'est fini. Le temps fond à chaque manche (15 s, 12 s, 10 s…). Le dernier debout gagne.", "Une erreur et c'est fini"],
+  ["oimp", "impostor", "L'Imposteur", "Tout le monde voit la bonne réponse sauf l'imposteur, qui doit faire semblant en discutant. Ensuite, on vote pour le démasquer.", "Démasquez celui qui bluffe"],
+  ["omillion", "million", "Millionnaire", "La même échelle de 15 questions pour tous, chacun avec ses jokers. Celui qui repart avec le plus gagne.", "15 questions, visez le million"]
 ];
 const KIND_MODE = { survie: "online", chrono: "chrono", million: "omillion", equipes: "oteams", parieurs: "obets", imposteur: "oimp", royale: "oroyale", duel: "oduel", sprint: "osprint" };
 function renderRoomModes(current) {
   const box = $("roomModes");
   box.replaceChildren();
-  ROOM_MODES.forEach(([id, look, name, desc], i) => {
+  ROOM_MODES.forEach(([id, look, name, desc, tag], i) => {
     const b = document.createElement("button");
-    b.className = "mode"; b.dataset.m = look; b.style.animationDelay = `${i * 70}ms`;
-    const t = document.createElement("strong"); t.textContent = name + (current === id ? " · actuel" : "");
-    const d = document.createElement("span"); d.textContent = desc;
+    b.className = "mode"; b.dataset.m = look; b.style.animationDelay = `${i * 40}ms`;
+    b.title = desc; // la règle complète ; la carte n'en montre que l'essentiel
+    if (current === id) b.classList.add("cur");
+    const t = document.createElement("strong"); t.textContent = name;
+    const d = document.createElement("span"); d.textContent = tag;
     b.append(t, d);
     b.onclick = () => {
       const was = S.mode;
