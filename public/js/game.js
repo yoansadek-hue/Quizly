@@ -11,7 +11,7 @@ import { initCosmetics, styleName, titleOf } from "./cosmetics.js";
 import { initQuests } from "./quests.js";
 import { impUI, IMP_PTS, answerMatches } from "./impostor.js";
 
-const VERSION = "2.39.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.40.0"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -1089,6 +1089,11 @@ const SECTIONS = {
     ["million", "Qui veut gagner des millions", "Seul face à l'échelle : 15 questions, 3 jokers, des paliers sûrs. Visez le million !", true]
   ]]
 };
+// une phrase courte par mode, pour les grilles Party et Solo
+const SHORT = {
+  party: { classic: "À l'oral, le groupe valide", qcm: "4 choix, corrigé tout seul", teams: "Par équipes, sur un téléphone", impostor: "Démasquez celui qui bluffe", million: "Chacun son échelle, 3 jokers" },
+  solosec: { solo: "QCM, 3 vies, battez votre record", chrono: "60 secondes contre la montre", million: "15 questions, visez le million" }
+};
 function modeCard(id, name, desc, onClick, i) {
   const b = document.createElement("button");
   b.className = "mode"; b.dataset.m = id; b.style.animationDelay = `${i * 70}ms`;
@@ -1115,7 +1120,10 @@ function openSection(key) {
   const grid = document.createElement("div"); grid.className = "modes";
   items.forEach(([id, name, desc, solo], i) => {
     const m = MODES[id];
-    grid.append(modeCard(id, name || m.name, desc || m.desc, () => (solo === "chrono" ? chronoSolo() : solo ? millionSolo() : chooseMode(id)), i));
+    const tag = (SHORT[key] || {})[id]; // la carte n'en montre que l'essentiel ; la règle complète au survol
+    const c = modeCard(id, id === "million" ? "Millionnaire" : name || m.name, tag || desc || m.desc, () => (solo === "chrono" ? chronoSolo() : solo ? millionSolo() : chooseMode(id)), i);
+    c.title = desc || m.desc;
+    grid.append(c);
   });
   $("subModes").replaceChildren(grid);
   show("s-sub");
@@ -1659,7 +1667,7 @@ document.addEventListener("focusout", () => document.body.classList.remove("typi
 // créer un salon : on choisit d'abord son mode (Survie ou Chrono)
 const ROOM_MODES = [
   ["online", "survie", "Survie", "Chacun son tour, avec des vies. Le dernier en vie gagne.", "Chacun son tour, avec des vies"],
-  ["chrono", "chrono", "Chrono 60 s", "Tout le monde joue en même temps pendant 60 secondes. Le plus de points gagne.", "Tous en même temps, 60 secondes"],
+  ["chrono", "chrono", "Chrono 60\u00a0s", "Tout le monde joue en même temps pendant 60 secondes. Le plus de points gagne.", "Tous en même temps, 60 secondes"],
   ["oteams", "teams", "Équipes", "Les joueurs sont répartis en équipes qui jouent chacune leur tour. Les points s'additionnent.", "Par équipes, les points s'additionnent"],
   ["obets", "bets", "Les Parieurs", "Chacun répond à son tour. Avant sa réponse, les autres parient leurs jetons : réussira-t-il ou non ? Le plus riche gagne.", "On mise sur la réponse des autres"],
   ["oduel", "duel", "Le Duel", "À deux : une corde au milieu, chaque bonne réponse la tire vers soi. Chacun ses questions, la vitesse compte. Le premier qui l'amène de son côté gagne, en 2 minutes.", "À deux, chacun tire la corde"],
