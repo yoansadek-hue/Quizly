@@ -412,7 +412,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
     const order = [...m.list].filter((p) => !p.left).sort((a, b) => b.dist - a.dist || b.score - a.score);
     // un couloir par coureur, toujours dans le même ordre (l'ordre d'arrivée dans le salon) : on voit qui est en tête
     if (m.start || box.children.length !== m.list.length) box.replaceChildren(...m.list.map((p) => {
-      const lane = document.createElement("div"); lane.className = "slane" + (p.id === O.you ? " me" : ""); lane.dataset.id = p.id;
+      const lane = document.createElement("div"); lane.className = "slane" + (p.id === O.you ? " mine" : ""); lane.dataset.id = p.id;
       const run = document.createElement("span"); run.className = "srun";
       const nm = document.createElement("b"); nm.textContent = p.id === O.you ? "Vous" : p.name;
       run.append(avatarEl(p.name, p.photo || photoOf(p.id)), nm);
@@ -426,7 +426,7 @@ export function initOnline({ $, show, flash, confetti, me, record, millionUI, av
       run.style.setProperty("--d", d);
       run.classList.toggle("rev", d > 0.62); // le nom passe à gauche de l'avatar près de l'arrivée
       lane.classList.toggle("out", !!p.left);
-      lane.classList.toggle("lead", i === 0 && p.dist > 0);
+      lane.classList.toggle("ahead", i === 0 && p.dist > 0);
       lane.querySelector(".spos").textContent = p.left ? "" : rankTxt(i);
       const was = prev.find((x) => x.id === p.id);
       if (was && was.dist !== p.dist) { run.classList.remove("leap", "trip"); void run.offsetWidth; run.classList.add(p.dist > was.dist ? "leap" : "trip"); }

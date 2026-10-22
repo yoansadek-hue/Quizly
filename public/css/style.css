@@ -1490,21 +1490,21 @@ html[data-mode=dark] ol > li.rk:nth-child(-n+3){color:var(--ink);--muted:#5b4a8f
 .mode[data-m=duel]{background:linear-gradient(135deg,#62c7ff,#c79bff);color:var(--ink)}
 .mode[data-m=duel]::after{width:150px;height:14px;right:-20px;top:40%;border-radius:8px;background:repeating-linear-gradient(90deg,rgba(30,15,69,.18) 0 10px,rgba(30,15,69,.08) 10px 20px);transform:rotate(-12deg)}
 /* ---------- 2.37 : Le Sprint : la piste vue de haut ---------- */
-.sprint{position:relative;margin:4px 0 10px;padding:3px 26px 3px 4px;background:#c8553d;border:3px solid var(--ink);border-radius:16px;box-shadow:var(--edge-s);overflow:hidden}
+.sprint{position:relative;margin:4px 0 10px;padding:3px 44px 3px 4px;background:#c8553d;border:3px solid var(--ink);border-radius:16px;box-shadow:var(--edge-s);overflow:hidden}
 .sprint[hidden]{display:none}
-.sprint::after{content:"";position:absolute;top:0;bottom:0;right:12px;width:10px;background:repeating-conic-gradient(#fff 0 25%,#1e0f45 0 50%) 0 0/10px 10px} /* la ligne d'arrivée, en damier */
-.slane{position:relative;height:26px;border-bottom:2px dashed rgba(255,255,255,.5)}
+.sprint::after{content:"";position:absolute;top:0;bottom:0;right:34px;width:10px;background:repeating-conic-gradient(#fff 0 25%,#1e0f45 0 50%) 0 0/10px 10px} /* la ligne d'arrivée, en damier */
+.slane{position:relative;height:36px;border-bottom:2px dashed rgba(255,255,255,.5)}
 .slane:last-child{border-bottom:0}
-.slane.me{background:rgba(255,225,77,.28);border-radius:8px}
+.slane.mine{background:rgba(255,255,255,.14);border-radius:10px}
 .slane.out{opacity:.35}
-.srun{position:absolute;top:2px;left:calc((100% - 22px) * var(--d,0));display:flex;align-items:center;gap:4px;transition:left .6s cubic-bezier(.3,1.3,.5,1)}
-.srun .avatar{width:22px;height:22px;font-size:10px;flex:none}
+.srun{position:absolute;top:50%;margin-top:-13px;left:calc((100% - 26px) * var(--d,0));display:flex;align-items:center;gap:4px;transition:left .6s cubic-bezier(.3,1.3,.5,1)}
+.srun .avatar{width:26px;height:26px;font-size:12px;flex:none;border-width:2px;box-shadow:none} /* le cadre garde sa couleur, sans déborder du couloir */
 .srun b{font:800 10px var(--display);color:#fff;text-shadow:0 1px 0 rgba(30,15,69,.6);white-space:nowrap;max-width:70px;overflow:hidden;text-overflow:ellipsis}
-.srun.rev{flex-direction:row-reverse;transform:translateX(calc(-100% + 22px))}
-.slane.lead .srun .avatar{box-shadow:0 0 0 3px var(--sun)}
-.spos{position:absolute;right:-24px;top:50%;width:22px;margin-top:-7px;font:800 10px var(--display);font-style:normal;color:#fff;text-align:center;z-index:1}
+.srun.rev{flex-direction:row-reverse;transform:translateX(calc(-100% + 26px))}
+.slane.ahead .srun .avatar{box-shadow:0 0 0 2px var(--sun)}
+.spos{position:absolute;right:-44px;top:50%;width:32px;margin-top:-7px;font:800 10px var(--display);font-style:normal;color:#fff;text-align:center;z-index:1}
 .srun.leap{animation:leap .5s}
-@keyframes leap{40%{margin-top:-5px}}
+@keyframes leap{40%{margin-top:-18px}}
 .srun.trip .avatar{animation:trip .6s}
 @keyframes trip{25%{transform:rotate(-35deg) translateY(3px)}60%{transform:rotate(15deg)}}
 .slane.win .srun .avatar{animation:knotwin .9s cubic-bezier(.3,1.6,.5,1) 2}
