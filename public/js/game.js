@@ -11,7 +11,7 @@ import { initCosmetics, styleName, titleOf } from "./cosmetics.js";
 import { initQuests } from "./quests.js";
 import { impUI, IMP_PTS, answerMatches } from "./impostor.js";
 
-const VERSION = "2.40.2"; // à mettre à jour à chaque version (voir CHANGELOG.md)
+const VERSION = "2.40.3"; // à mettre à jour à chaque version (voir CHANGELOG.md)
 
 const $ = (id) => document.getElementById(id);
 const LEVELS = ["", "Facile", "Moyen", "Difficile", "Expert", "Légende"];
@@ -62,7 +62,7 @@ function saveRecord(points, k = "bestChrono") {
 
 /* ---------- Écrans & effets ---------- */
 // pendant une partie, le bouton du haut affiche « Quitter » au lieu de « Menu »
-const PLAYING = ["s-game", "s-million", "s-level", "s-revive", "s-load", "s-bet", "s-daily", "s-imp"];
+const PLAYING = ["s-game", "s-million", "s-level", "s-revive", "s-load", "s-daily", "s-imp"];
 let curScreen = "";
 function userLabel() {
   let on = false; try { on = online.active(); } catch {}
@@ -418,7 +418,6 @@ function startGame() {
   if (!m.solo) saveDB();
   saveRoster();
   S.retry = false; S.qn = 0; S.elim = 0; S.played = new Set(); S.asked = []; S.used = new Set(); S.inGame = true;
-  S.bet = 0; S.lastBet = undefined; S.betMsg = ""; // question à mise (Solo)
   if (m.teams) { // ordre de passage : A1, B1, A2, B2… (une petite équipe repasse plus souvent)
     S.players.forEach((p, i) => (p.team = S.teamOf[i]));
     const groups = Array.from({ length: S.nTeams }, (_, t) => S.players.map((p, i) => i).filter((i) => S.players[i].team === t));
@@ -458,7 +457,6 @@ async function loadAndPlay() {
     clearTimeout(slow);
     if (!S.inGame) return;
     S.q = q;
-    if (offerBet()) return; // Solo : parfois une question à mise, avant d'afficher la question
   } catch (e) {
     clearTimeout(slow);
     if (!S.inGame) return;
@@ -470,7 +468,6 @@ async function loadAndPlay() {
 
 function prepareCard() {
   const p = S.players[S.i], m = M();
-  const betMsg = S.betMsg; S.betMsg = ""; // résultat de la mise précédente (Solo)
   S.joker = false; S.locked = false;
   const card = $("card");
   card.style.transition = "none"; card.classList.remove("flipped"); delete card.dataset.seen;
@@ -479,7 +476,7 @@ function prepareCard() {
   $("alive").hidden = false;
   $("alive").textContent = m.teams ? teamLine(p)
     : m.solo
-    ? `${betMsg ? `${betMsg} · ` : ""}Points : ${p.points} · Série : ${p.streak || 0}${S.bet ? ` · Mise : ${S.bet} pts` : ""}`
+    ? `Points : ${p.points} · Série : ${p.streak || 0}`
     : `${n} joueur${n > 1 ? "s" : ""} en vie sur ${S.players.length}`;
   $("scene").classList.toggle("compact", m.qcm);
   $("liveBoard").hidden = true; // réservé au Chrono en ligne
@@ -622,11 +619,6 @@ function finish(correct, quiet) {
   const pl = S.players[S.i];
   if (correct) { pl.score++; pl.streak = (pl.streak || 0) + 1; pl.points += 10 * S.diff + (M().solo ? Math.min(pl.streak - 1, 5) * 5 : 0); } // 10 pts × niveau, + bonus de série en solo
   else pl.streak = 0;
-  if (S.bet) { // question à mise : on gagne ou on perd la mise
-    pl.points = Math.max(0, pl.points + (correct ? S.bet : -S.bet));
-    S.betMsg = correct ? `Mise gagnée : +${S.bet} pts` : `Mise perdue : −${S.bet} pts`; // affiché sur la question suivante
-    S.bet = 0;
-  }
   if (!quiet) flash(correct ? "ok" : "ko");
   setTimeout(() => resolve(correct), quiet ? 0 : 500);
 }
@@ -641,29 +633,6 @@ function resolve(correct) {
     $("lifeCount").textContent = p.lives;
     show("s-revive");
   } else { kill(p); afterTurn(); }
-}
-
-/* ---------- Question à mise (Solo) ---------- */
-// Environ une question sur quatre, à partir de la 3e et avec au moins 20 points.
-function offerBet() {
-  const p = S.players[S.i];
-  S.bet = 0;
-  if (!M().solo || S.retry || S.qn < 2 || p.points < 20 || S.qn - (S.lastBet ?? -9) < 3 || Math.random() > 0.25) return false;
-  S.lastBet = S.qn;
-  $("betTag").textContent = `${S.q.t} · ${LEVELS[S.diff]}`;
-  $("betInfo").textContent = `Vous avez ${p.points} pts. Bonne réponse : vous gagnez la mise en plus. Mauvaise : vous la perdez.`;
-  const box = $("betOpts");
-  box.replaceChildren();
-  [[0, "Ne pas miser", "white"], [0.25, "", "white"], [0.5, "", "sun"], [1, "", "coral"]].forEach(([k, label, look]) => {
-    const v = Math.round(p.points * k);
-    const b = document.createElement("button");
-    b.className = `btn ${look}`;
-    b.textContent = k ? `${k === 1 ? "Tout miser" : `Miser ${k * 100} %`} (${v} pts)` : label;
-    b.onclick = () => { S.bet = v; prepareCard(); };
-    box.append(b);
-  });
-  show("s-bet");
-  return true;
 }
 
 function revive(useLife) {
